@@ -45,6 +45,7 @@
     "nanoid": "^5.0.7",
     "next": "15.3.3",
     "patch-package": "^8.0.0",
+    "postcss": "^8",
     "qrcode.react": "^3.1.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
@@ -52,6 +53,7 @@
     "react-hook-form": "^7.54.2",
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
+    "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.2"
   },
@@ -60,8 +62,6 @@
     "@types/qrcode.react": "^1.0.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
 }
