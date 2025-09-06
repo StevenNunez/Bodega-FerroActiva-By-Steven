@@ -371,7 +371,7 @@ export default function AdminToolsPage() {
                                     <ScrollArea className="h-32">
                                         <ul className="space-y-1 pr-4">
                                             {checkoutState.tools.map(tool => (
-                                                <li key={tool.id} className="flex items-center justify-between text-sm bg-secondary p-2 rounded-md">
+                                                <li key={`cart-${tool.id}`} className="flex items-center justify-between text-sm bg-secondary p-2 rounded-md">
                                                     <span>{tool.name}</span>
                                                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeToolFromCart(tool.id)}>
                                                         <X className="h-4 w-4" />
