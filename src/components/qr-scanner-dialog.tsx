@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,10 +11,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { QrCode, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { useAppState } from "@/contexts/app-provider";
-import { useToast } from "@/hooks/use-toast";
-import type { ToolLog } from "@/lib/data";
+import { CheckCircle, VideoOff } from "lucide-react";
+import type { Html5Qrcode } from "html5-qrcode";
 
 interface QrScannerDialogProps {
   open: boolean;
@@ -22,7 +20,6 @@ interface QrScannerDialogProps {
   onScan: (qrCode: string) => void;
   title: string;
   description: string;
-  purpose?: string; // e.g., 'checkout-worker', 'checkout-tool', 'return-tool'
 }
 
 export function QrScannerDialog({
@@ -31,118 +28,113 @@ export function QrScannerDialog({
   onScan,
   title,
   description,
-  purpose,
 }: QrScannerDialogProps) {
-  const [isScanning, setIsScanning] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const [scanResult, setScanResult] = useState<"success" | "fail" | null>(null);
-  const { tools, users, toolLogs } = useAppState();
-  const { toast } = useToast();
-
-  const [availableQrCodes, setAvailableQrCodes] = useState<string[]>([]);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoContainerId = "qr-reader";
 
   useEffect(() => {
-    let relevantQRs: string[] = [];
-    const checkedOutToolsLogs: ToolLog[] = toolLogs.filter(log => log.returnDate === null);
-    const checkedOutToolIds: string[] = checkedOutToolsLogs.map(log => log.toolId);
+    if (open) {
+      // Import the library only on the client-side
+      import("html5-qrcode").then(({ Html5Qrcode }) => {
+        setCameraError(null);
+        setScanResult(null);
 
-    if (purpose === 'checkout-worker') {
-        relevantQRs = users.filter(u => u.role === 'worker' && u.qrCode).map(u => u.qrCode as string);
-    } else if (purpose === 'checkout-tool') {
-        relevantQRs = tools.filter(t => !checkedOutToolIds.includes(t.id) && t.qrCode).map(t => t.qrCode);
-    } else if (purpose === 'return-tool') {
-        relevantQRs = tools.filter(t => checkedOutToolIds.includes(t.id) && t.qrCode).map(t => t.qrCode);
-    } else {
-        const toolQRs = tools.map(t => t.qrCode);
-        const userQRs = users.map(u => u.qrCode).filter((qr): qr is string => !!qr);
-        relevantQRs = [...toolQRs, ...userQRs];
+        const qrScanner = new Html5Qrcode(videoContainerId);
+        scannerRef.current = qrScanner;
+
+        const startScanner = async () => {
+          try {
+            const cameras = await Html5Qrcode.getCameras();
+            if (cameras && cameras.length) {
+              await qrScanner.start(
+                { facingMode: "environment" },
+                {
+                  fps: 10,
+                  qrbox: { width: 250, height: 250 },
+                  aspectRatio: 1.0,
+                },
+                (decodedText) => {
+                  setScanResult("success");
+                  qrScanner.pause(true);
+                  setTimeout(() => {
+                    onScan(decodedText);
+                    onOpenChange(false);
+                  }, 1000);
+                },
+                (errorMessage) => {
+                  // Ignore errors, they happen continuously.
+                }
+              );
+            } else {
+                setCameraError("No se encontraron cámaras en este dispositivo.");
+            }
+          } catch (err: any) {
+            console.error("Error al iniciar el escaner:", err);
+            let message = "Hubo un error al iniciar la cámara.";
+            if(err.name === 'NotAllowedError') {
+                message = "Permiso de cámara denegado. Por favor, habilita el acceso en tu navegador.";
+            } else if (err.name === 'NotFoundError') {
+                 message = "No se encontró una cámara compatible.";
+            }
+            setCameraError(message);
+          }
+        };
+
+        startScanner();
+      });
+
+      return () => {
+        if (scannerRef.current && scannerRef.current.isScanning) {
+            scannerRef.current.stop().catch(err => console.error("Error al detener el escaner:", err));
+        }
+        setScanResult(null);
+        setCameraError(null);
+      };
     }
-    setAvailableQrCodes(relevantQRs);
-  }, [tools, users, toolLogs, purpose, open]);
-
-
-  const handleSimulateScan = () => {
-    if (availableQrCodes.length === 0) {
-        toast({variant: 'destructive', title: 'Error de Simulación', description: 'No hay códigos QR válidos para escanear en esta acción.'})
-        return;
-    }
-    setIsScanning(true);
-    setScanResult(null);
-    setTimeout(() => {
-      // Simulate a successful scan with a relevant QR code
-      setScanResult("success");
-      const mockQrCode = availableQrCodes[Math.floor(Math.random() * availableQrCodes.length)];
-      onScan(mockQrCode);
-      
-      setTimeout(() => {
-          onOpenChange(false);
-           // Reset state for the next time
-           setIsScanning(false);
-           setScanResult(null);
-      }, 1000); 
-
-    }, 1500);
-  };
+  }, [open, onScan, onOpenChange]);
 
   const handleClose = (isOpen: boolean) => {
     if (!isOpen) {
-      // Reset state when closing the dialog
-      setIsScanning(false);
-      setScanResult(null);
+       if (scannerRef.current && scannerRef.current.isScanning) {
+          scannerRef.current.stop().catch(err => console.error("Error al detener escaner al cerrar", err));
+       }
+       setScanResult(null);
+       setCameraError(null);
     }
     onOpenChange(isOpen);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent onInteractOutside={(e) => { if(isScanning) e.preventDefault(); }} className="sm:max-w-[425px]">
+      <DialogContent onInteractOutside={(e) => { if(scannerRef.current?.isScanning) e.preventDefault(); }} className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="my-4 flex aspect-square w-full items-center justify-center rounded-lg bg-slate-900">
-          <div className="relative h-48 w-48 overflow-hidden rounded-md">
-             {isScanning && !scanResult && (
-                <div className="absolute top-0 left-0 h-full w-full">
-                    <div className="h-full w-full animate-[scan_2s_ease-in-out_infinite] bg-gradient-to-b from-transparent via-primary/50 to-transparent"></div>
-                </div>
-             )}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {!isScanning && <QrCode className="h-24 w-24 text-slate-600" />}
-              {isScanning && !scanResult && <Loader2 className="h-16 w-16 animate-spin text-slate-400" />}
-              {scanResult === 'success' && <CheckCircle className="h-24 w-24 text-green-500" />}
-              {scanResult === 'fail' && <XCircle className="h-24 w-24 text-destructive" />}
+        <div className="my-4 flex aspect-square w-full items-center justify-center rounded-lg bg-slate-900 overflow-hidden">
+            <div id={videoContainerId} className="w-full h-full relative">
+                {cameraError && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white p-4">
+                        <VideoOff className="h-16 w-16 text-destructive mb-4"/>
+                        <p className="font-semibold">Error de Cámara</p>
+                        <p className="text-sm">{cameraError}</p>
+                    </div>
+                )}
+                {scanResult === 'success' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-green-500/80">
+                        <CheckCircle className="h-24 w-24 text-white" />
+                    </div>
+                )}
             </div>
-            <div className="absolute top-0 left-0 border-l-4 border-t-4 border-slate-400 w-8 h-8 rounded-tl-md"></div>
-            <div className="absolute top-0 right-0 border-r-4 border-t-4 border-slate-400 w-8 h-8 rounded-tr-md"></div>
-            <div className="absolute bottom-0 left-0 border-l-4 border-b-4 border-slate-400 w-8 h-8 rounded-bl-md"></div>
-            <div className="absolute bottom-0 right-0 border-r-4 border-b-4 border-slate-400 w-8 h-8 rounded-br-md"></div>
-          </div>
         </div>
         <DialogFooter>
-          <Button type="button" variant="secondary" onClick={() => handleClose(false)} disabled={isScanning}>
+          <Button type="button" variant="secondary" onClick={() => handleClose(false)}>
             Cancelar
-          </Button>
-          <Button type="button" onClick={handleSimulateScan} disabled={isScanning}>
-            {isScanning ? (scanResult === 'fail' ? 'Intente de nuevo' : 'Escaneando...') : 'Simular Escaneo'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
-
-const styles = `
-@keyframes scan {
-  0% { transform: translateY(-100%); }
-  50% { transform: translateY(100%); }
-  100% { transform: translateY(-100%); }
-}
-`;
-
-// Inject styles into the document head
-if (typeof document !== 'undefined') {
-    const styleSheet = document.createElement("style");
-    styleSheet.type = "text/css";
-    styleSheet.innerText = styles;
-    document.head.appendChild(styleSheet);
 }
