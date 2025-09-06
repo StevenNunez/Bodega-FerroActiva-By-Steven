@@ -21,6 +21,9 @@ export interface Material {
   id: string;
   name: string;
   stock: number;
+  unit: string;
+  category: string;
+  supplierId?: string | null; // Preferred supplier
 }
 
 export interface MaterialRequest {

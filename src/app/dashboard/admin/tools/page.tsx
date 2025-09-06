@@ -59,8 +59,9 @@ export default function AdminToolsPage() {
 
     const isToday = (date: Date | Timestamp) => {
         const d = getDate(date);
-        d.setHours(0,0,0,0);
-        return d.getTime() === today.getTime();
+        const dCopy = new Date(d.getTime());
+        dCopy.setHours(0,0,0,0);
+        return dCopy.getTime() === today.getTime();
     }
 
     const materialEntries: DailyMovement[] = purchaseRequests
@@ -225,7 +226,6 @@ export default function AdminToolsPage() {
     }
   }
 
-
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title="Gestión de Herramientas" description="Administra el inventario y el ciclo de vida de las herramientas." />
@@ -308,7 +308,7 @@ export default function AdminToolsPage() {
                                     <TableHead>Tipo</TableHead>
                                     <TableHead>Descripción</TableHead>
                                     <TableHead>Responsable/Trabajador</TableHead>
-                                    <TableHead>Hora</TableHead>
+                                    <TableHead>Fecha y Hora</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -318,7 +318,7 @@ export default function AdminToolsPage() {
                                        <TableCell>{getMovementBadge(log.type)}</TableCell>
                                        <TableCell className="font-medium">{log.description}</TableCell>
                                        <TableCell>{log.user}</TableCell>
-                                       <TableCell>{log.date.toLocaleTimeString()}</TableCell>
+                                       <TableCell className="font-mono text-xs">{log.date.toLocaleString()}</TableCell>
                                    </TableRow>
                                 ))) : (
                                 <TableRow>

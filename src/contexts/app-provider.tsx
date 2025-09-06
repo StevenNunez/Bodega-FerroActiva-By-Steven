@@ -30,7 +30,8 @@ import {
     where,
     getDoc,
     deleteDoc,
-    getDocs
+    getDocs,
+    setDoc
 } from "firebase/firestore";
 
 // Helper to convert Firestore Timestamps to JS Date objects
@@ -71,7 +72,8 @@ interface AppStateContextType {
   approveRequest: (requestId: string) => Promise<void>;
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
   returnTool: (logId: string) => Promise<void>;
-  addMaterial: (name: string, stock: number) => Promise<void>;
+  addMaterial: (material: Omit<Material, "id">) => Promise<void>;
+  updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
   addPurchaseRequest: (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => Promise<void>;
   updatePurchaseRequestStatus: (id: string, status: PurchaseRequestStatus) => Promise<void>;
   receivePurchaseRequest: (purchaseRequestId: string) => Promise<void>;
@@ -163,12 +165,12 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Initial Materials
-    const initialMaterials = [
-        { name: "Cemento Portland 25kg", stock: 200 },
-        { name: "Arena Fina (saco)", stock: 150 },
-        { name: "Grava (saco)", stock: 150 },
-        { name: "Ladrillo Fiscal", stock: 5000 },
-        { name: "Fierro Estriado 8mm", stock: 80 },
+    const initialMaterials: Omit<Material, 'id'>[] = [
+      { name: 'Cemento Portland', stock: 200, unit: 'saco', category: 'Hormigón y Cemento', supplierId: null },
+      { name: 'Arena Fina', stock: 150, unit: 'saco', category: 'Hormigón y Cemento', supplierId: null },
+      { name: 'Grava', stock: 150, unit: 'saco', category: 'Hormigón y Cemento', supplierId: null },
+      { name: 'Ladrillo Fiscal', stock: 5000, unit: 'un', category: 'Misceláneos', supplierId: null },
+      { name: 'Fierro Estriado 8mm', stock: 80, unit: 'un', category: 'Fierros y Acero', supplierId: null },
     ];
     initialMaterials.forEach(material => {
         const materialRef = doc(collection(db, "materials"));
@@ -215,9 +217,15 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   }
   
-  const addMaterial = async (name: string, stock: number) => {
-    await addDoc(collection(db, "materials"), { name, stock });
+  const addMaterial = async (material: Omit<Material, "id">) => {
+    await addDoc(collection(db, "materials"), material);
   }
+  
+  const updateMaterial = async (materialId: string, data: Partial<Omit<Material, 'id'>>) => {
+      const materialRef = doc(db, "materials", materialId);
+      await updateDoc(materialRef, data);
+  }
+
 
   const addRequest = async (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => {
     await addDoc(collection(db, "requests"), {
@@ -292,7 +300,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (materialsSnapshot.empty) {
         // Material no existe, crearlo
         const newMaterialRef = doc(collection(db, "materials"));
-        batch.set(newMaterialRef, { name: req.materialName, stock: req.quantity });
+        batch.set(newMaterialRef, { 
+            name: req.materialName, 
+            stock: req.quantity,
+            unit: req.unit,
+            category: req.category,
+            supplierId: null,
+        });
     } else {
         // Material existe, actualizar stock
         const existingMaterialRef = materialsSnapshot.docs[0].ref;
@@ -399,6 +413,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     checkoutTool,
     returnTool,
     addMaterial,
+    updateMaterial,
     addPurchaseRequest,
     updatePurchaseRequestStatus,
     receivePurchaseRequest,

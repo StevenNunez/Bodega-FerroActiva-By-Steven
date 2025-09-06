@@ -9,12 +9,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { CreateMaterialForm } from "@/components/admin/create-material-form";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PackageCheck, PackageOpen } from "lucide-react";
+import { PackageCheck, PackageOpen, Edit } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
+import { Material } from "@/lib/data";
+import { EditMaterialForm } from "@/components/admin/edit-material-form";
+import { Button } from "@/components/ui/button";
 
 export default function AdminMaterialsPage() {
-  const { materials, purchaseRequests, users, requests } = useAppState();
+  const { materials, purchaseRequests, users, requests, suppliers } = useAppState();
   const [searchTerm, setSearchTerm] = useState("");
+  const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+
 
   const filteredMaterials = useMemo(() => {
     if (!searchTerm) {
@@ -34,7 +39,7 @@ export default function AdminMaterialsPage() {
     return purchaseRequests
         .filter(pr => pr.status === 'received' && pr.receivedAt)
         .sort((a, b) => getDate(b.receivedAt!)!.getTime() - getDate(a.receivedAt!)!.getTime())
-        .slice(0, 10);
+        .slice(0, 5);
   }, [purchaseRequests]);
 
   const recentApprovedRequests = useMemo(() => {
@@ -43,6 +48,11 @@ export default function AdminMaterialsPage() {
         .sort((a,b) => getDate(b.createdAt)!.getTime() - getDate(a.createdAt)!.getTime())
         .slice(0, 5);
   }, [requests]);
+  
+  const getSupplierName = (supplierId: string | null | undefined) => {
+      if (!supplierId) return 'N/A';
+      return suppliers.find(s => s.id === supplierId)?.name || 'Desconocido';
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -50,6 +60,14 @@ export default function AdminMaterialsPage() {
         title="Gestión de Materiales"
         description="Administra el inventario de materiales de la bodega."
       />
+      
+      {editingMaterial && (
+          <EditMaterialForm
+            material={editingMaterial}
+            isOpen={!!editingMaterial}
+            onClose={() => setEditingMaterial(null)}
+          />
+      )}
 
       <div className="grid gap-8 grid-cols-1 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -68,8 +86,12 @@ export default function AdminMaterialsPage() {
                         <Table>
                             <TableHeader className="sticky top-0 bg-card">
                                 <TableRow>
-                                    <TableHead>Nombre del Material</TableHead>
-                                    <TableHead className="text-right">Stock Disponible</TableHead>
+                                    <TableHead>Nombre</TableHead>
+                                    <TableHead>Categoría</TableHead>
+                                    <TableHead>Proveedor</TableHead>
+                                    <TableHead className="text-center">Unidad</TableHead>
+                                    <TableHead className="text-right">Stock</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -77,12 +99,20 @@ export default function AdminMaterialsPage() {
                                     filteredMaterials.map(material => (
                                         <TableRow key={material.id}>
                                             <TableCell className="font-medium">{material.name}</TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{material.category}</TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{getSupplierName(material.supplierId)}</TableCell>
+                                            <TableCell className="text-center font-mono text-xs">{material.unit}</TableCell>
                                             <TableCell className="text-right font-mono">{material.stock.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" onClick={() => setEditingMaterial(material)}>
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={2} className="h-24 text-center">
+                                        <TableCell colSpan={6} className="h-24 text-center">
                                             No se encontraron materiales.
                                         </TableCell>
                                     </TableRow>
@@ -109,7 +139,7 @@ export default function AdminMaterialsPage() {
                     <CardDescription>Las 5 solicitudes de material más recientes que fueron aprobadas.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <ScrollArea className="h-72">
+                    <ScrollArea className="h-[20rem]">
                     {recentApprovedRequests.length > 0 ? (
                         <ul className="space-y-3 pr-4">
                             {recentApprovedRequests.map(req => {
@@ -127,7 +157,7 @@ export default function AdminMaterialsPage() {
                             )})}
                         </ul>
                     ) : (
-                            <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-72">
+                            <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
                             <p>No hay salidas recientes.</p>
                         </div>
                     )}
@@ -140,8 +170,8 @@ export default function AdminMaterialsPage() {
                     <CardDescription>Registro de los materiales de compra más recientes marcados como recibidos.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    <ScrollArea className="h-[20rem]">
                     {recentReceived.length > 0 ? (
-                        <ScrollArea className="h-72">
                             <ul className="space-y-3 pr-4">
                                 {recentReceived.map(req => {
                                     const supervisor = users.find(u => u.id === req.supervisorId);
@@ -159,12 +189,12 @@ export default function AdminMaterialsPage() {
                                     )
                                 })}
                             </ul>
-                        </ScrollArea>
                     ) : (
-                        <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-72">
+                        <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
                             <p>No hay ingresos recientes.</p>
                         </div>
                     )}
+                    </ScrollArea>
                 </CardContent>
              </Card>
         </div>
