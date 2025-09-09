@@ -1,14 +1,14 @@
 
-
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "admin" | "supervisor" | "worker" | "operations";
 
 export interface User {
-  id: string;
+  id: string; // Corresponds to Firebase Auth UID
   name: string;
+  email: string;
   role: UserRole;
-  qrCode?: string | null;
+  qrCode: string;
 }
 
 export interface Tool {
@@ -62,6 +62,8 @@ export interface ToolLog {
   checkoutDate: Date | Timestamp;
   returnDate: Date | Timestamp | null;
   supervisorId: string;
+  returnCondition?: 'ok' | 'damaged';
+  returnNotes?: string;
 }
 
 export interface Supplier {
@@ -89,5 +91,8 @@ export const MATERIAL_CATEGORIES = [
     "Pinturas y Adhesivos",
     "Seguridad y EPP",
     "Herramientas Menores",
+    "Fijaciones y Tornillería",
+    "Sanitarios y Grifería",
+    "Limpieza y Aseo",
     "Misceláneos"
 ]

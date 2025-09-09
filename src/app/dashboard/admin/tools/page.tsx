@@ -8,15 +8,20 @@ import { useAppState, useAuth } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRightLeft, User, Wrench, Check, ArrowRight, Undo2, Ban, History, ArrowDown, ArrowUp, ArrowLeftRight, X, Trash2 } from "lucide-react";
+import { ArrowRightLeft, User, Wrench, Check, ArrowRight, Undo2, Ban, History, ArrowDown, ArrowUp, ArrowLeftRight, X, Trash2, AlertTriangle, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { GenerateToolForm } from "@/components/admin/generate-tool-form";
-import type { User as UserType, Tool as ToolType, PurchaseRequest, MaterialRequest } from "@/lib/data";
+import type { User as UserType, Tool as ToolType, PurchaseRequest, MaterialRequest, ToolLog } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { QRCodeSVG } from "qrcode.react";
 import { Timestamp } from "firebase/firestore";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const QrScannerDialog = dynamic(() => import('@/components/qr-scanner-dialog').then(mod => mod.QrScannerDialog), { ssr: false });
 
@@ -28,6 +33,7 @@ type DailyMovement = {
     date: Date;
     description: string;
     user: string;
+    log?: ToolLog;
 };
 
 export default function AdminToolsPage() {
@@ -40,6 +46,9 @@ export default function AdminToolsPage() {
   
   const [checkoutState, setCheckoutState] = useState<{worker?: UserType, tools: ToolType[]}>({ tools: [] });
   
+  const [isDamaged, setIsDamaged] = useState(false);
+  const [returnNotes, setReturnNotes] = useState('');
+
   const checkedOutTools = useMemo(() => toolLogs.filter(log => log.returnDate === null), [toolLogs]);
 
   const getToolCheckoutInfo = (toolId: string) => {
@@ -53,7 +62,7 @@ export default function AdminToolsPage() {
       return date instanceof Timestamp ? date.toDate() : date;
   }
 
-  const dailyMovements = useMemo(() => {
+  const dailyMovements = useMemo((): DailyMovement[] => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -92,6 +101,7 @@ export default function AdminToolsPage() {
             date: getDate(log.checkoutDate),
             description: tools.find(t => t.id === log.toolId)?.name || 'N/A',
             user: users.find(u => u.id === log.workerId)?.name || 'N/A',
+            log,
         }));
 
     const toolReturns: DailyMovement[] = toolLogs
@@ -100,8 +110,9 @@ export default function AdminToolsPage() {
             id: `tin-${log.id}`,
             type: 'Entrada Herramienta',
             date: getDate(log.returnDate!),
-            description: tools.find(t => t.id === log.toolId)?.name || 'N/A',
+            description: tools.find(t => t.id === log.toolId)?.name || 'NA',
             user: users.find(u => u.id === log.workerId)?.name || 'N/A',
+            log,
         }));
     
     return [...materialEntries, ...materialExits, ...toolCheckouts, ...toolReturns]
@@ -149,9 +160,11 @@ export default function AdminToolsPage() {
         const logToReturn = tool ? checkedOutTools.find(log => log.toolId === tool.id) : undefined;
         
         if (logToReturn && authUser) {
-          await returnTool(logToReturn.id);
+          await returnTool(logToReturn.id, isDamaged ? 'damaged' : 'ok', returnNotes);
           const returnedTool = tools.find(t => t.id === logToReturn.toolId);
           toast({ title: 'Devolución Registrada', description: `Herramienta ${returnedTool?.name} devuelta.` });
+          setIsDamaged(false);
+          setReturnNotes('');
         } else {
           toast({ variant: 'destructive', title: 'Error', description: 'Herramienta no figura como prestada o el QR es incorrecto.' });
         }
@@ -164,8 +177,9 @@ export default function AdminToolsPage() {
   const handleConfirmCheckout = async () => {
     if (checkoutState.worker && checkoutState.tools.length > 0 && authUser) {
         try {
+            const supervisorId = authUser.id; 
             for (const tool of checkoutState.tools) {
-                await checkoutTool(tool.id, checkoutState.worker.id, authUser.id);
+                await checkoutTool(tool.id, checkoutState.worker.id, supervisorId);
             }
             toast({ title: 'Entrega Registrada', description: `${checkoutState.tools.length} herramienta(s) entregada(s) a ${checkoutState.worker.name}.` });
         } catch (error) {
@@ -201,28 +215,44 @@ export default function AdminToolsPage() {
   }
 
   const scannerTitles: Record<ScanPurpose, string> = {
-    'checkout-worker': 'Escanear QR de Trabajador para Entrega',
+    'checkout-worker': 'Escanear ID de Trabajador para Entrega',
     'checkout-tool': 'Escanear QR de Herramienta para Entrega',
     'return-tool': 'Escanear QR de Herramienta a Devolver'
   }
   const scannerDescriptions: Record<ScanPurpose, string> = {
-    'checkout-worker': 'Apunta la cámara al código QR del trabajador que recibirá la(s) herramienta(s).',
+    'checkout-worker': 'Apunta la cámara al código QR del carnet del trabajador que recibirá la(s) herramienta(s).',
     'checkout-tool': 'Escanea los códigos QR de todas las herramientas a entregar.',
     'return-tool': 'Escanea el código QR de la herramienta que se está devolviendo para registrar su reingreso.'
   }
   
-  const getMovementBadge = (type: DailyMovement['type']) => {
-    switch (type) {
+  const getMovementBadge = (log: DailyMovement) => {
+    switch (log.type) {
         case 'Entrada Material':
             return <Badge className="bg-blue-600 text-white"><ArrowDown className="mr-1 h-3 w-3" />Ingreso Mat.</Badge>;
         case 'Salida Material':
             return <Badge className="bg-orange-600 text-white"><ArrowUp className="mr-1 h-3 w-3" />Salida Mat.</Badge>;
         case 'Entrada Herramienta':
-            return <Badge className="bg-green-600 text-white"><Undo2 className="mr-1 h-3 w-3" />Devolución Herr.</Badge>;
+            return (
+                <div className="flex items-center gap-2">
+                    <Badge className="bg-green-600 text-white"><Undo2 className="mr-1 h-3 w-3" />Devolución Herr.</Badge>
+                    {log.log?.returnCondition === 'damaged' && 
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger>
+                                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="max-w-xs">{log.log?.returnNotes || 'Devuelto con daños.'}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    }
+                </div>
+            );
         case 'Salida Herramienta':
             return <Badge className="bg-purple-600 text-white"><ArrowRight className="mr-1 h-3 w-3" />Entrega Herr.</Badge>;
         default:
-            return <Badge variant="secondary">{type}</Badge>;
+            return <Badge variant="secondary">{log.type}</Badge>;
     }
   }
 
@@ -315,7 +345,7 @@ export default function AdminToolsPage() {
                                {dailyMovements.length > 0 ? (
                                 dailyMovements.map(log => (
                                    <TableRow key={log.id}>
-                                       <TableCell>{getMovementBadge(log.type)}</TableCell>
+                                       <TableCell>{getMovementBadge(log)}</TableCell>
                                        <TableCell className="font-medium">{log.description}</TableCell>
                                        <TableCell>{log.user}</TableCell>
                                        <TableCell className="font-mono text-xs">{log.date.toLocaleString()}</TableCell>
@@ -396,6 +426,26 @@ export default function AdminToolsPage() {
                        <Button className="w-full" onClick={() => openScanner('return-tool')}>
                             <Undo2 className="mr-2 h-4 w-4"/> Registrar Devolución
                        </Button>
+                       <Collapsible>
+                           <CollapsibleTrigger asChild>
+                               <Button variant="ghost" size="sm" className="w-full text-muted-foreground">
+                                   <ChevronDown className="mr-2 h-4 w-4"/>
+                                   Opciones de Devolución (Opcional)
+                               </Button>
+                           </CollapsibleTrigger>
+                           <CollapsibleContent className="space-y-4 pt-4">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox id="damaged" checked={isDamaged} onCheckedChange={(checked) => setIsDamaged(checked as boolean)} />
+                                    <Label htmlFor="damaged" className="text-destructive font-medium">Herramienta devuelta con daños</Label>
+                                </div>
+                                <Textarea 
+                                    placeholder="Describe el daño o problema de la herramienta..."
+                                    value={returnNotes}
+                                    onChange={(e) => setReturnNotes(e.target.value)}
+                                    disabled={!isDamaged}
+                                />
+                           </CollapsibleContent>
+                       </Collapsible>
                     </div>
                 </CardContent>
             </Card>

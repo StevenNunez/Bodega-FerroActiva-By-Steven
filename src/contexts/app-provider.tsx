@@ -16,7 +16,7 @@ import {
   MATERIAL_CATEGORIES,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { 
     collection, 
     onSnapshot, 
@@ -29,10 +29,22 @@ import {
     writeBatch,
     where,
     getDoc,
-    deleteDoc,
     getDocs,
-    setDoc
+    setDoc,
+    deleteDoc,
+    collectionGroup
 } from "firebase/firestore";
+import { 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut, 
+    onAuthStateChanged,
+    type User as FirebaseAuthUser,
+    updatePassword,
+    EmailAuthProvider,
+    reauthenticateWithCredential
+} from "firebase/auth";
+
 
 // Helper to convert Firestore Timestamps to JS Date objects
 const convertTimestamps = (data: any) => {
@@ -67,12 +79,13 @@ interface AppStateContextType {
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
   addTool: (toolName: string) => Promise<void>;
-  addUser: (name: string, role: UserRole) => Promise<void>;
+  updateUser: (userId: string, data: Partial<Omit<User, 'id' | 'email' | 'qrCode'>>) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
   addRequest: (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => Promise<void>;
   approveRequest: (requestId: string) => Promise<void>;
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
-  returnTool: (logId: string) => Promise<void>;
-  addMaterial: (material: Omit<Material, "id">) => Promise<void>;
+  returnTool: (logId: string, condition: 'ok' | 'damaged', notes?: string) => Promise<void>;
+  addMaterial: (material: Omit<Material, "id" | "supplierId"> & { supplierId?: string | null }) => Promise<void>;
   updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
   addPurchaseRequest: (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => Promise<void>;
   updatePurchaseRequestStatus: (id: string, status: PurchaseRequestStatus) => Promise<void>;
@@ -82,7 +95,6 @@ interface AppStateContextType {
   batchApprovedRequests: (requestIds: string[]) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
-  seedInitialData: () => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -102,105 +114,47 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const collections: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>>; sortField?: string }[] = [
-      { name: "users", setter: setUsers, sortField: "name" },
-      { name: "tools", setter: setTools, sortField: "name" },
-      { name: "materials", setter: setMaterials, sortField: "name" },
-      { name: "suppliers", setter: setSuppliers, sortField: "name" },
-      { name: "requests", setter: setRequests, sortField: "createdAt" },
-      { name: "toolLogs", setter: setToolLogs, sortField: "checkoutDate" },
-      { name: "purchaseRequests", setter: setPurchaseRequests, sortField: "createdAt" },
-      { name: "purchaseOrders", setter: setPurchaseOrders, sortField: "createdAt" },
-    ];
+    const setup = async () => {
+        setLoading(true);
 
-    setLoading(true);
-    const unsubscribes = collections.map(({ name, setter, sortField }) => {
-      const collRef = collection(db, name);
-      const q = sortField ? query(collRef, orderBy(sortField, "desc")) : collRef;
-      return onSnapshot(q, 
-        (snapshot) => {
-          const data = snapshot.docs.map(doc => convertTimestamps({ ...doc.data(), id: doc.id }));
-          setter(data);
-        }, 
-        (err) => {
-          console.error(`Error fetching ${name}:`, err);
-          setError(`Error al cargar datos de ${name}. Comprueba tu conexión a Firebase y la configuración de seguridad.`);
-        }
-      );
-    });
-    
-    // Check if all initial fetches are done
-    const allLoaded = Promise.all(
-        collections.map(({ name }) => getDocs(query(collection(db, name))))
-    );
+        const collections: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>>; sortField?: string }[] = [
+          { name: "users", setter: setUsers, sortField: "name" },
+          { name: "tools", setter: setTools, sortField: "name" },
+          { name: "materials", setter: setMaterials, sortField: "name" },
+          { name: "suppliers", setter: setSuppliers, sortField: "name" },
+          { name: "requests", setter: setRequests, sortField: "createdAt" },
+          { name: "toolLogs", setter: setToolLogs, sortField: "checkoutDate" },
+          { name: "purchaseRequests", setter: setPurchaseRequests, sortField: "createdAt" },
+          { name: "purchaseOrders", setter: setPurchaseOrders, sortField: "createdAt" },
+        ];
 
-    allLoaded.then(() => {
+        const unsubscribes = collections.map(({ name, setter, sortField }) => {
+          const collRef = collection(db, name);
+          const q = sortField ? query(collRef, orderBy(sortField, "desc")) : collRef;
+          return onSnapshot(q, 
+            (snapshot) => {
+              const data = snapshot.docs.map(doc => convertTimestamps({ ...doc.data(), id: doc.id }));
+              setter(data);
+            }, 
+            (err) => {
+              console.error(`Error fetching ${name}:`, err);
+              setError(`Error al cargar datos de ${name}. Comprueba tu conexión a Firebase y la configuración de seguridad.`);
+            }
+          );
+        });
+
+        // We can consider loading to be false after subscriptions are set up
         setLoading(false);
-    }).catch(err => {
-        console.error("Error during initial data load:", err);
-        setError("Error al cargar los datos iniciales. Verifica la conexión.");
-        setLoading(false);
-    });
 
+        return () => unsubscribes.forEach(unsub => unsub());
+    };
 
-    return () => unsubscribes.forEach(unsub => unsub());
+    const unsubscribe = setup();
+
+    return () => {
+        unsubscribe.then(cleanup => cleanup && cleanup()).catch(e => console.error("Error cleaning up listeners", e));
+    };
   }, []);
-
-  const seedInitialData = async () => {
-    const batch = writeBatch(db);
-
-    // Initial Users
-    const initialUsers = [
-        { name: "Admin Bodega", role: "admin" },
-        { name: "Jefe de Operaciones", role: "operations" },
-        { name: "Juan Perez (Supervisor)", role: "supervisor" },
-        { name: "Diego Palma (Colaborador)", role: "worker" },
-    ];
-    initialUsers.forEach(user => {
-        const userRef = doc(collection(db, "users"));
-        batch.set(userRef, { 
-            ...user, 
-            qrCode: user.role === 'admin' || user.role === 'operations' ? null : `USER-${user.name.toUpperCase().replace(/\s/g, "-")}-${nanoid(4)}`
-        });
-    });
-
-    // Initial Materials
-    const initialMaterials: Omit<Material, 'id'>[] = [
-      { name: 'Cemento Portland', stock: 200, unit: 'saco', category: 'Hormigón y Cemento', supplierId: null },
-      { name: 'Arena Fina', stock: 150, unit: 'saco', category: 'Hormigón y Cemento', supplierId: null },
-      { name: 'Grava', stock: 150, unit: 'saco', category: 'Hormigón y Cemento', supplierId: null },
-      { name: 'Ladrillo Fiscal', stock: 5000, unit: 'un', category: 'Misceláneos', supplierId: null },
-      { name: 'Fierro Estriado 8mm', stock: 80, unit: 'un', category: 'Fierros y Acero', supplierId: null },
-    ];
-    initialMaterials.forEach(material => {
-        const materialRef = doc(collection(db, "materials"));
-        batch.set(materialRef, material);
-    });
-
-    // Initial Tools
-    const initialTools = [
-        { name: "Taladro Percutor Bosch" },
-        { name: "Esmeril Angular DeWalt" },
-        { name: "Martillo Carpintero" }
-    ];
-    initialTools.forEach(tool => {
-        const toolRef = doc(collection(db, "tools"));
-        batch.set(toolRef, { 
-            name: tool.name, 
-            qrCode: `TOOL-${tool.name.toUpperCase().replace(/\s/g, "-")}-${nanoid(4)}`
-        });
-    });
-
-    // Initial Supplier
-    const supplierRef = doc(collection(db, "suppliers"));
-    batch.set(supplierRef, {
-        name: "Ferretería El Martillo",
-        categories: [MATERIAL_CATEGORIES[0], MATERIAL_CATEGORIES[4], MATERIAL_CATEGORIES[7]]
-    });
-    
-    await batch.commit();
-  }
-
 
   const addTool = async (toolName: string) => {
     await addDoc(collection(db, "tools"), {
@@ -208,22 +162,35 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       qrCode: `TOOL-${toolName.toUpperCase().replace(/\s/g, "-")}-${nanoid(4)}`
     });
   };
-  
-  const addUser = async (name: string, role: UserRole) => {
-     await addDoc(collection(db, "users"), {
-        name,
-        role,
-        qrCode: role === 'admin' || role === 'operations' ? null : `USER-${name.toUpperCase().replace(/\s/g, "-")}-${nanoid(4)}`
-    });
+
+  const updateUser = async (userId: string, data: Partial<Omit<User, 'id' | 'email' | 'qrCode'>>) => {
+      if (!userId) throw new Error("User ID is required");
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, data);
+  }
+
+  const deleteUser = async (userId: string) => {
+      if (!userId) throw new Error("User ID is required");
+      
+      // IMPORTANT: Deleting a user from Firebase Auth from the client-side is a privileged
+      // operation and is NOT possible. This would require a Cloud Function.
+      // For this prototype, we will only delete the user from the Firestore collection.
+      // The user will still be able to log in but won't have a profile in the app.
+      // In a real app, a Cloud Function would be triggered to delete the Auth user.
+      const userRef = doc(db, "users", userId);
+      await deleteDoc(userRef);
   }
   
-  const addMaterial = async (material: Omit<Material, "id">) => {
+  const addMaterial = async (material: Omit<Material, "id" | "supplierId"> & { supplierId?: string | null }) => {
     await addDoc(collection(db, "materials"), material);
   }
   
   const updateMaterial = async (materialId: string, data: Partial<Omit<Material, 'id'>>) => {
       const materialRef = doc(db, "materials", materialId);
-      await updateDoc(materialRef, data);
+      await updateDoc(materialRef, {
+        ...data,
+        supplierId: data.supplierId === "ninguno" ? null : data.supplierId,
+      });
   }
 
 
@@ -255,6 +222,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkoutTool = async (toolId: string, workerId: string, supervisorId: string) => {
+     const workerDoc = await getDoc(doc(db, "users", workerId));
+     if (!workerDoc.exists() || workerDoc.data().role !== 'worker') {
+         throw new Error("El usuario escaneado no es un trabajador válido.");
+     }
+
      await addDoc(collection(db, "toolLogs"), {
         toolId,
         workerId,
@@ -264,9 +236,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const returnTool = async (logId: string) => {
+  const returnTool = async (logId: string, condition: 'ok' | 'damaged' = 'ok', notes: string = '') => {
     const logRef = doc(db, "toolLogs", logId);
-    await updateDoc(logRef, { returnDate: Timestamp.now() });
+    await updateDoc(logRef, { 
+        returnDate: Timestamp.now(),
+        returnCondition: condition,
+        returnNotes: notes,
+     });
   };
   
   const addPurchaseRequest = async (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => {
@@ -298,7 +274,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     const batch = writeBatch(db);
 
     if (materialsSnapshot.empty) {
-        // Material no existe, crearlo
         const newMaterialRef = doc(collection(db, "materials"));
         batch.set(newMaterialRef, { 
             name: req.materialName, 
@@ -308,7 +283,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             supplierId: null,
         });
     } else {
-        // Material existe, actualizar stock
         const existingMaterialRef = materialsSnapshot.docs[0].ref;
         const existingMaterialData = materialsSnapshot.docs[0].data() as Material;
         batch.update(existingMaterialRef, { stock: existingMaterialData.stock + req.quantity });
@@ -335,7 +309,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       
       const newOrderRef = doc(collection(db, "purchaseOrders"));
       batch.set(newOrderRef, {
-          id: newOrderRef.id, // Store doc id for consistency
+          id: newOrderRef.id,
           supplierId,
           createdAt: Timestamp.now(),
           status: 'generated',
@@ -364,7 +338,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       const batch = writeBatch(db);
       const categoriesToBatch = new Map<string, string>();
       
-      // Pre-calculate lotIds for each category to ensure consistency
       for (const id of requestIds) {
           const req = purchaseRequests.find(pr => pr.id === id);
           if (req && req.status === 'approved' && !req.lotId && !categoriesToBatch.has(req.category)) {
@@ -407,7 +380,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     suppliers,
     purchaseOrders,
     addTool,
-    addUser,
+    updateUser,
+    deleteUser,
     addRequest,
     approveRequest,
     checkoutTool,
@@ -422,7 +396,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     batchApprovedRequests,
     removeRequestFromLot,
     addRequestToLot,
-    seedInitialData,
     loading,
     error,
   };
@@ -445,55 +418,81 @@ export const useAppState = () => {
 // Auth Context
 interface AuthContextType {
   user: User | null;
-  login: (userId: string) => Promise<void>;
+  firebaseUser: FirebaseAuthUser | null;
+  login: (email: string, pass: string) => Promise<void>;
   logout: () => void;
+  reauthenticateAndChangePassword: (currentPass: string, newPass: string) => Promise<void>;
   authLoading: boolean;
+  error: string | null;
 }
 const AuthContext = React.createContext<AuthContextType | null>(null);
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
+  const [firebaseUser, setFirebaseUser] = React.useState<FirebaseAuthUser | null>(null);
   const [authLoading, setAuthLoading] = React.useState(true);
-  const { users, loading: appLoading } = useAppState();
+  const [error, setError] = React.useState<string | null>(null);
+  const initialCheckComplete = React.useRef(false);
 
   React.useEffect(() => {
-    if (!appLoading) {
-      try {
-        const storedUserId = localStorage.getItem('userId');
-        if (storedUserId) {
-            const foundUser = users.find(u => u.id === storedUserId);
-            setUser(foundUser || null);
+    const unsubscribe = onAuthStateChanged(auth, async (authUserData) => {
+        if (authUserData) {
+            setFirebaseUser(authUserData);
+            const userDocRef = doc(db, "users", authUserData.uid);
+            try {
+                const userDoc = await getDoc(userDocRef);
+                if (userDoc.exists()) {
+                    setUser(userDoc.data() as User);
+                } else {
+                    setUser(null);
+                    setError("El usuario no existe en la base de datos.");
+                    await signOut(auth);
+                }
+            } catch (e) {
+                console.error("Error fetching user document", e);
+                setUser(null);
+                setError("Error al obtener datos del usuario.");
+            }
+        } else {
+            setFirebaseUser(null);
+            setUser(null);
         }
-      } catch (e) {
-        console.error("Could not parse user from localStorage", e);
-        localStorage.removeItem('userId');
-      } finally {
-         setAuthLoading(false);
-      }
-    }
-  }, [appLoading, users]);
+        setAuthLoading(false);
+        initialCheckComplete.current = true;
+    });
 
-  const login = async (userId: string) => {
-    const foundUser = users.find(u => u.id === userId);
-    if(foundUser){
-      setUser(foundUser);
-      localStorage.setItem('userId', userId);
-    } else {
-      console.error("Login failed: User not found");
-      setUser(null);
-    }
+    return () => unsubscribe();
+  }, []);
+
+  const login = async (email: string, pass: string) => {
+    await signInWithEmailAndPassword(auth, email, pass);
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('userId');
+  const logout = async () => {
+    await signOut(auth);
   };
   
+  const reauthenticateAndChangePassword = async (currentPass: string, newPass: string) => {
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser || !firebaseUser.email) throw new Error("Usuario no autenticado.");
+
+      const credential = EmailAuthProvider.credential(firebaseUser.email, currentPass);
+      
+      // Re-authenticate the user
+      await reauthenticateWithCredential(firebaseUser, credential);
+
+      // If re-authentication is successful, update the password
+      await updatePassword(firebaseUser, newPass);
+  }
+
   const authContextValue = {
     user,
+    firebaseUser,
     login,
     logout,
+    reauthenticateAndChangePassword,
     authLoading,
+    error,
   };
 
   return (

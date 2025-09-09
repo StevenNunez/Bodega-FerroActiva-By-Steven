@@ -4,7 +4,6 @@ import React from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAppState } from '@/contexts/app-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,16 +11,20 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, UserPlus } from 'lucide-react';
 import type { UserRole } from '@/lib/data';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
+  email: z.string().email('El correo electrónico no es válido.'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
   role: z.enum(['admin', 'supervisor', 'worker', 'operations'], { required_error: 'Debes seleccionar un rol.' }),
 });
 
 type FormData = z.infer<typeof FormSchema>;
 
 export function CreateUserForm() {
-  const { addUser } = useAppState();
   const { toast } = useToast();
 
   const {
@@ -34,6 +37,8 @@ export function CreateUserForm() {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       name: "",
+      email: "",
+      password: "",
       role: 'worker',
     }
   });
@@ -51,17 +56,41 @@ export function CreateUserForm() {
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
-      await addUser(data.name, data.role);
+      // NOTE: This approach creates a user and then logs them in, which is not ideal.
+      // A more robust solution would involve a Cloud Function to create users without
+      // affecting the current admin's session. For this prototype, we'll keep it simple.
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const authUser = userCredential.user;
+
+      const qrCode = `USER-${authUser.uid}`;
+
+      await setDoc(doc(db, "users", authUser.uid), {
+          id: authUser.uid,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          qrCode: qrCode,
+      });
+
       toast({
         title: 'Usuario Creado',
         description: `${data.name} ha sido añadido como ${getRoleDisplayName(data.role)}.`,
       });
       reset();
-    } catch (error) {
+      
+      // We should ideally sign the new user out and re-sign the admin in,
+      // but that's complex. For now, we'll have to accept this side-effect.
+      // A page refresh might be needed to restore the admin's state.
+
+    } catch (error: any) {
+       let errorMessage = 'No se pudo crear el usuario.';
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = 'El correo electrónico ya está registrado.';
+        }
        toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'No se pudo crear el usuario.',
+        title: 'Error al crear usuario',
+        description: errorMessage,
       });
     }
   };
@@ -72,6 +101,18 @@ export function CreateUserForm() {
         <Label htmlFor="name">Nombre Completo</Label>
         <Input id="name" placeholder="Ej: Maria Rodriguez" {...register('name')} />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+      </div>
+
+       <div className="space-y-2">
+        <Label htmlFor="email">Correo Electrónico</Label>
+        <Input id="email" type="email" placeholder="ej: m.rodriguez@ferroactiva.cl" {...register('email')} />
+        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+      </div>
+
+       <div className="space-y-2">
+        <Label htmlFor="password">Contraseña</Label>
+        <Input id="password" type="password" {...register('password')} />
+        {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
       </div>
       
       <div className="space-y-2">

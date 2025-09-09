@@ -41,11 +41,29 @@ export default function SupervisorPage() {
         toast({ variant: 'destructive', title: 'Error', description: 'Por favor, completa todos los campos.'});
         return;
     }
+
+    const selectedMaterial = materials.find(m => m.id === materialId);
+    if (!selectedMaterial) {
+        toast({ variant: 'destructive', title: 'Error', description: 'El material seleccionado no es válido.'});
+        return;
+    }
+    
+    if (selectedMaterial.stock <= 0) {
+        toast({ variant: 'destructive', title: 'Error de Stock', description: `El material "${selectedMaterial.name}" no tiene stock disponible.` });
+        return;
+    }
+    
+    const requestedQuantity = parseInt(quantity);
+    if (requestedQuantity > selectedMaterial.stock) {
+        toast({ variant: 'destructive', title: 'Stock Insuficiente', description: `Solo quedan ${selectedMaterial.stock} unidades de "${selectedMaterial.name}".` });
+        return;
+    }
+
     setIsSubmitting(true);
     try {
       await addRequest({
           materialId,
-          quantity: parseInt(quantity),
+          quantity: requestedQuantity,
           area,
           supervisorId: authUser.id
       });
@@ -139,6 +157,7 @@ export default function SupervisorPage() {
                                       setMaterialId(m.id);
                                       setPopoverOpen(false);
                                     }}
+                                    disabled={m.stock <= 0}
                                     className="flex justify-between"
                                   >
                                     <div className="flex items-center">

@@ -39,6 +39,24 @@ export default function SupervisorRequestPage() {
         toast({ variant: 'destructive', title: 'Error', description: 'Por favor, completa todos los campos.'});
         return;
     }
+
+    const selectedMaterial = materials.find(m => m.id === materialId);
+    if (!selectedMaterial) {
+        toast({ variant: 'destructive', title: 'Error', description: 'El material seleccionado no es válido.'});
+        return;
+    }
+    
+    if (selectedMaterial.stock <= 0) {
+        toast({ variant: 'destructive', title: 'Error de Stock', description: `El material "${selectedMaterial.name}" no tiene stock disponible.` });
+        return;
+    }
+    
+    const requestedQuantity = parseInt(quantity);
+    if (requestedQuantity > selectedMaterial.stock) {
+        toast({ variant: 'destructive', title: 'Stock Insuficiente', description: `Solo quedan ${selectedMaterial.stock} unidades de "${selectedMaterial.name}".` });
+        return;
+    }
+
     setIsSubmitting(true);
     try {
       await addRequest({
@@ -116,6 +134,7 @@ export default function SupervisorRequestPage() {
                                   <CommandItem
                                     key={m.id}
                                     value={m.name}
+                                    disabled={m.stock <= 0}
                                     onSelect={() => {
                                       setMaterialId(m.id);
                                       setPopoverOpen(false);

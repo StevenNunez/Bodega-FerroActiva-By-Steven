@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -5,7 +6,8 @@ import { useAuth } from '@/contexts/app-provider';
 import { Sidebar } from '@/components/sidebar';
 import { Menu, Warehouse, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 
 export default function DashboardLayout({
   children,
@@ -14,6 +16,7 @@ export default function DashboardLayout({
 }) {
   const { user, authLoading } = useAuth();
   const router = useRouter();
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!authLoading && user === null) {
@@ -33,26 +36,35 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <Sidebar />
-      <div className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-card px-4 md:hidden">
-            <div className="flex items-center gap-2">
-                <Warehouse className="h-6 w-6 text-primary" />
-                <span className="font-bold">Control de Bodega</span>
-            </div>
-            <Sheet>
+    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+      <div className="hidden border-r bg-muted/40 md:block">
+        <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
+      </div>
+      <div className="flex flex-col">
+        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
+           <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
             <SheetTrigger asChild>
-                <Button variant="outline" size="icon">
-                <Menu className="h-6 w-6" />
-                </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0 md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle navigation menu</span>
+              </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
-                <Sidebar />
+            <SheetContent side="left" className="flex flex-col p-0">
+               <SheetTitle className="sr-only">Menú de Navegación</SheetTitle>
+               <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
             </SheetContent>
-            </Sheet>
+          </Sheet>
+          <div className='flex-1'>
+            {/* Header content can go here if needed */}
+          </div>
         </header>
-        <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 p-4 md:p-6 lg:p-8">
+            {children}
+        </main>
       </div>
     </div>
   );
