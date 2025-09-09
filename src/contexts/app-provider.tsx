@@ -67,6 +67,11 @@ const convertTimestamps = (data: any) => {
     return convert(data);
 };
 
+const normalizeString = (str: string) => {
+  if (!str) return '';
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 
 // App State Context
 interface AppStateContextType {
@@ -79,6 +84,8 @@ interface AppStateContextType {
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
   addTool: (toolName: string) => Promise<void>;
+  updateTool: (toolId: string, data: Partial<Omit<Tool, 'id' | 'qrCode'>>) => Promise<void>;
+  deleteTool: (toolId: string) => Promise<void>;
   updateUser: (userId: string, data: Partial<Omit<User, 'id' | 'email' | 'qrCode'>>) => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
   addRequest: (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => Promise<void>;
@@ -157,10 +164,27 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addTool = async (toolName: string) => {
+    const normalizedToolName = normalizeString(toolName);
     await addDoc(collection(db, "tools"), {
       name: toolName,
-      qrCode: `TOOL-${toolName.toUpperCase().replace(/\s/g, "-")}-${nanoid(4)}`
+      qrCode: `TOOL-${normalizedToolName.toUpperCase().replace(/\s/g, "-")}-${nanoid(4)}`
     });
+  };
+  
+  const updateTool = async (toolId: string, data: Partial<Omit<Tool, 'id' | 'qrCode'>>) => {
+      if (!toolId) throw new Error("Tool ID is required");
+      const toolRef = doc(db, "tools", toolId);
+      await updateDoc(toolRef, data);
+  };
+  
+  const deleteTool = async (toolId: string) => {
+      if (!toolId) throw new Error("Tool ID is required");
+      const isToolInUse = toolLogs.some(log => log.toolId === toolId && log.returnDate === null);
+      if (isToolInUse) {
+          throw new Error("No se puede eliminar una herramienta que está actualmente en uso.");
+      }
+      const toolRef = doc(db, "tools", toolId);
+      await deleteDoc(toolRef);
   };
 
   const updateUser = async (userId: string, data: Partial<Omit<User, 'id' | 'email' | 'qrCode'>>) => {
@@ -222,11 +246,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkoutTool = async (toolId: string, workerId: string, supervisorId: string) => {
-     const workerDoc = await getDoc(doc(db, "users", workerId));
-     if (!workerDoc.exists() || workerDoc.data().role !== 'worker') {
-         throw new Error("El usuario escaneado no es un trabajador válido.");
-     }
-
      await addDoc(collection(db, "toolLogs"), {
         toolId,
         workerId,
@@ -380,6 +399,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     suppliers,
     purchaseOrders,
     addTool,
+    updateTool,
+    deleteTool,
     updateUser,
     deleteUser,
     addRequest,
