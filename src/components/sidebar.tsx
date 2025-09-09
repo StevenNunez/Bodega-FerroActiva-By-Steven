@@ -23,7 +23,7 @@ import {
 import { useAuth } from '@/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ChangePasswordDialog } from './change-password-dialog';
+import { ChangePasswordDialog } from '@/components/change-password-dialog';
 
 const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
