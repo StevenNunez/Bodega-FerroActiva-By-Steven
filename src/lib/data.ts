@@ -1,7 +1,7 @@
 
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr";
 
 export interface User {
   id: string; // Corresponds to Firebase Auth UID
@@ -89,10 +89,12 @@ export const MATERIAL_CATEGORIES = [
     "Madera y Tableros",
     "Hormigón y Cemento",
     "Pinturas y Adhesivos",
-    "Seguridad y EPP",
+    "Seguridad",
+    "EPP",
     "Herramientas Menores",
-    "Fijaciones y Tornillería",
+    "Fijaciones",
     "Sanitarios y Grifería",
     "Limpieza y Aseo",
+    "Oficina y Papelería",
     "Misceláneos"
 ]

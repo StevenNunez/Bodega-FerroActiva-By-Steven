@@ -1,10 +1,9 @@
-
 'use client';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAppState } from '@/contexts/app-provider';
+import { useAppState, useAuth } from '@/contexts/app-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  role: z.enum(['admin', 'supervisor', 'worker', 'operations'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr'], { required_error: 'Debes seleccionar un rol.' }),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -60,6 +59,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
         case 'supervisor': return 'Supervisor';
         case 'worker': return 'Colaborador';
         case 'operations': return 'Jefe de Operaciones';
+        case 'apr': return 'APR';
         default: return 'Usuario';
     }
   }
@@ -82,6 +82,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
@@ -116,6 +117,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                                     <SelectItem value="operations">Jefe de Operaciones</SelectItem>
                                     <SelectItem value="admin">Administrador</SelectItem>
                                     <SelectItem value="supervisor">Supervisor</SelectItem>
+                                    <SelectItem value="apr">APR</SelectItem>
                                     <SelectItem value="worker">Colaborador</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -125,18 +127,21 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                 </div>
 
                 <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-                    <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                        <Save className="mr-2 h-4 w-4" />
-                        )}
-                        Guardar Cambios
-                    </Button>
+                    <div className="flex gap-2 mt-4 sm:mt-0">
+                      <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                          {isSubmitting ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                          <Save className="mr-2 h-4 w-4" />
+                          )}
+                          Guardar Cambios
+                      </Button>
+                    </div>
                 </DialogFooter>
             </form>
         </DialogContent>
     </Dialog>
+    </>
   );
 }

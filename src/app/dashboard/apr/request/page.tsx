@@ -19,7 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Timestamp } from "firebase/firestore";
 
 
-export default function AdminRequestPage() {
+export default function AprRequestPage() {
   const { materials, addRequest, requests } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
@@ -177,7 +177,7 @@ export default function AdminRequestPage() {
         </Card>
         <Card>
            <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Package /> Historial de Mis Solicitudes</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Package /> Historial de Solicitudes</CardTitle>
             <CardDescription>Revisa el estado de tus solicitudes de materiales de bodega.</CardDescription>
           </CardHeader>
           <CardContent>

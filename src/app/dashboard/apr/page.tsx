@@ -5,24 +5,25 @@ import { PageHeader } from "@/components/page-header";
 import { useAppState, useAuth } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import React, { useState } from "react";
-import { Send, Loader2, ChevronsUpDown, Check, Clock, Package, X } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Package, Send, Loader2, ChevronsUpDown, Check, Wrench } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Timestamp } from "firebase/firestore";
 
 
-export default function AdminRequestPage() {
-  const { materials, addRequest, requests } = useAppState();
+export default function AprPage() {
+  const { materials, addRequest, users, toolLogs, tools } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
+  
+  const [stockSearch, setStockSearch] = useState("");
   
   const [materialId, setMaterialId] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -31,7 +32,8 @@ export default function AdminRequestPage() {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
 
-  const myRequests = requests.filter(r => r.supervisorId === authUser?.id);
+  // Tools checked out under this supervisor's responsibility
+  const checkedOutToolsUnderSupervisor = toolLogs.filter(log => log.returnDate === null && log.supervisorId === authUser?.id);
   
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +63,7 @@ export default function AdminRequestPage() {
     try {
       await addRequest({
           materialId,
-          quantity: parseInt(quantity),
+          quantity: requestedQuantity,
           area,
           supervisorId: authUser.id
       });
@@ -76,33 +78,52 @@ export default function AdminRequestPage() {
     }
   }
 
-  const getStatusBadge = (status: "pending" | "approved" | "rejected") => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-500 text-white"><Clock className="mr-1 h-3 w-3" />Pendiente</Badge>;
-      case 'approved':
-        return <Badge variant="default" className="bg-green-600 text-white"><Check className="mr-1 h-3 w-3" />Aprobado</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive"><X className="mr-1 h-3 w-3"/>Rechazado</Badge>;
-    }
-  };
-
-  const getDate = (date: Date | Timestamp) => {
-      return date instanceof Timestamp ? date.toDate() : date;
-  }
-
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader 
-        title="Solicitud de Materiales para Obra" 
-        description="Rellena el formulario para pedir materiales de la bodega central." 
-      />
+      <PageHeader title={`Bienvenido, ${authUser?.name}`} description="Gestiona el inventario y las herramientas desde tu panel." />
+      
+
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <div className="space-y-8">
+          <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Wrench /> Herramientas Asignadas al Equipo</CardTitle>
+                  <CardDescription>Visualiza las herramientas que están actualmente en uso por los trabajadores bajo tu supervisión.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <ScrollArea className="h-48">
+                    {checkedOutToolsUnderSupervisor.length > 0 ? (
+                    <div className="space-y-2 p-1">
+                        {checkedOutToolsUnderSupervisor.map(log => {
+                            const tool = tools.find(t => t.id === log.toolId);
+                            const worker = users.find(u => u.id === log.workerId);
+                            return <div key={log.id} className="text-sm p-2 rounded-md bg-muted flex justify-between items-center">
+                                <span><span className="font-semibold">{tool?.name}</span> en posesión de {worker?.name}</span>
+                                <Badge variant="destructive">Ocupado</Badge>
+                            </div>
+                        })}
+                    </div>
+                    ) : (
+                        <p className="text-sm text-center text-muted-foreground py-4">Ningún trabajador de tu equipo tiene herramientas asignadas.</p>
+                    )}
+                  </ScrollArea>
+              </CardContent>
+          </Card>
+           <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Package /> Stock Disponible</CardTitle>
+                  <CardDescription>Consulta los materiales disponibles en bodega.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Usa el formulario de la derecha para solicitar materiales. El stock se muestra en el selector.</p>
+              </CardContent>
+          </Card>
+        </div>
         <Card>
           <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Send /> Generar Solicitud de Materiales</CardTitle>
-              <CardDescription>Completa el formulario para solicitar nuevos materiales para la obra. El administrador deberá aprobar tu solicitud.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><Send /> Solicitar Materiales para la Obra</CardTitle>
+              <CardDescription>Pide materiales del stock existente en bodega. El administrador deberá aprobar la solicitud.</CardDescription>
           </CardHeader>
           <CardContent>
               <form onSubmit={handleRequestSubmit} className="space-y-4">
@@ -116,11 +137,9 @@ export default function AdminRequestPage() {
                             className="w-full justify-between"
                             disabled={isSubmitting}
                           >
-                            <span className="truncate">
-                                {materialId
-                                  ? materials.find((m) => m.id === materialId)?.name
-                                  : "Selecciona o busca un material"}
-                            </span>
+                            {materialId
+                              ? materials.find((m) => m.id === materialId)?.name
+                              : "Selecciona o busca un material"}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -134,24 +153,24 @@ export default function AdminRequestPage() {
                                   <CommandItem
                                     key={m.id}
                                     value={m.name}
-                                    disabled={m.stock <= 0}
                                     onSelect={() => {
                                       setMaterialId(m.id);
                                       setPopoverOpen(false);
                                     }}
+                                    disabled={m.stock <= 0}
                                     className="flex justify-between"
                                   >
                                     <div className="flex items-center">
-                                        <Check
-                                          className={cn(
-                                            "mr-2 h-4 w-4",
-                                            materialId === m.id ? "opacity-100" : "opacity-0"
-                                          )}
-                                        />
-                                        {m.name}
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          materialId === m.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {m.name}
                                     </div>
                                     <span className="text-xs text-muted-foreground">
-                                        Stock: {m.stock.toLocaleString()}
+                                      Stock: {m.stock.toLocaleString()}
                                     </span>
                                   </CommandItem>
                                 ))}
@@ -175,50 +194,8 @@ export default function AdminRequestPage() {
               </form>
           </CardContent>
         </Card>
-        <Card>
-           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Package /> Historial de Mis Solicitudes</CardTitle>
-            <CardDescription>Revisa el estado de tus solicitudes de materiales de bodega.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-96">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Material</TableHead>
-                        <TableHead>Cantidad</TableHead>
-                        <TableHead>Área</TableHead>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Estado</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {myRequests.length > 0 ? (
-                        myRequests.map((req) => {
-                            const material = materials.find(m => m.id === req.materialId);
-                            return (
-                            <TableRow key={req.id}>
-                                <TableCell className="font-medium max-w-xs truncate">{material?.name || 'N/A'}</TableCell>
-                                <TableCell>{req.quantity}</TableCell>
-                                <TableCell className="max-w-[100px] truncate">{req.area}</TableCell>
-                                <TableCell>{getDate(req.createdAt).toLocaleDateString()}</TableCell>
-                                <TableCell>{getStatusBadge(req.status)}</TableCell>
-                            </TableRow>
-                            )
-                        })
-                        ) : (
-                        <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                            No has realizado solicitudes de stock.
-                            </TableCell>
-                        </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </ScrollArea>
-          </CardContent>
-        </Card>
       </div>
+
     </div>
   );
 }

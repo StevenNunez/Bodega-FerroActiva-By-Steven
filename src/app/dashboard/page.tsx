@@ -22,6 +22,8 @@ export default function DashboardRedirectPage() {
           router.replace('/dashboard/worker');
         } else if (role === 'operations') {
           router.replace('/dashboard/operations');
+        } else if (role === 'apr') {
+            router.replace('/dashboard/apr');
         }
       } else {
           // Si no hay usuario y no está cargando, entonces redirigir a login.

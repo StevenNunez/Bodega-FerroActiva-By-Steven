@@ -50,6 +50,7 @@ export default function AdminUsersPage() {
             case 'supervisor': return 'Supervisor';
             case 'worker': return 'Colaborador';
             case 'operations': return 'Jefe de Operaciones';
+            case 'apr': return 'APR';
             default: return 'Usuario';
         }
     }
@@ -59,6 +60,7 @@ export default function AdminUsersPage() {
             case 'admin': return 'destructive';
             case 'operations': return 'default';
             case 'supervisor': return 'secondary';
+            case 'apr': return 'secondary';
             case 'worker': return 'outline';
             default: return 'outline';
         }

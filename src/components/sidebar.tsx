@@ -17,13 +17,12 @@ import {
   PackagePlus,
   FileText,
   Medal,
-  KeyRound,
+  Upload,
 } from 'lucide-react';
 
 import { useAuth } from '@/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ChangePasswordDialog } from '@/components/change-password-dialog';
 
 const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
@@ -31,8 +30,11 @@ const adminNavItems = [
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
   { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales' },
   { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
+  { href: '/dashboard/admin/request', icon: PlusCircle, label: 'Solicitar Materiales' },
+  { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
   { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
+  { href: '/dashboard/admin/bulk-import', icon: Upload, label: 'Importación Masiva' },
   { href: '/dashboard/admin/certificate', icon: Medal, label: 'Mi Certificado' },
 ];
 
@@ -40,6 +42,12 @@ const supervisorNavItems = [
   { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
+];
+
+const aprNavItems = [
+  { href: '/dashboard/apr', icon: LayoutDashboard, label: 'Resumen' },
+  { href: '/dashboard/apr/request', icon: PlusCircle, label: 'Solicitar Materiales' },
+  { href: '/dashboard/apr/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
 ];
 
 const workerNavItems = [
@@ -57,6 +65,7 @@ const navItems = {
   supervisor: supervisorNavItems,
   worker: workerNavItems,
   operations: operationsNavItems,
+  apr: aprNavItems,
 };
 
 interface SidebarProps {
@@ -67,8 +76,6 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
-  const [isPasswordDialogOpen, setPasswordDialogOpen] = React.useState(false);
-
 
   const handleLogout = () => {
     logout();
@@ -82,6 +89,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
       case 'supervisor': return 'Supervisor';
       case 'worker': return 'Colaborador';
       case 'operations': return 'Jefe de Operaciones';
+      case 'apr': return 'APR';
       default: return 'Usuario';
     }
   }
@@ -94,7 +102,6 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
 
   return (
     <>
-      <ChangePasswordDialog isOpen={isPasswordDialogOpen} onClose={() => setPasswordDialogOpen(false)} />
       <div className="flex h-full max-h-screen flex-col gap-2">
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold" onClick={handleLinkClick}>
@@ -111,7 +118,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
                 onClick={handleLinkClick}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-                  { 'bg-primary/10 text-primary': pathname.startsWith(item.href) && (item.href !== '/dashboard/admin' && item.href !== '/dashboard/supervisor' && item.href !== '/dashboard/operations' || pathname === item.href) }
+                  { 'bg-primary/10 text-primary': pathname.startsWith(item.href) && (item.href !== '/dashboard/admin' && item.href !== '/dashboard/supervisor' && item.href !== '/dashboard/operations' && item.href !== '/dashboard/apr' || pathname === item.href) }
                 )}
               >
                 <item.icon className="h-4 w-4" />
@@ -125,10 +132,6 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
               <p className='text-sm font-semibold'>{user?.name}</p>
               <p className='text-xs text-muted-foreground'>{user ? getRoleDisplayName(user.role) : ''}</p>
           </div>
-          <Button variant="ghost" className="w-full justify-start gap-3 px-3 mb-1" onClick={() => setPasswordDialogOpen(true)}>
-            <KeyRound className="h-4 w-4" />
-            Cambiar Contraseña
-          </Button>
           <Button variant="ghost" className="w-full justify-start gap-3 px-3" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
             Cerrar Sesión

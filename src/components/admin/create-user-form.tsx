@@ -1,4 +1,3 @@
-
 'use client';
 import React from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -14,12 +13,13 @@ import type { UserRole } from '@/lib/data';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { nanoid } from 'nanoid';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   email: z.string().email('El correo electrónico no es válido.'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
-  role: z.enum(['admin', 'supervisor', 'worker', 'operations'], { required_error: 'Debes seleccionar un rol.' }),
+  password: z.string().optional(),
+  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr'], { required_error: 'Debes seleccionar un rol.' }),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -49,17 +49,30 @@ export function CreateUserForm() {
         case 'supervisor': return 'Supervisor';
         case 'worker': return 'Colaborador';
         case 'operations': return 'Jefe de Operaciones';
+        case 'apr': return 'APR';
         default: return 'Usuario';
     }
   }
 
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
+    let password = data.password;
+    let temporaryPasswordMessage = "";
+
+    if (!password) {
+        password = nanoid(10);
+        temporaryPasswordMessage = `La contraseña temporal es: ${password}`;
+    } else if (password.length < 6) {
+        toast({
+            variant: 'destructive',
+            title: 'Contraseña Inválida',
+            description: 'La contraseña debe tener al menos 6 caracteres.',
+        });
+        return;
+    }
+
     try {
-      // NOTE: This approach creates a user and then logs them in, which is not ideal.
-      // A more robust solution would involve a Cloud Function to create users without
-      // affecting the current admin's session. For this prototype, we'll keep it simple.
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, password);
       const authUser = userCredential.user;
 
       const qrCode = `USER-${authUser.uid}`;
@@ -73,15 +86,12 @@ export function CreateUserForm() {
       });
 
       toast({
-        title: 'Usuario Creado',
-        description: `${data.name} ha sido añadido como ${getRoleDisplayName(data.role)}.`,
+        title: 'Usuario Creado Exitosamente',
+        description: `${data.name} ha sido añadido. ${temporaryPasswordMessage}`,
+        duration: temporaryPasswordMessage ? 20000 : 5000,
       });
       reset();
       
-      // We should ideally sign the new user out and re-sign the admin in,
-      // but that's complex. For now, we'll have to accept this side-effect.
-      // A page refresh might be needed to restore the admin's state.
-
     } catch (error: any) {
        let errorMessage = 'No se pudo crear el usuario.';
         if (error.code === 'auth/email-already-in-use') {
@@ -110,8 +120,8 @@ export function CreateUserForm() {
       </div>
 
        <div className="space-y-2">
-        <Label htmlFor="password">Contraseña</Label>
-        <Input id="password" type="password" {...register('password')} />
+        <Label htmlFor="password">Contraseña (Opcional)</Label>
+        <Input id="password" type="password" placeholder="Dejar en blanco para generar una" {...register('password')} />
         {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
       </div>
       
@@ -129,6 +139,7 @@ export function CreateUserForm() {
                         <SelectItem value="operations">Jefe de Operaciones</SelectItem>
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="apr">APR</SelectItem>
                         <SelectItem value="worker">Colaborador</SelectItem>
                     </SelectContent>
                 </Select>

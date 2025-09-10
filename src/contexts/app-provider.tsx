@@ -42,7 +42,8 @@ import {
     type User as FirebaseAuthUser,
     updatePassword,
     EmailAuthProvider,
-    reauthenticateWithCredential
+    reauthenticateWithCredential,
+    updateEmail
 } from "firebase/auth";
 
 
@@ -69,7 +70,8 @@ const convertTimestamps = (data: any) => {
 
 const normalizeString = (str: string) => {
   if (!str) return '';
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // This will remove accents and convert to uppercase
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 }
 
 
@@ -443,6 +445,8 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   logout: () => void;
   reauthenticateAndChangePassword: (currentPass: string, newPass: string) => Promise<void>;
+  reauthenticateAndChangeEmail: (currentPass: string, newEmail: string) => Promise<void>;
+  adminResetUserPassword: (userToReset: FirebaseAuthUser, newPass: string) => Promise<void>;
   authLoading: boolean;
   error: string | null;
 }
@@ -499,12 +503,50 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const credential = EmailAuthProvider.credential(firebaseUser.email, currentPass);
       
-      // Re-authenticate the user
       await reauthenticateWithCredential(firebaseUser, credential);
 
-      // If re-authentication is successful, update the password
       await updatePassword(firebaseUser, newPass);
   }
+  
+  const reauthenticateAndChangeEmail = async (currentPass: string, newEmail: string) => {
+      const firebaseUser = auth.currentUser;
+      if (!firebaseUser || !firebaseUser.email) throw new Error("Usuario no autenticado.");
+
+      const credential = EmailAuthProvider.credential(firebaseUser.email, currentPass);
+      
+      await reauthenticateWithCredential(firebaseUser, credential);
+
+      // Now update the email in Firebase Auth
+      await updateEmail(firebaseUser, newEmail);
+      
+      // And update it in Firestore
+      const userDocRef = doc(db, "users", firebaseUser.uid);
+      await updateDoc(userDocRef, { email: newEmail });
+  }
+
+  // This is a placeholder for a secure, backend-driven password reset.
+  // Directly updating another user's password from the client is not possible with the client SDK.
+  // In a real app, this would trigger a Cloud Function.
+  // For this prototype, we'll simulate the action but it will actually update the CURRENT user's password
+  // after re-authentication for security demonstration. The UI will reflect success for the TARGET user.
+   const adminResetUserPassword = async (userToReset: FirebaseAuthUser, newPass: string) => {
+      const adminUser = auth.currentUser;
+      if (!adminUser) throw new Error("Administrador no autenticado.");
+      
+      // In a real app, this would be an API call to a Cloud Function:
+      // await api.post('/reset-password', { userId: userToReset.uid, newPassword: newPass });
+      // The function would use the Firebase Admin SDK to perform the password change.
+      
+      // Since we can't do that from the client, we throw an error to indicate this limitation.
+      // The UI should handle this gracefully. We've built the AdminChangePasswordDialog to NOT require re-auth
+      // and this function will not be called from there. It's here for conceptual completeness.
+      // The new dialog will require a different approach.
+      console.warn("La función adminResetUserPassword es una simulación. Se requiere un backend (Cloud Function) para cambiar la contraseña de otro usuario de forma segura.");
+      
+      // For the prototype's purpose, we'll just throw an error.
+      throw new Error("La funcionalidad de reseteo de contraseña por administrador requiere un backend y no está implementada.");
+  }
+
 
   const authContextValue = {
     user,
@@ -512,6 +554,8 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     reauthenticateAndChangePassword,
+    reauthenticateAndChangeEmail,
+    adminResetUserPassword,
     authLoading,
     error,
   };
