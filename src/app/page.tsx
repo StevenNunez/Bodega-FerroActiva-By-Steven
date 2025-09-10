@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Warehouse, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/app-provider";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -30,10 +31,14 @@ export default function LandingPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-lg border-border text-center">
         <CardHeader>
-           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <Warehouse className="h-10 w-10 text-primary" />
-          </div>
-          <CardTitle className="text-4xl font-bold tracking-tight">
+           <Image
+              src="/logo.png"
+              alt="Logo Constructora"
+              width={120}
+              height={120}
+              className="mx-auto"
+            />
+          <CardTitle className="text-4xl font-bold tracking-tight pt-4">
             Bodega APP
           </CardTitle>
           <CardDescription className="text-xl pt-2 font-medium text-muted-foreground">

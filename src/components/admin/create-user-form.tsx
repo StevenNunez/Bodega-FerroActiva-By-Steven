@@ -18,7 +18,7 @@ import { nanoid } from 'nanoid';
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   email: z.string().email('El correo electrónico no es válido.'),
-  password: z.string().optional(),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
   role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr'], { required_error: 'Debes seleccionar un rol.' }),
 });
 
@@ -56,23 +56,8 @@ export function CreateUserForm() {
 
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
-    let password = data.password;
-    let temporaryPasswordMessage = "";
-
-    if (!password) {
-        password = nanoid(10);
-        temporaryPasswordMessage = `La contraseña temporal es: ${password}`;
-    } else if (password.length < 6) {
-        toast({
-            variant: 'destructive',
-            title: 'Contraseña Inválida',
-            description: 'La contraseña debe tener al menos 6 caracteres.',
-        });
-        return;
-    }
-
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const authUser = userCredential.user;
 
       const qrCode = `USER-${authUser.uid}`;
@@ -87,8 +72,7 @@ export function CreateUserForm() {
 
       toast({
         title: 'Usuario Creado Exitosamente',
-        description: `${data.name} ha sido añadido. ${temporaryPasswordMessage}`,
-        duration: temporaryPasswordMessage ? 20000 : 5000,
+        description: `${data.name} ha sido añadido. Comunícale su contraseña para que pueda ingresar.`,
       });
       reset();
       
@@ -120,8 +104,8 @@ export function CreateUserForm() {
       </div>
 
        <div className="space-y-2">
-        <Label htmlFor="password">Contraseña (Opcional)</Label>
-        <Input id="password" type="password" placeholder="Dejar en blanco para generar una" {...register('password')} />
+        <Label htmlFor="password">Contraseña</Label>
+        <Input id="password" type="password" placeholder="Mínimo 6 caracteres" {...register('password')} />
         {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
       </div>
       

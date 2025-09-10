@@ -7,7 +7,7 @@ import { useAppState } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRight, Undo2, History, ArrowDown, ArrowUp, X, Trash2, AlertTriangle, MoreHorizontal, Edit } from "lucide-react";
+import { ArrowRight, Undo2, History, ArrowDown, ArrowUp, X, Trash2, AlertTriangle, MoreHorizontal, Edit, CalendarIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { GenerateToolForm } from "@/components/admin/generate-tool-form";
 import type { Tool as ToolType, PurchaseRequest, MaterialRequest, ToolLog } from "@/lib/data";
@@ -21,6 +21,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { EditToolForm } from "@/components/admin/edit-tool-form";
 import { ToolCheckoutCard } from "@/components/admin/tool-checkout-card";
 import { useToast } from "@/hooks/use-toast";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 
 type DailyMovement = {
@@ -35,6 +37,7 @@ type DailyMovement = {
 export default function AdminToolsPage() {
   const { users, toolLogs, tools, deleteTool, requests, materials, purchaseRequests } = useAppState();
   const [editingTool, setEditingTool] = useState<ToolType | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
 
   const checkedOutTools = useMemo(() => toolLogs.filter(log => log.returnDate === null), [toolLogs]);
@@ -50,19 +53,21 @@ export default function AdminToolsPage() {
       return date instanceof Timestamp ? date.toDate() : date;
   }
 
-  const dailyMovements = useMemo((): DailyMovement[] => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const historicalMovements = useMemo((): DailyMovement[] => {
+    if (!selectedDate) return [];
+    
+    const targetDate = new Date(selectedDate);
+    targetDate.setHours(0, 0, 0, 0);
 
-    const isToday = (date: Date | Timestamp) => {
+    const isSameDay = (date: Date | Timestamp) => {
         const d = getDate(date);
         const dCopy = new Date(d.getTime());
         dCopy.setHours(0,0,0,0);
-        return dCopy.getTime() === today.getTime();
+        return dCopy.getTime() === targetDate.getTime();
     }
 
     const materialEntries: DailyMovement[] = purchaseRequests
-        .filter((pr: PurchaseRequest) => pr.status === 'received' && pr.receivedAt && isToday(pr.receivedAt))
+        .filter((pr: PurchaseRequest) => pr.status === 'received' && pr.receivedAt && isSameDay(pr.receivedAt))
         .map((pr: PurchaseRequest) => ({
             id: `pr-${pr.id}`,
             type: 'Entrada Material',
@@ -72,7 +77,7 @@ export default function AdminToolsPage() {
         }));
 
     const materialExits: DailyMovement[] = requests
-        .filter((r: MaterialRequest) => r.status === 'approved' && isToday(r.createdAt))
+        .filter((r: MaterialRequest) => r.status === 'approved' && isSameDay(r.createdAt))
         .map((r: MaterialRequest) => ({
             id: `req-${r.id}`,
             type: 'Salida Material',
@@ -82,7 +87,7 @@ export default function AdminToolsPage() {
         }));
 
     const toolCheckouts: DailyMovement[] = toolLogs
-        .filter(log => isToday(log.checkoutDate))
+        .filter(log => isSameDay(log.checkoutDate))
         .map(log => ({
             id: `tout-${log.id}`,
             type: 'Salida Herramienta',
@@ -93,7 +98,7 @@ export default function AdminToolsPage() {
         }));
 
     const toolReturns: DailyMovement[] = toolLogs
-        .filter(log => log.returnDate && isToday(log.returnDate))
+        .filter(log => log.returnDate && isSameDay(log.returnDate))
         .map(log => ({
             id: `tin-${log.id}`,
             type: 'Entrada Herramienta',
@@ -106,7 +111,7 @@ export default function AdminToolsPage() {
     return [...materialEntries, ...materialExits, ...toolCheckouts, ...toolReturns]
         .sort((a,b) => b.date.getTime() - a.date.getTime());
         
-  }, [requests, purchaseRequests, materials, users, toolLogs, tools]);
+  }, [requests, purchaseRequests, materials, users, toolLogs, tools, selectedDate]);
   
   
   const getMovementBadge = (log: DailyMovement) => {
@@ -270,8 +275,34 @@ export default function AdminToolsPage() {
             </Card>
              <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><History /> Movimientos de Bodega del Día</CardTitle>
-                    <CardDescription>Registro de todas las entradas y salidas de materiales y herramientas de la jornada.</CardDescription>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <CardTitle className="flex items-center gap-2"><History /> Movimientos de Bodega</CardTitle>
+                            <CardDescription>Registro de todas las entradas y salidas de materiales y herramientas.</CardDescription>
+                        </div>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                variant={"outline"}
+                                className={cn(
+                                    "w-[280px] justify-start text-left font-normal",
+                                    !selectedDate && "text-muted-foreground"
+                                )}
+                                >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {selectedDate ? selectedDate.toLocaleDateString('es-CL') : <span>Selecciona una fecha</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={setSelectedDate}
+                                initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <ScrollArea className="h-96">
@@ -285,8 +316,8 @@ export default function AdminToolsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                               {dailyMovements.length > 0 ? (
-                                dailyMovements.map(log => (
+                               {historicalMovements.length > 0 ? (
+                                historicalMovements.map(log => (
                                    <TableRow key={log.id}>
                                        <TableCell>{getMovementBadge(log)}</TableCell>
                                        <TableCell className="font-medium">{log.description}</TableCell>
@@ -296,7 +327,7 @@ export default function AdminToolsPage() {
                                 ))) : (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
-                                        No hay movimientos registrados hoy.
+                                        No hay movimientos registrados para la fecha seleccionada.
                                     </TableCell>
                                 </TableRow>
                                )}

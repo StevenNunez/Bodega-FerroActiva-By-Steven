@@ -2,6 +2,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/app-provider";
 import { Button } from "@/components/ui/button";
@@ -15,13 +17,12 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Warehouse, Loader2, AlertTriangle, Sparkles } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Warehouse, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, user, authLoading, error: authError } = useAuth();
+  const { login, user, authLoading } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
@@ -67,10 +68,14 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-sm border-border">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Warehouse className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Control de Bodega</CardTitle>
+           <Image
+              src="/logo.png"
+              alt="Logo Constructora"
+              width={100}
+              height={100}
+              className="mx-auto"
+            />
+          <CardTitle className="text-2xl font-bold pt-4">Control de Bodega</CardTitle>
           <CardDescription>
             Inicia sesión para gestionar el inventario.
           </CardDescription>
@@ -89,7 +94,14 @@ export default function LoginPage() {
                 />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Contraseña</Label>
+                    <Button asChild variant="link" className="px-0 text-xs h-auto py-1 text-muted-foreground">
+                        <Link href="/reset-password">
+                            ¿Olvidaste tu contraseña?
+                        </Link>
+                    </Button>
+                </div>
                 <Input
                 id="password"
                 type="password"
