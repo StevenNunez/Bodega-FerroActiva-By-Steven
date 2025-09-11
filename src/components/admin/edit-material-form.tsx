@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, Save } from 'lucide-react';
-import { PURCHASE_UNITS, MATERIAL_CATEGORIES, Material, Supplier } from '@/lib/data';
+import { PURCHASE_UNITS, Material, Supplier, MaterialCategory } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 
@@ -30,7 +30,7 @@ interface EditMaterialFormProps {
 }
 
 export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialFormProps) {
-  const { updateMaterial, suppliers } = useAppState();
+  const { updateMaterial, suppliers, materialCategories } = useAppState();
   const { toast } = useToast();
 
   const {
@@ -145,8 +145,8 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
                                     <SelectValue placeholder="Selecciona una categoría" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {MATERIAL_CATEGORIES.map(cat => (
-                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    {materialCategories.map((cat: MaterialCategory) => (
+                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

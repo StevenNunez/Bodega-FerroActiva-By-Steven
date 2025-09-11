@@ -8,31 +8,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Inbox, PackagePlus, ShoppingCart, Truck, Download } from 'lucide-react';
+import { FileText, Inbox, PackagePlus, ShoppingCart, Truck, Download, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { PurchaseRequest, PurchaseOrder as PurchaseOrderType, Supplier } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { generatePurchaseOrderPDF } from '@/lib/pdf-generator';
 import { Timestamp } from 'firebase/firestore';
+import { useLots } from '@/hooks/use-lots';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
-interface BatchedLot {
-  lotId: string;
-  category: string;
-  requests: PurchaseRequest[];
-}
 
 interface GenerateOrderCardProps {
-    lot: BatchedLot;
+    lot: ReturnType<typeof useLots>['batchedLots'][0];
 }
 
 const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
     const { suppliers, generatePurchaseOrder } = useAppState();
     const [selectedSupplier, setSelectedSupplier] = useState<string>('');
     const { toast } = useToast();
-
-    const filteredSuppliers = useMemo(() => {
-        return suppliers.filter(s => s.categories.includes(lot.category));
-    }, [suppliers, lot.category]);
 
     const handleGenerateOrder = async () => {
         if (!selectedSupplier) {
@@ -46,6 +39,7 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
         try {
             await generatePurchaseOrder(lot.requests, selectedSupplier);
             toast({ title: 'Orden de Compra Generada', description: `La orden para ${lot.category} ha sido creada.` });
+            setSelectedSupplier('');
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo generar la orden.' });
         }
@@ -57,9 +51,9 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
     return (
         <Card className="bg-card">
             <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
+                <CardTitle className="flex items-center gap-2 text-base capitalize">
                     <PackagePlus className="h-5 w-5 text-primary"/>
-                    Lote: {lot.category}
+                    {lot.category}
                 </CardTitle>
                 <CardDescription>
                     {totalRequests} solicitudes, {totalQuantity.toLocaleString()} unidades en total.
@@ -72,10 +66,10 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
                             <SelectValue placeholder="Seleccionar Proveedor" />
                         </SelectTrigger>
                         <SelectContent>
-                            {filteredSuppliers.length > 0 ? (
-                                filteredSuppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
+                            {suppliers.length > 0 ? (
+                                suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
                             ) : (
-                                <div className="text-center text-sm text-muted-foreground p-4">No hay proveedores sugeridos para esta categoría.</div>
+                                <div className="text-center text-sm text-muted-foreground p-4">No hay proveedores registrados.</div>
                             )}
                         </SelectContent>
                     </Select>
@@ -89,22 +83,10 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
 };
 
 export default function OperationsOrdersPage() {
-    const { purchaseRequests, purchaseOrders, suppliers } = useAppState();
+    const { purchaseOrders, suppliers, cancelPurchaseOrder } = useAppState();
+    const { batchedLots } = useLots();
+    const { toast } = useToast();
     
-    const batchedLots = useMemo((): BatchedLot[] => {
-        const lotsMap = new Map<string, { requests: PurchaseRequest[], category: string }>();
-
-        for (const req of purchaseRequests) {
-            if (req.lotId) {
-                 if (!lotsMap.has(req.lotId)) {
-                    lotsMap.set(req.lotId, { requests: [], category: req.category });
-                }
-                lotsMap.get(req.lotId)!.requests.push(req);
-            }
-        }
-        return Array.from(lotsMap.entries()).map(([lotId, {requests, category}]) => ({ lotId, requests, category }));
-    }, [purchaseRequests]);
-
     const getSupplierName = (id: string) => suppliers.find(s => s.id === id)?.name || 'Desconocido';
     const getSupplier = (id: string): Supplier | undefined => suppliers.find(s => s.id === id);
     
@@ -112,6 +94,17 @@ export default function OperationsOrdersPage() {
         const supplier = getSupplier(order.supplierId);
         if(supplier) {
             generatePurchaseOrderPDF(order, supplier);
+        } else {
+             alert("Proveedor no encontrado para esta orden.");
+        }
+    };
+
+    const handleCancelOrder = async (orderId: string) => {
+        try {
+            await cancelPurchaseOrder(orderId);
+            toast({ title: 'Orden Anulada', description: `La orden ${orderId} fue cancelada y las solicitudes devueltas a lotes.` });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo anular la orden.' });
         }
     };
     
@@ -167,11 +160,33 @@ export default function OperationsOrdersPage() {
                                             </p>
                                         </div>
                                     </AccordionTrigger>
-                                    <Button 
-                                        className="mt-4 sm:mt-0 sm:ml-4 flex-shrink-0" 
-                                        onClick={(e) => { e.stopPropagation(); handleDownloadPDF(order); }}>
-                                        <Download className="mr-2 h-4 w-4"/> Descargar PDF
-                                    </Button>
+                                    <div className="flex gap-2 mt-4 sm:mt-0 sm:ml-4 flex-shrink-0">
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="outline" size="icon" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
+                                                    <Trash2 className="h-4 w-4"/>
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Anular Orden de Compra?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta acción eliminará la orden y devolverá todas sus solicitudes al estado "En Lote" para que puedas volver a generar una orden. ¿Estás seguro?
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleCancelOrder(order.id)} className="bg-destructive hover:bg-destructive/90">
+                                                        Sí, anular orden
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                        <Button 
+                                            onClick={(e) => { e.stopPropagation(); handleDownloadPDF(order); }}>
+                                            <Download className="mr-2 h-4 w-4"/> PDF
+                                        </Button>
+                                    </div>
                                 </div>
                                 <AccordionContent className="p-6 pt-0">
                                     <Table>

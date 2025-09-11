@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, PackagePlus } from 'lucide-react';
-import { PURCHASE_UNITS, MATERIAL_CATEGORIES, Supplier } from '@/lib/data';
+import { PURCHASE_UNITS, Supplier, MaterialCategory } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 
@@ -24,7 +24,7 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>;
 
 export function CreateMaterialForm() {
-  const { addMaterial, suppliers } = useAppState();
+  const { addMaterial, suppliers, materialCategories } = useAppState();
   const { toast } = useToast();
 
   const {
@@ -117,8 +117,8 @@ export function CreateMaterialForm() {
                             <SelectValue placeholder="Selecciona una categoría" />
                         </SelectTrigger>
                         <SelectContent>
-                            {MATERIAL_CATEGORIES.map(cat => (
-                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            {materialCategories.map((cat: MaterialCategory) => (
+                                <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>

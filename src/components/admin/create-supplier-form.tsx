@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
@@ -10,10 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, Briefcase, PlusCircle, X, Check } from 'lucide-react';
-import { MATERIAL_CATEGORIES } from '@/lib/data';
 import { Badge } from '../ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { MaterialCategory } from '@/lib/data';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -23,7 +22,7 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>;
 
 export function CreateSupplierForm() {
-  const { addSupplier } = useAppState();
+  const { addSupplier, materialCategories } = useAppState();
   const { toast } = useToast();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -96,15 +95,15 @@ export function CreateSupplierForm() {
                     <CommandList>
                         <CommandEmpty>No se encontró la categoría.</CommandEmpty>
                         <CommandGroup>
-                            {MATERIAL_CATEGORIES.map(cat => (
+                            {materialCategories.map((cat: MaterialCategory) => (
                                 <CommandItem
-                                    key={cat}
-                                    value={cat}
-                                    onSelect={() => handleCategoryToggle(cat)}
+                                    key={cat.id}
+                                    value={cat.name}
+                                    onSelect={() => handleCategoryToggle(cat.name)}
                                     className="flex items-center justify-between"
                                 >
-                                    <span>{cat}</span>
-                                    {selectedCategories.includes(cat) && <Check className="h-4 w-4 text-primary"/>}
+                                    <span>{cat.name}</span>
+                                    {selectedCategories.includes(cat.name) && <Check className="h-4 w-4 text-primary"/>}
                                 </CommandItem>
                             ))}
                         </CommandGroup>

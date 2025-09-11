@@ -1,4 +1,3 @@
-
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr";
@@ -15,6 +14,11 @@ export interface Tool {
   id: string;
   name:string;
   qrCode: string;
+}
+
+export interface MaterialCategory {
+    id: string;
+    name: string;
 }
 
 export interface Material {
@@ -80,21 +84,3 @@ export interface PurchaseOrder {
     requestIds: string[];
     items: { materialName: string; totalQuantity: number; unit: string; category: string }[];
 }
-
-
-export const MATERIAL_CATEGORIES = [
-    "Fierros y Acero",
-    "Eléctricos",
-    "Agua y Gasfitería",
-    "Madera y Tableros",
-    "Hormigón y Cemento",
-    "Pinturas y Adhesivos",
-    "Seguridad",
-    "EPP",
-    "Herramientas Menores",
-    "Fijaciones",
-    "Sanitarios y Grifería",
-    "Limpieza y Aseo",
-    "Oficina y Papelería",
-    "Misceláneos"
-]

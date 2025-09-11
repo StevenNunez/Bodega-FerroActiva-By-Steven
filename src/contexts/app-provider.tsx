@@ -13,7 +13,7 @@ import {
   PurchaseRequestStatus,
   Supplier,
   PurchaseOrder,
-  MATERIAL_CATEGORIES,
+  MaterialCategory,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -81,11 +81,13 @@ interface AppStateContextType {
   users: User[];
   tools: Tool[];
   materials: Material[];
+  materialCategories: MaterialCategory[];
   requests: MaterialRequest[];
   toolLogs: ToolLog[];
   purchaseRequests: PurchaseRequest[];
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
+  manualLots: string[];
   addTool: (toolName: string) => Promise<void>;
   updateTool: (toolId: string, data: Partial<Omit<Tool, 'id' | 'qrCode'>>) => Promise<void>;
   deleteTool: (toolId: string) => Promise<void>;
@@ -97,14 +99,21 @@ interface AppStateContextType {
   returnTool: (logId: string, condition: 'ok' | 'damaged', notes?: string) => Promise<void>;
   addMaterial: (material: Omit<Material, "id">) => Promise<void>;
   updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
+  addMaterialCategory: (name: string) => Promise<void>;
+  updateMaterialCategory: (id: string, name: string) => Promise<void>;
+  deleteMaterialCategory: (id: string) => Promise<void>;
   addPurchaseRequest: (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => Promise<void>;
   updatePurchaseRequestStatus: (id: string, status: PurchaseRequestStatus) => Promise<void>;
   receivePurchaseRequest: (purchaseRequestId: string) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
+  cancelPurchaseOrder: (orderId: string) => Promise<void>;
   addSupplier: (name: string, categories: string[]) => Promise<void>;
-  batchApprovedRequests: (requestIds: string[]) => Promise<void>;
+  updateSupplier: (supplierId: string, data: Partial<Omit<Supplier, 'id'>>) => Promise<void>;
+  deleteSupplier: (supplierId: string) => Promise<void>;
+  batchApprovedRequests: (requestIds: string[], options: { mode: 'category' | 'supplier' }) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
+  createLot: (lotName: string) => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -115,11 +124,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = React.useState<User[]>([]);
   const [tools, setTools] = React.useState<Tool[]>([]);
   const [materials, setMaterials] = React.useState<Material[]>([]);
+  const [materialCategories, setMaterialCategories] = React.useState<MaterialCategory[]>([]);
   const [requests, setRequests] = React.useState<MaterialRequest[]>([]);
   const [toolLogs, setToolLogs] = React.useState<ToolLog[]>([]);
   const [purchaseRequests, setPurchaseRequests] = React.useState<PurchaseRequest[]>([]);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = React.useState<PurchaseOrder[]>([]);
+  const [manualLots, setManualLots] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const { user: authUser } = useAuth();
@@ -133,6 +144,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
           { name: "users", setter: setUsers, sortField: "name" },
           { name: "tools", setter: setTools, sortField: "name" },
           { name: "materials", setter: setMaterials, sortField: "name" },
+          { name: "materialCategories", setter: setMaterialCategories, sortField: "name" },
           { name: "suppliers", setter: setSuppliers, sortField: "name" },
           { name: "requests", setter: setRequests, sortField: "createdAt" },
           { name: "toolLogs", setter: setToolLogs, sortField: "checkoutDate" },
@@ -240,6 +252,41 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         supplierId: data.supplierId === "ninguno" ? null : data.supplierId,
       });
   }
+
+  const addMaterialCategory = async (name: string) => {
+    await addDoc(collection(db, 'materialCategories'), { name });
+  };
+
+  const updateMaterialCategory = async (id: string, name: string) => {
+    const categoryRef = doc(db, 'materialCategories', id);
+    await updateDoc(categoryRef, { name });
+  };
+
+  const deleteMaterialCategory = async (id: string) => {
+    const categoryRef = doc(db, 'materialCategories', id);
+    const categoryDoc = await getDoc(categoryRef);
+    const category = categoryDoc.data() as MaterialCategory;
+
+    const materialsWithCategory = await getDocs(
+      query(collection(db, 'materials'), where('category', '==', category.name))
+    );
+    if (!materialsWithCategory.empty) {
+      throw new Error(
+        'No se puede eliminar: existen materiales asignados a esta categoría.'
+      );
+    }
+    
+    const suppliersWithCategory = await getDocs(
+      query(collection(db, 'suppliers'), where('categories', 'array-contains', category.name))
+    );
+    if (!suppliersWithCategory.empty) {
+      throw new Error(
+        'No se puede eliminar: existen proveedores asignados a esta categoría.'
+      );
+    }
+
+    await deleteDoc(categoryRef);
+  };
 
 
   const addRequest = async (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => {
@@ -364,52 +411,108 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
               category,
           }))
       });
-      
-      for (const req of requests) {
-          const reqRef = doc(db, "purchaseRequests", req.id);
-          batch.update(reqRef, { status: 'ordered', lotId: null });
-      }
 
       await batch.commit();
   }
+
+  const cancelPurchaseOrder = async (orderId: string) => {
+    const orderRef = doc(db, 'purchaseOrders', orderId);
+    const orderDoc = await getDoc(orderRef);
+    if (!orderDoc.exists()) {
+      throw new Error('La orden de compra no existe.');
+    }
+    const order = orderDoc.data() as PurchaseOrder;
+
+    const batch = writeBatch(db);
+
+    // Revert each request in the order
+    for (const requestId of order.requestIds) {
+      const requestRef = doc(db, 'purchaseRequests', requestId);
+      // We revert it to 'approved' so it can be batched again.
+      batch.update(requestRef, { status: 'batched' });
+    }
+
+    // Delete the order itself
+    batch.delete(orderRef);
+
+    await batch.commit();
+  };
   
   const addSupplier = async (name: string, categories: string[]) => {
       await addDoc(collection(db, "suppliers"), { name, categories });
   };
-
-  const batchApprovedRequests = async (requestIds: string[]) => {
-      const batch = writeBatch(db);
-      const categoriesToBatch = new Map<string, string>();
-      
-      for (const id of requestIds) {
-          const req = purchaseRequests.find(pr => pr.id === id);
-          if (req && req.status === 'approved' && !req.lotId && !categoriesToBatch.has(req.category)) {
-              categoriesToBatch.set(req.category, `lot-${nanoid(6)}`);
-          }
+  
+  const updateSupplier = async (supplierId: string, data: Partial<Omit<Supplier, 'id'>>) => {
+      if (!supplierId) throw new Error("Supplier ID is required");
+      const supplierRef = doc(db, "suppliers", supplierId);
+      await updateDoc(supplierRef, data);
+  };
+  
+  const deleteSupplier = async (supplierId: string) => {
+      if (!supplierId) throw new Error("Supplier ID is required");
+      const isSupplierInUse = materials.some(m => m.supplierId === supplierId);
+      if (isSupplierInUse) {
+          throw new Error("No se puede eliminar. El proveedor está asignado a uno o más materiales.");
       }
+      const supplierRef = doc(db, "suppliers", supplierId);
+      await deleteDoc(supplierRef);
+  };
 
-      for (const id of requestIds) {
-          const req = purchaseRequests.find(pr => pr.id === id);
-          if (req && req.status === 'approved' && !req.lotId) {
-              const lotId = categoriesToBatch.get(req.category);
-              if (lotId) {
-                  const reqRef = doc(db, "purchaseRequests", id);
-                  batch.update(reqRef, { lotId: lotId });
-              }
-          }
-      }
-      
-      await batch.commit();
+  const batchApprovedRequests = async (requestIds: string[], options: { mode: 'category' | 'supplier' }) => {
+    const batch = writeBatch(db);
+    const relevantRequests = purchaseRequests.filter(pr => requestIds.includes(pr.id));
+
+    if (options.mode === 'category') {
+        const groups = new Map<string, string>(); // category -> lotId
+        for (const req of relevantRequests) {
+            const lotCategory = `lot-${req.category.replace(/\s/g, "-")}`;
+            if (!groups.has(lotCategory)) {
+                groups.set(lotCategory, `${lotCategory}-${nanoid(4)}`);
+            }
+            const lotId = groups.get(lotCategory)!;
+            const reqRef = doc(db, "purchaseRequests", req.id);
+            batch.update(reqRef, { lotId, status: 'batched' });
+        }
+    } else if (options.mode === 'supplier') {
+        const materialNames = [...new Set(relevantRequests.map(r => r.materialName))];
+        const materialToSupplierMap = new Map<string, string | null>();
+        if (materialNames.length > 0) {
+            const materialDocs = await getDocs(query(collection(db, "materials"), where('name', 'in', materialNames)));
+            materialDocs.docs.forEach(doc => {
+                const mat = doc.data() as Material;
+                materialToSupplierMap.set(mat.name, mat.supplierId || null);
+            });
+        }
+
+        for (const req of relevantRequests) {
+            const supplierId = materialToSupplierMap.get(req.materialName);
+            if (!supplierId) continue; 
+            
+            const lotId = supplierId;
+            const reqRef = doc(db, "purchaseRequests", req.id);
+            batch.update(reqRef, { lotId, status: 'batched' });
+        }
+    }
+
+    await batch.commit();
   };
   
   const removeRequestFromLot = async (requestId: string) => {
     const requestRef = doc(db, "purchaseRequests", requestId);
-    await updateDoc(requestRef, { lotId: null });
+    await updateDoc(requestRef, { lotId: null, status: 'approved' });
   };
   
   const addRequestToLot = async (requestId: string, lotId: string) => {
     const requestRef = doc(db, "purchaseRequests", requestId);
-    await updateDoc(requestRef, { lotId });
+    await updateDoc(requestRef, { lotId, status: 'batched' });
+  };
+
+  const createLot = async (lotName: string) => {
+    const newLotId = `manual-${lotName.replace(/\s/g, "-").toLowerCase()}-${nanoid(4)}`;
+    if (manualLots.includes(newLotId) || purchaseRequests.some(pr => pr.lotId === newLotId)) {
+      throw new Error('Ya existe un lote con este nombre.');
+    }
+    setManualLots(prev => [...prev, newLotId]);
   };
 
 
@@ -417,11 +520,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     users,
     tools,
     materials,
+    materialCategories,
     requests,
     toolLogs,
     purchaseRequests,
     suppliers,
     purchaseOrders,
+    manualLots,
     addTool,
     updateTool,
     deleteTool,
@@ -433,14 +538,21 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     returnTool,
     addMaterial,
     updateMaterial,
+    addMaterialCategory,
+    updateMaterialCategory,
+    deleteMaterialCategory,
     addPurchaseRequest,
     updatePurchaseRequestStatus,
     receivePurchaseRequest,
     generatePurchaseOrder,
+    cancelPurchaseOrder,
     addSupplier,
+    updateSupplier,
+    deleteSupplier,
     batchApprovedRequests,
     removeRequestFromLot,
     addRequestToLot,
+    createLot,
     loading,
     error,
   };
@@ -554,3 +666,5 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       </AuthProvider>
   );
 }
+
+    

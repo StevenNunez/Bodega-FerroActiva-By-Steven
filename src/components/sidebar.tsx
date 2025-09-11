@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -17,6 +18,7 @@ import {
   FileText,
   Medal,
   Upload,
+  FolderTree,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -27,6 +29,7 @@ const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
+  { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
   { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales', notificationKey: 'pendingMaterialRequests' },
   { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
   { href: '/dashboard/admin/request', icon: PlusCircle, label: 'Solicitar Materiales' },
@@ -41,6 +44,7 @@ const supervisorNavItems = [
   { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
+  { href: '/dashboard/supervisor/suppliers', icon: Briefcase, label: 'Proveedores' },
 ];
 
 const aprNavItems = [
@@ -56,7 +60,9 @@ const workerNavItems = [
 const operationsNavItems = [
     { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras', notificationKey: 'pendingPurchaseRequests' },
     { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
+    { href: '/dashboard/operations/categories', icon: FolderTree, label: 'Categorías' },
     { href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' },
+    { href: '/dashboard/operations/suppliers', icon: Briefcase, label: 'Proveedores' },
 ];
 
 const navItems = {

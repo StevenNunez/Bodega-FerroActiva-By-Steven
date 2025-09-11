@@ -16,7 +16,7 @@ import { Send, Loader2, Clock, Check, X, PackageCheck, Package, Box, FileText } 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { PurchaseRequestStatus, MATERIAL_CATEGORIES, PURCHASE_UNITS } from "@/lib/data";
+import { PurchaseRequestStatus, PURCHASE_UNITS, MaterialCategory } from "@/lib/data";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Timestamp } from "firebase/firestore";
@@ -34,7 +34,7 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>;
 
 export default function AprPurchaseRequestPage() {
-  const { purchaseRequests, addPurchaseRequest } = useAppState();
+  const { purchaseRequests, addPurchaseRequest, materialCategories } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
 
@@ -154,8 +154,8 @@ export default function AprPurchaseRequestPage() {
                                     <SelectValue placeholder="Selecciona una categoría" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {MATERIAL_CATEGORIES.map(cat => (
-                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    {materialCategories.map((cat: MaterialCategory) => (
+                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

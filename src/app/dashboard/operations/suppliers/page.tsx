@@ -8,42 +8,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CreateSupplierForm } from "@/components/admin/create-supplier-form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { Briefcase, MoreHorizontal, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
 import type { Supplier } from "@/lib/data";
 import { EditSupplierForm } from "@/components/admin/edit-supplier-form";
 
-
-export default function AdminSuppliersPage() {
-    const { suppliers, deleteSupplier } = useAppState();
+export default function OperationsSuppliersPage() {
+    const { suppliers } = useAppState();
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-    const { toast } = useToast();
-
-    const handleDeleteSupplier = async (supplierId: string, supplierName: string) => {
-        try {
-            await deleteSupplier(supplierId);
-            toast({
-                title: "Proveedor Eliminado",
-                description: `El proveedor ${supplierName} ha sido eliminado correctamente.`
-            });
-        } catch (error: any) {
-             toast({
-                variant: "destructive",
-                title: "Error al eliminar",
-                description: error?.message || "No se pudo eliminar el proveedor."
-            });
-        }
-    }
-
 
     return (
         <div className="flex flex-col gap-8">
             <PageHeader
                 title="Gestión de Proveedores"
-                description="Crea, edita y gestiona todos los perfiles de proveedores registrados en el sistema."
+                description="Crea nuevos proveedores y visualiza todos los perfiles registrados en el sistema."
             />
             
             {editingSupplier && (
@@ -102,31 +81,6 @@ export default function AdminSuppliersPage() {
                                                         <Edit className="mr-2 h-4 w-4"/>
                                                         <span>Editar</span>
                                                     </DropdownMenuItem>
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                <Trash2 className="mr-2 h-4 w-4 text-destructive"/>
-                                                                <span className="text-destructive">Eliminar</span>
-                                                            </DropdownMenuItem>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>¿Seguro que quieres eliminar a {supplier.name}?</AlertDialogTitle>
-                                                                <AlertDialogDescription>
-                                                                    Esta acción no se puede deshacer. Se eliminará permanentemente al proveedor.
-                                                                    Si este proveedor está asignado a algún material, la acción fallará.
-                                                                </AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                                <AlertDialogAction 
-                                                                    className="bg-destructive hover:bg-destructive/90"
-                                                                    onClick={() => handleDeleteSupplier(supplier.id, supplier.name)}>
-                                                                    Sí, eliminar proveedor
-                                                                </AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </div>
