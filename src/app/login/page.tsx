@@ -75,7 +75,7 @@ export default function LoginPage() {
               height={100}
               className="mx-auto"
             />
-          <CardTitle className="text-2xl font-bold pt-4">Constructora Ferro Activa</CardTitle>
+          <CardTitle className="text-2xl font-bold pt-4">Constructora FerroActiva</CardTitle>
           <CardDescription>
             Inicia sesión para gestionar el inventario.
           </CardDescription>

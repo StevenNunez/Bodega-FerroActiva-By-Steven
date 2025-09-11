@@ -95,7 +95,7 @@ interface AppStateContextType {
   approveRequest: (requestId: string) => Promise<void>;
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
   returnTool: (logId: string, condition: 'ok' | 'damaged', notes?: string) => Promise<void>;
-  addMaterial: (material: Omit<Material, "id" | "supplierId"> & { supplierId?: string | null }) => Promise<void>;
+  addMaterial: (material: Omit<Material, "id">) => Promise<void>;
   updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
   addPurchaseRequest: (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => Promise<void>;
   updatePurchaseRequestStatus: (id: string, status: PurchaseRequestStatus) => Promise<void>;
@@ -122,6 +122,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [purchaseOrders, setPurchaseOrders] = React.useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const { user: authUser } = useAuth();
+
 
   React.useEffect(() => {
     const setup = async () => {
@@ -203,8 +205,32 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       await deleteDoc(userRef);
   }
   
-  const addMaterial = async (material: Omit<Material, "id" | "supplierId"> & { supplierId?: string | null }) => {
-    await addDoc(collection(db, "materials"), material);
+  const addMaterial = async (material: Omit<Material, "id">) => {
+    const batch = writeBatch(db);
+
+    // 1. Create the new material
+    const newMaterialRef = doc(collection(db, "materials"));
+    batch.set(newMaterialRef, material);
+
+    // 2. Create a corresponding "received" purchase request to log the manual entry
+    if (material.stock > 0 && authUser) {
+        const newPurchaseRequestRef = doc(collection(db, "purchaseRequests"));
+        batch.set(newPurchaseRequestRef, {
+            materialName: material.name,
+            quantity: material.stock,
+            unit: material.unit,
+            category: material.category,
+            justification: 'Ingreso Manual de Stock Inicial',
+            area: 'Bodega Central',
+            supervisorId: authUser.id, // Logged by the current admin
+            status: 'received',
+            createdAt: Timestamp.now(),
+            receivedAt: Timestamp.now(),
+            lotId: null,
+        });
+    }
+    
+    await batch.commit();
   }
   
   const updateMaterial = async (materialId: string, data: Partial<Omit<Material, 'id'>>) => {
@@ -523,10 +549,8 @@ export const useAuth = () => {
 // Main Providers
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-      <AppStateProvider>
-        <AuthProvider>{children}</AuthProvider>
-      </AppStateProvider>
+      <AuthProvider>
+        <AppStateProvider>{children}</AppStateProvider>
+      </AuthProvider>
   );
 }
-
-    

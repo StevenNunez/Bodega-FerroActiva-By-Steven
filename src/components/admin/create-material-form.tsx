@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, PackagePlus } from 'lucide-react';
-import { PURCHASE_UNITS, MATERIAL_CATEGORIES } from '@/lib/data';
+import { PURCHASE_UNITS, MATERIAL_CATEGORIES, Supplier } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 
@@ -18,12 +18,13 @@ const FormSchema = z.object({
   stock: z.coerce.number().min(0, 'El stock no puede ser negativo.'),
   unit: z.string({ required_error: 'Debes seleccionar una unidad.' }),
   category: z.string({ required_error: 'Debes seleccionar una categoría.' }),
+  supplierId: z.string().nullable(),
 });
 
 type FormData = z.infer<typeof FormSchema>;
 
 export function CreateMaterialForm() {
-  const { addMaterial } = useAppState();
+  const { addMaterial, suppliers } = useAppState();
   const { toast } = useToast();
 
   const {
@@ -31,24 +32,28 @@ export function CreateMaterialForm() {
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       name: "",
       stock: 0,
+      supplierId: null,
     }
   });
+
+  const categoryWatcher = watch('category');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       await addMaterial({
           ...data,
-          supplierId: null
+          supplierId: data.supplierId === 'ninguno' ? null : data.supplierId
       });
       toast({
         title: 'Material Creado',
-        description: `${data.name} ha sido añadido con un stock de ${data.stock}.`,
+        description: `${data.name} ha sido añadido y su ingreso ha sido registrado.`,
       });
       reset();
     } catch (error) {
@@ -59,6 +64,11 @@ export function CreateMaterialForm() {
       });
     }
   };
+  
+  const filteredSuppliers = React.useMemo(() => {
+      if (!categoryWatcher) return suppliers;
+      return suppliers.filter(s => s.categories.includes(categoryWatcher));
+  }, [suppliers, categoryWatcher]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -116,6 +126,29 @@ export function CreateMaterialForm() {
             />
             {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
         </div>
+        
+         <div className="space-y-2">
+            <Label htmlFor="supplierId">Proveedor Preferido (Opcional)</Label>
+            <Controller
+            name="supplierId"
+            control={control}
+            render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value || ''} disabled={!categoryWatcher}>
+                    <SelectTrigger id="supplierId">
+                        <SelectValue placeholder={!categoryWatcher ? "Primero elige una categoría" : "Selecciona un proveedor"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="ninguno">Ninguno</SelectItem>
+                        {filteredSuppliers.map((s: Supplier) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
+            />
+            <p className="text-xs text-muted-foreground">Se sugieren proveedores según la categoría del material.</p>
+            {errors.supplierId && <p className="text-xs text-destructive">{errors.supplierId.message}</p>}
+        </div>
 
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -124,7 +157,7 @@ export function CreateMaterialForm() {
         ) : (
           <PackagePlus className="mr-2 h-4 w-4" />
         )}
-        Crear Material
+        Crear Material y Registrar Ingreso
       </Button>
     </form>
   );

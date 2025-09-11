@@ -127,7 +127,7 @@ export default function AdminMaterialsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Añadir Nuevo Material</CardTitle>
-                <CardDescription>Agrega nuevos tipos de materiales al inventario.</CardDescription>
+                <CardDescription>Agrega nuevos tipos de materiales al inventario. Cada ingreso quedará registrado en el historial de movimientos.</CardDescription>
               </CardHeader>
               <CardContent>
                 <CreateMaterialForm />
@@ -180,7 +180,7 @@ export default function AdminMaterialsPage() {
                                         <li key={req.id} className="text-sm p-3 rounded-lg border bg-muted/50">
                                             <p className="font-semibold">{req.materialName} <span className="font-normal text-primary">({req.quantity} uds)</span></p>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                Solicitado por <span className="font-medium">{supervisor?.name || 'Desconocido'}</span> para: "{req.justification}"
+                                                Justificación: <span className="font-medium">"{req.justification}"</span>
                                             </p>
                                             <p className="text-xs text-muted-foreground mt-2 font-mono">
                                                 Ingreso: {receivedAtDate ? receivedAtDate.toLocaleString() : 'N/A'}

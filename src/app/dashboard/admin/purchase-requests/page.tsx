@@ -51,6 +51,9 @@ export default function AdminPurchaseRequestsPage() {
   };
   
   const getActionContent = (req: PurchaseRequest) => {
+      if (req.justification === 'Ingreso Manual de Stock Inicial') {
+          return <span className="text-xs text-blue-500">Ingreso Manual</span>;
+      }
       if (req.status === 'ordered') {
           return (
               <Button size="sm" onClick={() => handleReceive(req.id)} disabled={updatingId === req.id}>
@@ -93,7 +96,7 @@ export default function AdminPurchaseRequestsPage() {
         <CardHeader>
           <CardTitle>Historial de Solicitudes de Compra</CardTitle>
           <CardDescription>
-            El Jefe de Operaciones aprueba y gestiona las compras. Tú te encargas de registrar su ingreso a la bodega.
+            El Jefe de Operaciones aprueba y gestiona las compras. Tú te encargas de registrar su ingreso a la bodega. También se muestran los ingresos manuales de stock.
           </CardDescription>
         </CardHeader>
         <CardContent>

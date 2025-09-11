@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -20,7 +19,7 @@ import {
   Upload,
 } from 'lucide-react';
 
-import { useAuth } from '@/contexts/app-provider';
+import { useAppState, useAuth } from '@/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -28,7 +27,7 @@ const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
-  { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales' },
+  { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales', notificationKey: 'pendingMaterialRequests' },
   { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
   { href: '/dashboard/admin/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
@@ -55,7 +54,7 @@ const workerNavItems = [
 ];
 
 const operationsNavItems = [
-    { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras' },
+    { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras', notificationKey: 'pendingPurchaseRequests' },
     { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
     { href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' },
 ];
@@ -76,6 +75,15 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { requests, purchaseRequests } = useAppState();
+
+  const pendingMaterialRequests = React.useMemo(() => requests.filter(r => r.status === 'pending').length, [requests]);
+  const pendingPurchaseRequests = React.useMemo(() => purchaseRequests.filter(pr => pr.status === 'pending').length, [purchaseRequests]);
+  
+  const notificationCounts = {
+    pendingMaterialRequests,
+    pendingPurchaseRequests
+  };
 
   const handleLogout = () => {
     logout();
@@ -111,20 +119,27 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
         </div>
         <div className="flex-1 overflow-auto py-2">
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-            {userNavItems.map(item => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={handleLinkClick}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-                  { 'bg-primary/10 text-primary': pathname.startsWith(item.href) && (item.href !== '/dashboard/admin' && item.href !== '/dashboard/supervisor' && item.href !== '/dashboard/operations' && item.href !== '/dashboard/apr' || pathname === item.href) }
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
+            {userNavItems.map(item => {
+              const notifCount = item.notificationKey ? notificationCounts[item.notificationKey as keyof typeof notificationCounts] : 0;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={handleLinkClick}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
+                    { 'bg-primary/10 text-primary': pathname.startsWith(item.href) && (item.href !== '/dashboard/admin' && item.href !== '/dashboard/supervisor' && item.href !== '/dashboard/operations' && item.href !== '/dashboard/apr' || pathname === item.href) }
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span className="flex-1">{item.label}</span>
+                  {notifCount > 0 && (
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white animate-pulse">
+                      {notifCount}
+                    </span>
+                  )}
+                </Link>
+            )})}
           </nav>
         </div>
         <div className="mt-auto p-4 border-t">

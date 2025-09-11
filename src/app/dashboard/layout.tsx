@@ -2,7 +2,7 @@
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/app-provider';
+import { useAuth, useAppState } from '@/contexts/app-provider';
 import { Sidebar } from '@/components/sidebar';
 import { Menu, Warehouse, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,8 +15,36 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, authLoading } = useAuth();
+  const { requests } = useAppState();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+
+  const pendingMaterialRequests = React.useMemo(() => requests.filter(r => r.status === 'pending').length, [requests]);
+  const prevPendingMaterialRequests = React.useRef(pendingMaterialRequests);
+
+  React.useEffect(() => {
+    if (user?.role !== 'admin') return;
+    
+    // Solo suena si el número de pendientes ha aumentado
+    if (prevPendingMaterialRequests.current < pendingMaterialRequests) {
+        // Y solo si la ventana está activa, para no molestar si el usuario está en otra pestaña
+        if (document.hasFocus()) {
+            try {
+                const audio = new Audio('/sounds/alarm.mp3');
+                audio.play().catch(e => {
+                    // Este catch es importante para ver errores si el navegador bloquea la reproducción
+                    console.error("Error al reproducir sonido:", e);
+                });
+            } catch (e) {
+                console.error("Error al crear el objeto Audio:", e);
+            }
+        }
+    }
+    
+    // Actualizamos el valor anterior con el actual para la próxima comparación
+    prevPendingMaterialRequests.current = pendingMaterialRequests;
+  }, [pendingMaterialRequests, user?.role]);
+
 
   React.useEffect(() => {
     if (!authLoading && user === null) {
