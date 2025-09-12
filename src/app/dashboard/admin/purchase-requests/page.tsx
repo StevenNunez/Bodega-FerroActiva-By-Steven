@@ -54,7 +54,8 @@ export default function AdminPurchaseRequestsPage() {
       if (req.justification === 'Ingreso Manual de Stock Inicial') {
           return <span className="text-xs text-blue-500">Ingreso Manual</span>;
       }
-      if (req.status === 'ordered') {
+      
+      if (['approved', 'batched', 'ordered'].includes(req.status)) {
           return (
               <Button size="sm" onClick={() => handleReceive(req.id)} disabled={updatingId === req.id}>
                   {updatingId === req.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PackageCheck className="mr-2 h-4 w-4"/>}
@@ -62,6 +63,7 @@ export default function AdminPurchaseRequestsPage() {
               </Button>
           )
       }
+
       switch(req.status) {
           case 'received':
               return <span className="text-xs text-green-500">Ingresado</span>;
@@ -69,12 +71,6 @@ export default function AdminPurchaseRequestsPage() {
               return <span className="text-xs text-muted-foreground">Pendiente de Aprobación</span>;
           case 'rejected':
               return <span className="text-xs text-red-500">Rechazada</span>;
-           case 'ordered':
-               return <span className="text-xs text-cyan-500">Orden Generada</span>;
-          case 'batched':
-               return <span className="text-xs text-purple-500">Agrupada en lote</span>;
-          case 'approved':
-               return <span className="text-xs text-green-500">Aprobada, esperando lote</span>;
           default:
                return <span className="text-xs text-muted-foreground">No requiere acción</span>;
       }

@@ -376,7 +376,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (!reqDoc.exists()) throw new Error("Solicitud de compra no encontrada");
     const req = reqDoc.data() as PurchaseRequest;
 
-    if (req.status !== 'ordered') throw new Error("La solicitud no está en estado 'Ordenada' y no puede ser recibida.");
+    if (!['approved', 'batched', 'ordered'].includes(req.status)) {
+        throw new Error("La solicitud debe estar aprobada, en lote u ordenada para poder ser recibida.");
+    }
     
     const materialsQuery = query(collection(db, "materials"), where("name", "==", req.materialName));
     const materialsSnapshot = await getDocs(materialsQuery);
@@ -433,11 +435,10 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
           }))
       });
 
-      // NO CAMBIAMOS EL ESTADO DE LAS SOLICITUDES PARA PERMITIR MÚLTIPLES COTIZACIONES
-      // for (const req of requests) {
-      //   const reqRef = doc(db, "purchaseRequests", req.id);
-      //   batch.update(reqRef, { status: 'ordered' });
-      // }
+      for (const req of requests) {
+        const reqRef = doc(db, "purchaseRequests", req.id);
+        batch.update(reqRef, { status: 'ordered' });
+      }
       
       await batch.commit();
   }
@@ -448,10 +449,20 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (!orderDoc.exists()) {
       throw new Error('La orden de compra no existe.');
     }
+    const orderData = orderDoc.data() as PurchaseOrder;
+
+    const batch = writeBatch(db);
     
-    // Solo borramos la orden, no revertimos el estado para permitir múltiples cotizaciones.
-    // La lógica de "qué se ha pedido" reside ahora en la página de recepción.
-    await deleteDoc(orderRef);
+    // Set associated requests back to 'batched' status
+    for (const reqId of orderData.requestIds) {
+      const reqRef = doc(db, 'purchaseRequests', reqId);
+      batch.update(reqRef, { status: 'batched' });
+    }
+
+    // Delete the order itself
+    batch.delete(orderRef);
+
+    await batch.commit();
   };
   
   const addSupplier = async (name: string, categories: string[]) => {
@@ -574,112 +585,96 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     error,
   };
 
-  return (
-    <AppStateContext.Provider value={contextValue}>
-      {children}
-    </AppStateContext.Provider>
-  );
+  return <AppStateContext.Provider value={contextValue}>{children}</AppStateContext.Provider>;
 }
 
-export const useAppState = () => {
-    const context = React.useContext(AppStateContext);
-    if (!context) {
-        throw new Error("useAppState must be used within an AppStateProvider");
-    }
-    return context;
-};
-
-// Auth Context
-interface AuthContextType {
-  user: User | null;
-  firebaseUser: FirebaseAuthUser | null;
-  login: (email: string, pass: string) => Promise<void>;
-  logout: () => void;
-  sendPasswordReset: (email: string) => Promise<void>;
-  authLoading: boolean;
-  error: string | null;
-}
-const AuthContext = React.createContext<AuthContextType | null>(null);
+const AuthContext = React.createContext<{ 
+    user: (User & { fb: FirebaseAuthUser }) | null, 
+    authLoading: boolean, 
+    login: (email:string, pass:string)=>Promise<any>,
+    logout: ()=>Promise<any>,
+    sendPasswordReset: (email: string) => Promise<void>,
+    reauthenticateAndChangePassword: (currentPassword:string, newPassword:string) => Promise<void>,
+    reauthenticateAndChangeEmail: (currentPassword:string, newEmail:string) => Promise<void>,
+} | null>(null);
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<User | null>(null);
-  const [firebaseUser, setFirebaseUser] = React.useState<FirebaseAuthUser | null>(null);
+  const [user, setUser] = React.useState<(User & { fb: FirebaseAuthUser }) | null>(null);
   const [authLoading, setAuthLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const initialCheckComplete = React.useRef(false);
 
   React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (authUserData) => {
-        if (authUserData) {
-            setFirebaseUser(authUserData);
-            const userDocRef = doc(db, "users", authUserData.uid);
-            try {
-                const userDoc = await getDoc(userDocRef);
-                if (userDoc.exists()) {
-                    setUser(userDoc.data() as User);
-                } else {
-                    setUser(null);
-                    setError("El usuario no existe en la base de datos.");
-                    await signOut(auth);
-                }
-            } catch (e) {
-                console.error("Error fetching user document", e);
-                setUser(null);
-                setError("Error al obtener datos del usuario.");
-            }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          setUser({ ...userDoc.data() as User, fb: firebaseUser });
         } else {
-            setFirebaseUser(null);
-            setUser(null);
+          setUser(null); 
         }
-        setAuthLoading(false);
-        initialCheckComplete.current = true;
+      } else {
+        setUser(null);
+      }
+      setAuthLoading(false);
     });
-
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
 
-  const login = async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
-  };
-
-  const logout = async () => {
-    await signOut(auth);
-  };
-  
-  const sendPasswordReset = async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
-  };
-
-  const authContextValue = {
-    user,
-    firebaseUser,
-    login,
-    logout,
-    sendPasswordReset,
-    authLoading,
-    error,
-  };
-
-  return (
-    <AuthContext.Provider value={authContextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export const useAuth = () => {
-  const context = React.useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+  const login = (email: string, pass: string) => {
+    return signInWithEmailAndPassword(auth, email, pass);
   }
-  return context;
-};
 
-// Main Providers
-export function AppProviders({ children }: { children: React.ReactNode }) {
+  const logout = () => {
+      return signOut(auth);
+  }
+  
+  const sendPasswordReset = (email: string) => {
+    return sendPasswordResetEmail(auth, email);
+  }
+  
+  const reauthenticateAndChangePassword = async (currentPassword:string, newPassword:string) => {
+    // This function would be more complex, involving reauthentication.
+    // For this example, we'll assume the user is recently logged in
+    // and skip reauthentication for simplicity. In a real app, you'd use
+    // reauthenticateWithCredential.
+    throw new Error("Password change functionality is not fully implemented in this example.");
+  }
+  
+  const reauthenticateAndChangeEmail = async (currentPassword:string, newEmail:string) => {
+      // Similar to password change, this requires reauthentication.
+      throw new Error("Email change functionality is not fully implemented in this example.");
+  }
+
+  const value = { user, authLoading, login, logout, sendPasswordReset, reauthenticateAndChangePassword, reauthenticateAndChangeEmail };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+
+function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-      <AuthProvider>
-        <AppStateProvider>{children}</AppStateProvider>
-      </AuthProvider>
+    <AuthProvider>
+        <AppStateProvider>
+            {children}
+        </AppStateProvider>
+    </AuthProvider>
   );
 }
+
+function useAppState() {
+    const context = React.useContext(AppStateContext);
+    if (!context) {
+        throw new Error('useAppState must be used within an AppProvider');
+    }
+    return context;
+}
+
+function useAuth() {
+    const context = React.useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+}
+
+export { AppProviders, useAppState, useAuth };
+
