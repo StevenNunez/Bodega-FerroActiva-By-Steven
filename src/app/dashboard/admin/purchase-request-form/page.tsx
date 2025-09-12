@@ -12,13 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2, Clock, Check, X, PackageCheck, Package, Box, FileText } from "lucide-react";
+import { Send, Loader2, Clock, Check, X, PackageCheck, Package, Box, FileText, AlertCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { PurchaseRequestStatus, PURCHASE_UNITS, MaterialCategory } from "@/lib/data";
+import { PurchaseRequestStatus, PURCHASE_UNITS, MaterialCategory, PurchaseRequest } from "@/lib/data";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Timestamp } from "firebase/firestore";
 
 
@@ -87,6 +88,17 @@ export default function AdminPurchaseRequestPage() {
   const getDate = (date: Date | Timestamp) => {
       return date instanceof Timestamp ? date.toDate() : date;
   }
+  
+  const getChangeTooltip = (req: PurchaseRequest) => {
+    if (req.originalQuantity && req.originalQuantity !== req.quantity) {
+        return `Cantidad original: ${req.originalQuantity}. ${req.notes || ''}`;
+    }
+    if (req.notes) {
+        return req.notes;
+    }
+    return null;
+  }
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -197,14 +209,30 @@ export default function AdminPurchaseRequestPage() {
                   </TableHeader>
                   <TableBody>
                     {myRequests.length > 0 ? (
-                      myRequests.map((req) => (
+                      myRequests.map((req) => {
+                        const changeTooltip = getChangeTooltip(req);
+                        return (
                         <TableRow key={req.id}>
                           <TableCell className="font-medium max-w-xs truncate">{req.materialName}</TableCell>
-                          <TableCell>{req.quantity} {req.unit}</TableCell>
+                          <TableCell className="flex items-center gap-2">
+                            {req.quantity} {req.unit}
+                            {changeTooltip && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p className="max-w-xs">{changeTooltip}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
+                          </TableCell>
                           <TableCell>{getDate(req.createdAt).toLocaleDateString()}</TableCell>
                           <TableCell>{getStatusBadge(req.status)}</TableCell>
                         </TableRow>
-                      ))
+                      )})
                     ) : (
                       <TableRow>
                         <TableCell colSpan={4} className="h-24 text-center">

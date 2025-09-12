@@ -4,7 +4,6 @@
 import * as React from "react";
 import {
   User,
-  UserRole,
   Tool,
   Material,
   MaterialRequest,
@@ -32,18 +31,12 @@ import {
     getDocs,
     setDoc,
     deleteDoc,
-    collectionGroup
 } from "firebase/firestore";
 import { 
-    createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
     signOut, 
     onAuthStateChanged,
     type User as FirebaseAuthUser,
-    updatePassword,
-    EmailAuthProvider,
-    reauthenticateWithCredential,
-    updateEmail,
     sendPasswordResetEmail
 } from "firebase/auth";
 
@@ -103,7 +96,7 @@ interface AppStateContextType {
   updateMaterialCategory: (id: string, name: string) => Promise<void>;
   deleteMaterialCategory: (id: string) => Promise<void>;
   addPurchaseRequest: (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => Promise<void>;
-  updatePurchaseRequestStatus: (id: string, status: PurchaseRequestStatus) => Promise<void>;
+  updatePurchaseRequestStatus: (id: string, status: PurchaseRequestStatus, data?: Partial<Pick<PurchaseRequest, 'materialName'|'quantity'|'notes'>>) => Promise<void>;
   receivePurchaseRequest: (purchaseRequestId: string) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
   cancelPurchaseOrder: (orderId: string) => Promise<void>;
@@ -182,7 +175,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const addTool = async (toolName: string) => {
     const normalizedToolName = normalizeString(toolName);
-    await addDoc(collection(db, "tools"), {
+    const newDocRef = doc(collection(db, "tools"));
+    await setDoc(newDocRef, {
+      id: newDocRef.id,
       name: toolName,
       qrCode: `TOOL-${normalizedToolName.toUpperCase().replace(/\s/g, "-")}-${nanoid(4)}`
     });
@@ -219,22 +214,21 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   
   const addMaterial = async (material: Omit<Material, "id">) => {
     const batch = writeBatch(db);
-
-    // 1. Create the new material
     const newMaterialRef = doc(collection(db, "materials"));
-    batch.set(newMaterialRef, material);
+    
+    batch.set(newMaterialRef, {...material, id: newMaterialRef.id});
 
-    // 2. Create a corresponding "received" purchase request to log the manual entry
     if (material.stock > 0 && authUser) {
         const newPurchaseRequestRef = doc(collection(db, "purchaseRequests"));
         batch.set(newPurchaseRequestRef, {
+            id: newPurchaseRequestRef.id,
             materialName: material.name,
             quantity: material.stock,
             unit: material.unit,
             category: material.category,
             justification: 'Ingreso Manual de Stock Inicial',
             area: 'Bodega Central',
-            supervisorId: authUser.id, // Logged by the current admin
+            supervisorId: authUser.id,
             status: 'received',
             createdAt: Timestamp.now(),
             receivedAt: Timestamp.now(),
@@ -254,7 +248,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   }
 
   const addMaterialCategory = async (name: string) => {
-    await addDoc(collection(db, 'materialCategories'), { name });
+    const newDocRef = doc(collection(db, 'materialCategories'));
+    await setDoc(newDocRef, { name, id: newDocRef.id });
   };
 
   const updateMaterialCategory = async (id: string, name: string) => {
@@ -290,8 +285,10 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const addRequest = async (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => {
-    await addDoc(collection(db, "requests"), {
+    const newDocRef = doc(collection(db, "requests"));
+    await setDoc(newDocRef, {
       ...request,
+      id: newDocRef.id,
       status: 'pending',
       createdAt: Timestamp.now(),
     });
@@ -317,7 +314,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkoutTool = async (toolId: string, workerId: string, supervisorId: string) => {
-     await addDoc(collection(db, "toolLogs"), {
+     const newDocRef = doc(collection(db, "toolLogs"));
+     await setDoc(newDocRef, {
+        id: newDocRef.id,
         toolId,
         workerId,
         supervisorId,
@@ -336,8 +335,10 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const addPurchaseRequest = async (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => {
-    await addDoc(collection(db, "purchaseRequests"), {
+    const newDocRef = doc(collection(db, "purchaseRequests"));
+    await setDoc(newDocRef, {
       ...request,
+      id: newDocRef.id,
       status: 'pending',
       createdAt: Timestamp.now(),
       receivedAt: null,
@@ -345,9 +346,28 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const updatePurchaseRequestStatus = async (id: string, status: PurchaseRequestStatus) => {
+  const updatePurchaseRequestStatus = async (id: string, status: PurchaseRequestStatus, data?: Partial<Pick<PurchaseRequest, 'materialName'|'quantity'|'notes'>>) => {
+    if (!authUser) throw new Error("Acción no autorizada.");
     const requestRef = doc(db, "purchaseRequests", id);
-    await updateDoc(requestRef, { status });
+    
+    let updateData: any = { 
+        status,
+        approvedById: authUser.id,
+        approvedAt: Timestamp.now(),
+    };
+
+    if (data) {
+        const originalRequest = purchaseRequests.find(pr => pr.id === id);
+        if (originalRequest) {
+            updateData = { 
+                ...updateData, 
+                ...data,
+                originalQuantity: originalRequest.quantity, // Save original quantity
+            };
+        }
+    }
+    
+    await updateDoc(requestRef, updateData);
   };
 
   const receivePurchaseRequest = async (purchaseRequestId: string) => {
@@ -366,6 +386,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (materialsSnapshot.empty) {
         const newMaterialRef = doc(collection(db, "materials"));
         batch.set(newMaterialRef, { 
+            id: newMaterialRef.id,
             name: req.materialName, 
             stock: req.quantity,
             unit: req.unit,
@@ -412,6 +433,12 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
           }))
       });
 
+      // NO CAMBIAMOS EL ESTADO DE LAS SOLICITUDES PARA PERMITIR MÚLTIPLES COTIZACIONES
+      // for (const req of requests) {
+      //   const reqRef = doc(db, "purchaseRequests", req.id);
+      //   batch.update(reqRef, { status: 'ordered' });
+      // }
+      
       await batch.commit();
   }
 
@@ -421,25 +448,15 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (!orderDoc.exists()) {
       throw new Error('La orden de compra no existe.');
     }
-    const order = orderDoc.data() as PurchaseOrder;
-
-    const batch = writeBatch(db);
-
-    // Revert each request in the order
-    for (const requestId of order.requestIds) {
-      const requestRef = doc(db, 'purchaseRequests', requestId);
-      // We revert it to 'approved' so it can be batched again.
-      batch.update(requestRef, { status: 'batched' });
-    }
-
-    // Delete the order itself
-    batch.delete(orderRef);
-
-    await batch.commit();
+    
+    // Solo borramos la orden, no revertimos el estado para permitir múltiples cotizaciones.
+    // La lógica de "qué se ha pedido" reside ahora en la página de recepción.
+    await deleteDoc(orderRef);
   };
   
   const addSupplier = async (name: string, categories: string[]) => {
-      await addDoc(collection(db, "suppliers"), { name, categories });
+      const newDocRef = doc(collection(db, "suppliers"));
+      await setDoc(newDocRef, { id: newDocRef.id, name, categories });
   };
   
   const updateSupplier = async (supplierId: string, data: Partial<Omit<Supplier, 'id'>>) => {
@@ -666,5 +683,3 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       </AuthProvider>
   );
 }
-
-    

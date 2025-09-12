@@ -42,12 +42,13 @@ export interface MaterialRequest {
 
 export type PurchaseRequestStatus = "pending" | "approved" | "rejected" | "received" | "ordered" | "batched";
 
-export const PURCHASE_UNITS = ["un", "kg", "gl", "m", "m2", "m3", "L", "caja", "saco"];
+export const PURCHASE_UNITS = ["un", "kg", "gl", "m", "m2", "m3", "L", "caja", "saco", "rollo"];
 
 export interface PurchaseRequest {
   id: string;
   materialName: string;
   quantity: number;
+  originalQuantity?: number | null;
   unit: string;
   justification: string;
   supervisorId: string;
@@ -57,6 +58,9 @@ export interface PurchaseRequest {
   category: string;
   area: string;
   lotId?: string | null;
+  notes?: string | null;
+  approvedById?: string | null;
+  approvedAt?: Date | Timestamp | null;
 }
 
 export interface ToolLog {

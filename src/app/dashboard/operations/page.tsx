@@ -8,37 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { PurchaseRequestStatus } from "@/lib/data";
-import { Check, Clock, X, ThumbsDown, ThumbsUp, ShoppingCart, Users, Wrench, PackageCheck, AlertTriangle, TrendingUp, PackageSearch, PackageOpen, Box, FileText } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { PurchaseRequest, PurchaseRequestStatus } from "@/lib/data";
+import { Check, Clock, X, Edit, ShoppingCart, Users, Wrench, PackageCheck, AlertTriangle, TrendingUp, PackageSearch, PackageOpen, Box, FileText, AlertCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Timestamp } from "firebase/firestore";
+import { EditPurchaseRequestForm } from "@/components/operations/edit-purchase-request-form";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 export default function OperationsPage() {
   const { purchaseRequests, users, updatePurchaseRequestStatus, requests, tools, materials, toolLogs } = useAppState();
   const { user: authUser } = useAuth();
-  const { toast } = useToast();
-
-  const handleUpdateStatus = async (requestId: string, status: 'approved' | 'rejected') => {
-    try {
-      await updatePurchaseRequestStatus(requestId, status);
-      toast({ title: `Solicitud ${status === 'approved' ? 'Aprobada' : 'Rechazada'}` });
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error?.message || "No se pudo completar la acción." });
-    }
-  };
+  const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
 
   const getStatusBadge = (status: PurchaseRequestStatus) => {
     switch (status) {
@@ -94,8 +76,26 @@ export default function OperationsPage() {
         .slice(0, 5);
   }, [requests]);
 
+  const getChangeTooltip = (req: PurchaseRequest) => {
+    if (req.originalQuantity && req.originalQuantity !== req.quantity) {
+        return `Cantidad original: ${req.originalQuantity}. ${req.notes || ''}`;
+    }
+    if (req.notes) {
+        return req.notes;
+    }
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-8">
+      {editingRequest && (
+        <EditPurchaseRequestForm 
+            request={editingRequest}
+            isOpen={!!editingRequest}
+            onClose={() => setEditingRequest(null)}
+        />
+      )}
+
       <PageHeader
         title={`Bienvenido, ${authUser?.name}`}
         description="Gestiona las solicitudes de compra y supervisa el estado general de la operación."
@@ -169,61 +169,34 @@ export default function OperationsPage() {
                 {purchaseRequests.length > 0 ? (
                 purchaseRequests.map((req) => {
                     const supervisor = users.find((u) => u.id === req.supervisorId);
+                    const changeTooltip = getChangeTooltip(req);
                     return (
                     <TableRow key={req.id}>
                         <TableCell className="font-medium">{req.materialName}</TableCell>
-                        <TableCell>{req.quantity} {req.unit}</TableCell>
+                        <TableCell className="flex items-center gap-2">
+                            {req.quantity} {req.unit}
+                            {changeTooltip && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p className="max-w-xs">{changeTooltip}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
+                        </TableCell>
                         <TableCell className="max-w-xs truncate">{req.justification}</TableCell>
                         <TableCell>{supervisor?.name || "N/A"}</TableCell>
                         <TableCell>{getDate(req.createdAt).toLocaleDateString()}</TableCell>
                         <TableCell>{getStatusBadge(req.status)}</TableCell>
                         <TableCell className="text-right">
                         {req.status === "pending" && (
-                            <div className="flex gap-2 justify-end">
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="outline" className="text-green-500 border-green-500 hover:bg-green-500 hover:text-white">
-                                    <ThumbsUp className="h-4 w-4" />
-                                </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Confirmar Aprobación?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    Esta acción marcará la solicitud de compra como aprobada. ¿Estás seguro?
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleUpdateStatus(req.id, 'approved')}>
-                                    Sí, Aprobar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="outline" className="text-red-500 border-red-500 hover:bg-red-500 hover:text-white">
-                                    <ThumbsDown className="h-4 w-4" />
-                                </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Confirmar Rechazo?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    Esta acción marcará la solicitud de compra como rechazada. ¿Estás seguro?
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleUpdateStatus(req.id, 'rejected')} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                    Sí, Rechazar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                            </div>
+                            <Button size="sm" variant="outline" onClick={() => setEditingRequest(req)}>
+                                <Edit className="mr-2 h-4 w-4" /> Gestionar
+                            </Button>
                         )}
                         {req.status !== "pending" && (
                             <span className="text-xs text-muted-foreground">Gestionada</span>

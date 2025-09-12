@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, Save, Check } from 'lucide-react';
+import { Loader2, Save, Check, X } from 'lucide-react';
 import { Supplier, MaterialCategory } from '@/lib/data';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -101,41 +101,70 @@ export function EditSupplierForm({ supplier, isOpen, onClose }: EditSupplierForm
                 
                  <div className="space-y-2">
                     <Label htmlFor="categories">Categorías que Maneja</Label>
-                    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start font-normal h-auto min-h-10">
-                                {selectedCategories.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1">
-                                        {selectedCategories.map(cat => <Badge key={cat} variant="secondary">{cat}</Badge>)}
+                     <div className="space-y-2">
+                        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-start font-normal h-auto min-h-10">
+                                   <div className="flex flex-wrap gap-1">
+                                        {selectedCategories.length > 0 ? (
+                                            selectedCategories.map(cat => (
+                                                <Badge key={cat} variant="secondary" className="pl-2 pr-1 py-1 text-sm rounded-md">
+                                                    {cat}
+                                                    <div 
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleCategoryToggle(cat);
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                           if (e.key === 'Enter' || e.key === ' ') {
+                                                              e.preventDefault();
+                                                              e.stopPropagation();
+                                                              handleCategoryToggle(cat);
+                                                           }
+                                                        }}
+                                                        className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-black/10 dark:hover:bg-white/20 p-0.5"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                        <span className="sr-only">Quitar {cat}</span>
+                                                    </div>
+                                                </Badge>
+                                            ))
+                                        ) : (
+                                           "Seleccionar categorías..."
+                                        )}
                                     </div>
-                                ) : (
-                                    "Seleccionar categorías..."
-                                )}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                            <Command>
-                                <CommandInput placeholder="Buscar categoría..." />
-                                <CommandList>
-                                    <CommandEmpty>No se encontró la categoría.</CommandEmpty>
-                                    <CommandGroup>
-                                        {materialCategories.map((cat: MaterialCategory) => (
-                                            <CommandItem
-                                                key={cat.id}
-                                                value={cat.name}
-                                                onSelect={() => handleCategoryToggle(cat.name)}
-                                                className="flex items-center justify-between"
-                                            >
-                                                <span>{cat.name}</span>
-                                                {selectedCategories.includes(cat.name) && <Check className="h-4 w-4 text-primary"/>}
-                                            </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
-                    </Popover>
-                    {errors.categories && <p className="text-xs text-destructive">{errors.categories.message}</p>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Buscar categoría..." />
+                                    <CommandList>
+                                        <CommandEmpty>No se encontró la categoría.</CommandEmpty>
+                                        <CommandGroup>
+                                            {materialCategories.map((cat: MaterialCategory) => (
+                                                <CommandItem
+                                                    key={cat.id}
+                                                    value={cat.name}
+                                                    onSelect={() => {
+                                                        handleCategoryToggle(cat.name)
+                                                    }}
+                                                    className="flex items-center justify-between"
+                                                >
+                                                    <span>{cat.name}</span>
+                                                    {selectedCategories.includes(cat.name) && <Check className="h-4 w-4 text-primary"/>}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                         <p className="text-xs text-muted-foreground">Haz clic en una categoría para agregarla o quitarla.</p>
+                         {errors.categories && <p className="text-xs text-destructive">{errors.categories.message}</p>}
+                    </div>
                 </div>
 
                 <DialogFooter>

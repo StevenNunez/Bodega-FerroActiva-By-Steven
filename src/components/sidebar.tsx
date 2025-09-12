@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -32,7 +31,6 @@ const adminNavItems = [
   { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
   { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales', notificationKey: 'pendingMaterialRequests' },
   { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
-  { href: '/dashboard/admin/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
   { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
@@ -45,6 +43,7 @@ const supervisorNavItems = [
   { href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/supervisor/suppliers', icon: Briefcase, label: 'Proveedores' },
+  { href: '/dashboard/supervisor/categories', icon: FolderTree, label: 'Categorías' },
 ];
 
 const aprNavItems = [
