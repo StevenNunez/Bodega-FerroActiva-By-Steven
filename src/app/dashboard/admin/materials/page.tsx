@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -8,18 +9,41 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { CreateMaterialForm } from "@/components/admin/create-material-form";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"; // Importar ScrollBar
-import { PackageCheck, PackageOpen, Edit } from "lucide-react";
+import { PackageCheck, PackageOpen, Edit, Trash2 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
-import { Material } from "@/lib/data";
+import { Material, MaterialRequest } from "@/lib/data";
 import { EditMaterialForm } from "@/components/admin/edit-material-form";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast"; // Asumiendo que existe para errores
 import { Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
+
+type CompatibleMaterialRequest = MaterialRequest & {
+    materialId?: string;
+    quantity?: number;
+};
 
 export default function AdminMaterialsPage() {
-  const { materials, purchaseRequests, users, requests, suppliers, isLoading } = useAppState();
+  const { materials, purchaseRequests, users, requests, suppliers, isLoading, deleteMaterial } = useAppState();
   const { user: authUser } = useAuth(); // Asumiendo useAuth como en el anterior
   const { toast } = useToast();
 
@@ -28,6 +52,7 @@ export default function AdminMaterialsPage() {
   const [currentPage, setCurrentPage] = useState(1); // Nuevo: para paginación
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const itemsPerPage = 10; // Configurable
+  const materialMap = useMemo(() => new Map(materials.map((m) => [m.id, m])), [materials]);
 
   // Verificación de autenticación
   if (!authUser || !authUser.id) {
@@ -47,6 +72,22 @@ export default function AdminMaterialsPage() {
       </div>
     );
   }
+
+  const handleDeleteMaterial = async (materialId: string, materialName: string) => {
+    try {
+      await deleteMaterial(materialId);
+      toast({
+        title: "Material Eliminado",
+        description: `El material ${materialName} ha sido eliminado.`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error al Eliminar",
+        description: error instanceof Error ? error.message : "No se pudo eliminar el material.",
+      });
+    }
+  };
 
   // Obtener categorías únicas para el filtro (de materials)
   const categories = useMemo(() => {
@@ -99,12 +140,12 @@ export default function AdminMaterialsPage() {
   }, [purchaseRequests]);
 
   const recentApprovedRequests = useMemo(() => {
-    return requests
+    return (requests as CompatibleMaterialRequest[])
       .filter((r) => r.status === "approved")
       .sort((a, b) => {
         const dateA = getDate(b.createdAt);
         const dateB = getDate(a.createdAt);
-        return new Date(dateA).getTime() - new Date(dateB).getTime();
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
       })
       .slice(0, 5);
   }, [requests]);
@@ -166,8 +207,8 @@ export default function AdminMaterialsPage() {
                 </Select>
               </div>
               <ScrollArea className="h-96 border rounded-md whitespace-nowrap">
-                <div className="min-w-[800px]"> {/* Fuerza ancho para activar scroll horizontal */}
-                  <Table>
+                <div className="min-w-full"> {/* Fuerza ancho para activar scroll horizontal */}
+                  <Table className="min-w-[800px]">
                     <TableHeader className="sticky top-0 bg-card">
                       <TableRow>
                         <TableHead className="w-[250px]">Nombre</TableHead>
@@ -198,14 +239,44 @@ export default function AdminMaterialsPage() {
                               {material.stock.toLocaleString()}
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setEditingMaterial(material)}
-                                aria-label={`Editar material ${material.name}`}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" aria-label={`Acciones para ${material.name}`}>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setEditingMaterial(material)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    <span>Editar</span>
+                                  </DropdownMenuItem>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        <span>Eliminar</span>
+                                      </DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Eliminar "{material.name}"?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Esta acción no se puede deshacer. Se eliminará permanentemente. La acción fallará si el material está en uso en alguna solicitud.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-destructive hover:bg-destructive/90"
+                                          onClick={() => handleDeleteMaterial(material.id, material.name)}
+                                        >
+                                          Sí, eliminar
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </TableCell>
                           </TableRow>
                         ))
@@ -268,14 +339,23 @@ export default function AdminMaterialsPage() {
                 {recentApprovedRequests.length > 0 ? (
                   <ul className="space-y-3 pr-4">
                     {recentApprovedRequests.map((req) => {
-                      const material = materials.find((m) => m.id === req.materialId);
                       const supervisor = users.find((u) => u.id === req.supervisorId);
                       const createdAtDate = getDate(req.createdAt);
                       return (
-                        <li key={req.id} className="text-sm p-3 rounded-lg border bg-muted/50">
-                          <p className="font-semibold max-w-full truncate">
-                            {material?.name} <span className="font-normal text-primary">({req.quantity} uds)</span>
-                          </p>
+                        <li key={`approved-${req.id}`} className="text-sm p-3 rounded-lg border bg-muted/50">
+                            <ul className="list-disc list-inside space-y-1">
+                                {req.items && Array.isArray(req.items) ? (
+                                    req.items.map(item => (
+                                        <li key={item.materialId} className="font-semibold">
+                                           {materialMap.get(item.materialId)?.name || "N/A"} <span className="font-normal text-primary">({item.quantity} uds)</span>
+                                        </li>
+                                    ))
+                                ) : (
+                                     <li className="font-semibold">
+                                        {materialMap.get(req.materialId || '')?.name || "N/A"} <span className="font-normal text-primary">({req.quantity} uds)</span>
+                                    </li>
+                                )}
+                            </ul>
                           <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
                             Para: {req.area} (Solicitado por {supervisor?.name})
                           </p>
@@ -309,7 +389,7 @@ export default function AdminMaterialsPage() {
                       const supervisor = users.find((u) => u.id === req.supervisorId);
                       const receivedAtDate = getDate(req.receivedAt);
                       return (
-                        <li key={req.id} className="text-sm p-3 rounded-lg border bg-muted/50">
+                        <li key={`received-${req.id}`} className="text-sm p-3 rounded-lg border bg-muted/50">
                           <p className="font-semibold max-w-full truncate">
                             {req.materialName} <span className="font-normal text-primary">({req.quantity} uds)</span>
                           </p>
@@ -336,3 +416,6 @@ export default function AdminMaterialsPage() {
     </div>
   );
 }
+
+
+    

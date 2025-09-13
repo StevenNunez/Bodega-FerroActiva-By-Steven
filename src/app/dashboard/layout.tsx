@@ -4,13 +4,11 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useAppState } from "@/contexts/app-provider";
 import { Sidebar } from "@/components/sidebar";
-import { Menu, Loader2, Bell, BellOff } from "lucide-react";
+import { Menu, Loader2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function DashboardLayout({
   children,
@@ -19,97 +17,8 @@ export default function DashboardLayout({
 }) {
   const { user, authLoading } = useAuth();
   const { requests, purchaseRequests } = useAppState();
-  const { toast } = useToast();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
-  const [soundEnabled, setSoundEnabled] = React.useState(false);
-  const [audioError, setAudioError] = React.useState(false);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
-
-  // Pre-carga del audio
-  React.useEffect(() => {
-    try {
-      audioRef.current = new Audio("/sounds/alarm.mp3");
-      audioRef.current.addEventListener("error", () => {
-        console.error("Error al cargar el audio: archivo no encontrado o inválido");
-        setAudioError(true);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudo cargar el archivo de sonido para notificaciones. Verifica que '/sounds/alarm.mp3' exista.",
-        });
-      });
-      audioRef.current.load();
-    } catch (err) {
-      console.error("Error al inicializar el audio:", err);
-      setAudioError(true);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo inicializar el audio para notificaciones.",
-      });
-    }
-  }, [toast]);
-
-  // Cargar preferencia de sonido desde localStorage
-  React.useEffect(() => {
-    const savedSoundPreference = localStorage.getItem("soundEnabled");
-    if (savedSoundPreference === "true" && !audioError) {
-      setSoundEnabled(true);
-    }
-  }, [audioError]);
-
-  // Toggle para activar/desactivar sonido
-  const toggleSound = React.useCallback(() => {
-    if (audioError) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "El audio no está disponible. Verifica el archivo de sonido.",
-      });
-      return;
-    }
-
-    if (!audioRef.current) {
-      console.error("audioRef no está inicializado");
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo inicializar el audio.",
-      });
-      return;
-    }
-
-    if (soundEnabled) {
-      setSoundEnabled(false);
-      localStorage.setItem("soundEnabled", "false");
-      toast({
-        title: "Sonido Desactivado",
-        description: "Las notificaciones de sonido han sido desactivadas.",
-      });
-    } else {
-      audioRef.current
-        .play()
-        .then(() => {
-          audioRef.current?.pause();
-          audioRef.current.currentTime = 0;
-          setSoundEnabled(true);
-          localStorage.setItem("soundEnabled", "true");
-          toast({
-            title: "Sonido Activado",
-            description: "Las notificaciones de sonido han sido activadas.",
-          });
-        })
-        .catch((err) => {
-          console.error("Error al habilitar audio:", err);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "No se pudo activar el sonido. Intenta de nuevo.",
-          });
-        });
-    }
-  }, [soundEnabled, audioError, toast]);
 
   // Solicitudes pendientes
   const pendingMaterialRequests = React.useMemo(() => {
@@ -119,51 +28,6 @@ export default function DashboardLayout({
   const pendingPurchaseRequests = React.useMemo(() => {
     return (purchaseRequests || []).filter((pr) => pr.status === "pending").length;
   }, [purchaseRequests]);
-
-  const prevPendingMaterialRequests = React.useRef(pendingMaterialRequests);
-  const prevPendingPurchaseRequests = React.useRef(pendingPurchaseRequests);
-
-  // Efecto: reproducir alarma si aumentan los pendientes
-  React.useEffect(() => {
-    if (!soundEnabled || !user || !audioRef.current || audioError) return;
-
-    // Alarma para Administrador (solicitudes de stock)
-    if (
-      user.role === "admin" &&
-      prevPendingMaterialRequests.current < pendingMaterialRequests
-    ) {
-      audioRef.current
-        .play()
-        .catch((e) => {
-          console.error("Error al reproducir sonido para admin:", e);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "No se pudo reproducir la notificación de sonido.",
-          });
-        });
-    }
-
-    // Alarma para Jefe de Operaciones (solicitudes de compra)
-    if (
-      user.role === "operations" &&
-      prevPendingPurchaseRequests.current < pendingPurchaseRequests
-    ) {
-      audioRef.current
-        .play()
-        .catch((e) => {
-          console.error("Error al reproducir sonido para operations:", e);
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "No se pudo reproducir la notificación de sonido.",
-          });
-        });
-    }
-
-    prevPendingMaterialRequests.current = pendingMaterialRequests;
-    prevPendingPurchaseRequests.current = pendingPurchaseRequests;
-  }, [pendingMaterialRequests, pendingPurchaseRequests, user, soundEnabled, audioError, toast]);
 
   // Redirección si no hay sesión
   React.useEffect(() => {
@@ -219,60 +83,17 @@ export default function DashboardLayout({
 
           <div className="flex-1" />
 
-          {/* Botón para activar/desactivar sonido */}
-          {(user?.role === "admin" || user?.role === "operations") && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="relative flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleSound}
-                      className={cn(
-                        "flex items-center gap-2",
-                        soundEnabled ? "bg-green-100" : "bg-muted",
-                        audioError && "opacity-50 cursor-not-allowed"
-                      )}
-                      disabled={audioError}
-                      aria-label={
-                        audioError
-                          ? "Notificaciones de sonido no disponibles"
-                          : soundEnabled
-                          ? "Desactivar notificaciones de sonido"
-                          : "Activar notificaciones de sonido"
-                      }
-                      aria-describedby="sound-button-description"
-                    >
-                      {soundEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-                      {soundEnabled ? "Sonido Activado" : "Activar Sonido"}
-                    </Button>
-                    {pendingCount > 0 && (
-                      <Badge
-                        variant="destructive"
-                        className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full"
-                      >
-                        {pendingCount}
-                      </Badge>
-                    )}
-                  </div>
-                </TooltipTrigger>
-                {audioError && (
-                  <TooltipContent>
-                    <p className="max-w-xs">
-                      No se pudo cargar el archivo de sonido. Verifica que '/sounds/alarm.mp3' exista.
-                    </p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-              <span id="sound-button-description" className="sr-only">
-                {audioError
-                  ? "Notificaciones de sonido no disponibles debido a un error"
-                  : soundEnabled
-                  ? "Desactiva las notificaciones de sonido para nuevas solicitudes"
-                  : "Activa las notificaciones de sonido para nuevas solicitudes"}
-              </span>
-            </TooltipProvider>
+          {/* Notificación visual */}
+          {(user?.role === "admin" || user?.role === "operations") && pendingCount > 0 && (
+            <div className="relative flex items-center">
+              <Bell className="h-5 w-5" />
+              <Badge
+                variant="destructive"
+                className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full"
+              >
+                {pendingCount}
+              </Badge>
+            </div>
           )}
         </header>
 

@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -18,6 +19,7 @@ import {
   Medal,
   Upload,
   FolderTree,
+  Edit,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -28,6 +30,7 @@ const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
+  { href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' },
   { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
   { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales', notificationKey: 'pendingMaterialRequests' },
   { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },

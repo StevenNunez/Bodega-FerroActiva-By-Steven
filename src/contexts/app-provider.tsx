@@ -92,6 +92,8 @@ interface AppStateContextType {
   returnTool: (logId: string, condition: 'ok' | 'damaged', notes?: string) => Promise<void>;
   addMaterial: (material: Omit<Material, "id">) => Promise<void>;
   updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
+  deleteMaterial: (materialId: string) => Promise<void>;
+  addManualStockEntry: (materialId: string, quantity: number, justification: string) => Promise<void>;
   addMaterialCategory: (name: string) => Promise<void>;
   updateMaterialCategory: (id: string, name: string) => Promise<void>;
   deleteMaterialCategory: (id: string) => Promise<void>;
@@ -247,6 +249,55 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
   }
 
+  const deleteMaterial = async (materialId: string) => {
+    const materialRef = doc(db, 'materials', materialId);
+    
+    // Check if the material is being used in any active requests
+    const requestsQuery = query(collection(db, 'requests'), where('items', 'array-contains', { materialId }));
+    const requestsSnapshot = await getDocs(requestsQuery);
+    if (!requestsSnapshot.empty) {
+      throw new Error('No se puede eliminar: El material está en uso en una o más solicitudes de material.');
+    }
+
+    // You might want to add more checks here, e.g., for purchase requests, etc.
+    
+    await deleteDoc(materialRef);
+  };
+
+  const addManualStockEntry = async (materialId: string, quantity: number, justification: string) => {
+    if (!authUser) throw new Error("Acción no autorizada.");
+    
+    const materialRef = doc(db, "materials", materialId);
+    const materialDoc = await getDoc(materialRef);
+    if (!materialDoc.exists()) throw new Error("El material seleccionado no existe.");
+    const material = materialDoc.data() as Material;
+
+    const batch = writeBatch(db);
+
+    // Update stock
+    const newStock = material.stock + quantity;
+    batch.update(materialRef, { stock: newStock });
+
+    // Create a purchase request for traceability
+    const newPurchaseRequestRef = doc(collection(db, "purchaseRequests"));
+    batch.set(newPurchaseRequestRef, {
+        id: newPurchaseRequestRef.id,
+        materialName: material.name,
+        quantity: quantity,
+        unit: material.unit,
+        category: material.category,
+        justification: `Ingreso Manual: ${justification}`,
+        area: 'Bodega Central',
+        supervisorId: authUser.id,
+        status: 'received',
+        createdAt: Timestamp.now(),
+        receivedAt: Timestamp.now(),
+        lotId: null,
+    });
+    
+    await batch.commit();
+  };
+
   const addMaterialCategory = async (name: string) => {
     const newDocRef = doc(collection(db, 'materialCategories'));
     await setDoc(newDocRef, { name, id: newDocRef.id });
@@ -298,17 +349,21 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     const requestRef = doc(db, "requests", requestId);
     const requestDoc = await getDoc(requestRef);
     if (!requestDoc.exists()) throw new Error("Solicitud no encontrada");
-    const request = requestDoc.data() as Omit<MaterialRequest, "id">;
-
-    const materialRef = doc(db, "materials", request.materialId);
-    const materialDoc = await getDoc(materialRef);
-    if (!materialDoc.exists()) throw new Error("Material no encontrado");
-    const material = materialDoc.data() as Omit<Material, "id">;
-    
-    if(material.stock < request.quantity) throw new Error("Stock insuficiente");
+    const request = requestDoc.data() as MaterialRequest;
 
     const batch = writeBatch(db);
-    batch.update(materialRef, { stock: material.stock - request.quantity });
+
+    for (const item of request.items) {
+        const materialRef = doc(db, "materials", item.materialId);
+        const materialDoc = await getDoc(materialRef);
+        if (!materialDoc.exists()) throw new Error(`Material con ID ${item.materialId} no encontrado`);
+        const material = materialDoc.data() as Material;
+        
+        if(material.stock < item.quantity) throw new Error(`Stock insuficiente para "${material.name}".`);
+
+        batch.update(materialRef, { stock: material.stock - item.quantity });
+    }
+
     batch.update(requestRef, { status: 'approved' });
     await batch.commit();
   };
@@ -566,6 +621,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     returnTool,
     addMaterial,
     updateMaterial,
+    deleteMaterial,
+    addManualStockEntry,
     addMaterialCategory,
     updateMaterialCategory,
     deleteMaterialCategory,
@@ -677,4 +734,3 @@ function useAuth() {
 }
 
 export { AppProviders, useAppState, useAuth };
-

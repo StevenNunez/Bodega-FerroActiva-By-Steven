@@ -14,11 +14,18 @@ import React from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { ToolCheckoutCard } from "@/components/admin/tool-checkout-card";
+import type { MaterialRequest } from "@/lib/data";
+
+type CompatibleMaterialRequest = MaterialRequest & {
+    materialId?: string;
+    quantity?: number;
+};
 
 export default function AdminPage() {
   const { requests, tools, toolLogs, users, materials, approveRequest } = useAppState();
   const { toast } = useToast();
-
+  
+  const materialMap = React.useMemo(() => new Map(materials.map(m => [m.id, m])), [materials]);
   const pendingRequests = requests.filter(r => r.status === 'pending');
   const checkedOutTools = toolLogs.filter(log => log.returnDate === null);
   const lowStockMaterials = materials.filter(m => m.stock < 100);
@@ -103,16 +110,27 @@ export default function AdminPage() {
                 {pendingRequests.length > 0 ? (
                     <ScrollArea className="h-72">
                         <ul className="space-y-4 pr-4">
-                            {pendingRequests.map(req => {
-                                const material = materials.find(m => m.id === req.materialId);
+                            {(pendingRequests as CompatibleMaterialRequest[]).map(req => {
                                 const supervisor = users.find(u => u.id === req.supervisorId);
                                 return (
-                                    <li key={req.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg bg-secondary gap-2">
-                                        <div className="flex-grow">
-                                            <p className="font-semibold">{material?.name} <span className="text-sm text-primary">({req.quantity} uds)</span></p>
+                                    <li key={req.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-3 rounded-lg bg-secondary gap-2">
+                                        <div className="flex-grow space-y-2">
+                                            <ul className="list-disc list-inside pl-2 space-y-1">
+                                                {req.items && Array.isArray(req.items) ? (
+                                                    req.items.map(item => (
+                                                        <li key={item.materialId} className="text-sm font-medium">
+                                                           <span className="font-semibold">{materialMap.get(item.materialId)?.name || "N/A"}</span> <span className="text-primary">({item.quantity} uds)</span>
+                                                        </li>
+                                                    ))
+                                                ) : (
+                                                     <li className="text-sm font-medium">
+                                                        <span className="font-semibold">{materialMap.get(req.materialId || '')?.name || "N/A"}</span> <span className="text-primary">({req.quantity} uds)</span>
+                                                    </li>
+                                                )}
+                                            </ul>
                                             <p className="text-xs text-muted-foreground">Solicitado por: {supervisor?.name} para {req.area}</p>
                                         </div>
-                                        <Button size="sm" onClick={() => handleApprove(req.id)} className="w-full sm:w-auto">Aprobar</Button>
+                                        <Button size="sm" onClick={() => handleApprove(req.id)} className="w-full sm:w-auto self-end sm:self-center">Aprobar</Button>
                                     </li>
                                 )
                             })}

@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,14 +12,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2, Clock, Check, X, PackageCheck, Package, Box, FileText, AlertCircle } from "lucide-react";
+import { Send, Loader2, Clock, Check, X, PackageCheck, Package, Box, FileText, AlertCircle, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { PurchaseRequestStatus, PURCHASE_UNITS, MaterialCategory, PurchaseRequest } from "@/lib/data";
+import { PurchaseRequestStatus, PURCHASE_UNITS, MaterialCategory, PurchaseRequest, Material } from "@/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Timestamp } from "firebase/firestore";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 const FormSchema = z.object({
   materialName: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
@@ -32,23 +36,38 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>;
 
 export default function AdminPurchaseRequestPage() {
-  const { purchaseRequests, addPurchaseRequest, materialCategories, isLoading } = useAppState();
+  const { purchaseRequests, materials, addPurchaseRequest, materialCategories, isLoading } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<PurchaseRequestStatus | "all">("all");
   const itemsPerPage = 5;
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+
 
   const {
     register,
     handleSubmit,
     control,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
   });
+
+  useEffect(() => {
+    if (selectedMaterialId) {
+      const material = materials.find(m => m.id === selectedMaterialId);
+      if (material) {
+        setValue("materialName", material.name, { shouldValidate: true });
+        setValue("unit", material.unit, { shouldValidate: true });
+        setValue("category", material.category, { shouldValidate: true });
+      }
+    }
+  }, [selectedMaterialId, materials, setValue]);
 
   if (!authUser || !authUser.id) {
     toast({ variant: "destructive", title: "Error", description: "Usuario no autenticado." });
@@ -86,14 +105,8 @@ export default function AdminPurchaseRequestPage() {
         supervisorId: authUser.id,
       });
       toast({ title: "Éxito", description: "Tu solicitud de compra ha sido enviada." });
-      reset({
-        materialName: "",
-        quantity: "",
-        unit: "",
-        justification: "",
-        category: "",
-        area: "",
-      });
+      reset();
+      setSelectedMaterialId(null);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -185,6 +198,50 @@ export default function AdminPurchaseRequestPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Seleccionar material existente (Opcional)</Label>
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between">
+                      <span className="truncate">
+                        {selectedMaterialId
+                          ? materials.find((m) => m.id === selectedMaterialId)?.name
+                          : "Selecciona un material para autocompletar..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar material..." />
+                      <CommandList>
+                        <CommandEmpty>No se encontró el material.</CommandEmpty>
+                        <CommandGroup>
+                          {materials.map((m) => (
+                            <CommandItem
+                              key={m.id}
+                              value={m.name}
+                              onSelect={() => {
+                                setSelectedMaterialId(m.id);
+                                setPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedMaterialId === m.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {m.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="materialName">Nombre del Material</Label>
@@ -423,3 +480,5 @@ export default function AdminPurchaseRequestPage() {
     </div>
   );
 }
+
+ 

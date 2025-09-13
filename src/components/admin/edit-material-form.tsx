@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useEffect } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -51,8 +52,6 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
     }
   });
 
-  const categoryWatcher = watch('category');
-
   useEffect(() => {
       if(material) {
           reset({
@@ -84,11 +83,6 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
       });
     }
   };
-  
-  const filteredSuppliers = React.useMemo(() => {
-      if (!categoryWatcher) return suppliers;
-      return suppliers.filter(s => s.categories.includes(categoryWatcher));
-  }, [suppliers, categoryWatcher]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -167,14 +161,13 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="ninguno">Ninguno</SelectItem>
-                                    {filteredSuppliers.map((s: Supplier) => (
+                                    {suppliers.map((s: Supplier) => (
                                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         )}
                     />
-                    <p className="text-xs text-muted-foreground">Se sugieren proveedores según la categoría del material.</p>
                     {errors.supplierId && <p className="text-xs text-destructive">{errors.supplierId.message}</p>}
                 </div>
                 <DialogFooter>

@@ -32,8 +32,10 @@ export interface Material {
 
 export interface MaterialRequest {
   id: string;
-  materialId: string;
-  quantity: number;
+  items: {
+    materialId: string;
+    quantity: number;
+  }[];
   area: string;
   supervisorId: string;
   status: "pending" | "approved" | "rejected";
@@ -42,7 +44,7 @@ export interface MaterialRequest {
 
 export type PurchaseRequestStatus = "pending" | "approved" | "rejected" | "received" | "ordered" | "batched";
 
-export const PURCHASE_UNITS = ["un", "kg", "gl", "m", "m2", "m3", "L", "caja", "saco", "rollo"];
+export const PURCHASE_UNITS = ["un", "kg", "gl", "m", "m2", "m3", "L", "caja", "saco"];
 
 export interface PurchaseRequest {
   id: string;
@@ -78,6 +80,8 @@ export interface Supplier {
     id: string;
     name: string;
     categories: string[];
+    address?: string;
+    contact?: string;
 }
 
 export interface PurchaseOrder {
