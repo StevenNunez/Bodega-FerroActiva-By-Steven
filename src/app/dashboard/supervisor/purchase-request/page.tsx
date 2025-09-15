@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2, Clock, Check, X, PackageCheck, Package, Box, FileText, AlertCircle } from "lucide-react";
+import { Send, Loader2, Clock, Check, X, PackageCheck, Package, Box, FileText, AlertCircle, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,6 +21,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Timestamp } from "firebase/firestore";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 
 const FormSchema = z.object({
@@ -38,12 +41,14 @@ export default function SupervisorPurchaseRequestPage() {
   const { purchaseRequests, addPurchaseRequest, materialCategories } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
 
   const {
     register,
     handleSubmit,
     control,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
@@ -160,16 +165,43 @@ export default function SupervisorPurchaseRequestPage() {
                         name="category"
                         control={control}
                         render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger id="category">
-                                    <SelectValue placeholder="Selecciona una categoría" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {materialCategories.map((cat: MaterialCategory) => (
-                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                          <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" role="combobox" className="w-full justify-between">
+                                <span className="truncate">
+                                  {field.value
+                                    ? materialCategories.find((cat) => cat.name === field.value)?.name
+                                    : "Selecciona una categoría..."}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                              <Command>
+                                <CommandInput placeholder="Buscar categoría..." />
+                                <CommandList>
+                                  <CommandEmpty>No se encontró la categoría.</CommandEmpty>
+                                  <CommandGroup>
+                                    {materialCategories.map((cat) => (
+                                      <CommandItem
+                                        key={cat.id}
+                                        value={cat.name}
+                                        onSelect={() => {
+                                          setValue("category", cat.name, { shouldValidate: true });
+                                          setCategoryPopoverOpen(false);
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn("mr-2 h-4 w-4", field.value === cat.name ? "opacity-100" : "opacity-0")}
+                                        />
+                                        {cat.name}
+                                      </CommandItem>
                                     ))}
-                                </SelectContent>
-                            </Select>
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
                         )}
                     />
                     {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
@@ -248,3 +280,5 @@ export default function SupervisorPurchaseRequestPage() {
     </div>
   );
 }
+
+    

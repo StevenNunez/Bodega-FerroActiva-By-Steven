@@ -45,6 +45,7 @@ export default function AdminPurchaseRequestPage() {
   const itemsPerPage = 5;
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
 
 
   const {
@@ -317,27 +318,52 @@ export default function AdminPurchaseRequestPage() {
                 <div className="space-y-2">
                   <Label htmlFor="category">Categoría del Material</Label>
                   <Controller
-                    name="category"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger id="category" aria-describedby={errors.category ? "category-error" : undefined}>
-                          <SelectValue placeholder="Selecciona una categoría" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {materialCategories.length > 0 ? (
-                            materialCategories.map((cat: MaterialCategory) => (
-                              <SelectItem key={cat.id} value={cat.name}>
-                                {cat.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <div className="p-2 text-sm text-muted-foreground">No hay categorías disponibles</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
+                      name="category"
+                      control={control}
+                      render={({ field }) => (
+                        <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between"
+                            >
+                              <span className="truncate">
+                                {field.value
+                                  ? materialCategories.find((cat) => cat.name === field.value)?.name
+                                  : "Selecciona una categoría..."}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                              <CommandInput placeholder="Buscar categoría..." />
+                              <CommandList>
+                                <CommandEmpty>No se encontró la categoría.</CommandEmpty>
+                                <CommandGroup>
+                                  {materialCategories.map((cat) => (
+                                    <CommandItem
+                                      key={cat.id}
+                                      value={cat.name}
+                                      onSelect={() => {
+                                        setValue("category", cat.name, { shouldValidate: true });
+                                        setCategoryPopoverOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn("mr-2 h-4 w-4", field.value === cat.name ? "opacity-100" : "opacity-0")}
+                                      />
+                                      {cat.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    />
                   {errors.category && (
                     <p id="category-error" className="text-xs text-destructive">
                       {errors.category.message}
@@ -481,4 +507,4 @@ export default function AdminPurchaseRequestPage() {
   );
 }
 
- 
+    
