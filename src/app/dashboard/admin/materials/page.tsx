@@ -198,8 +198,8 @@ export default function AdminMaterialsPage() {
                     <SelectValue placeholder="Filtrar por categoría" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
+                    {categories.map((cat, index) => (
+                      <SelectItem key={`${cat}-${index}`} value={cat}>
                         {cat === "all" ? "Todas" : cat}
                       </SelectItem>
                     ))}
@@ -351,7 +351,7 @@ export default function AdminMaterialsPage() {
                                         </li>
                                     ))
                                 ) : (
-                                     <li className="font-semibold">
+                                     <li key={`${req.id}-${req.materialId}`} className="font-semibold">
                                         {materialMap.get(req.materialId || '')?.name || "N/A"} <span className="font-normal text-primary">({req.quantity} uds)</span>
                                     </li>
                                 )}
@@ -416,6 +416,3 @@ export default function AdminMaterialsPage() {
     </div>
   );
 }
-
-
-    

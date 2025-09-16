@@ -43,18 +43,33 @@ export default function DashboardLayout({
       return;
     }
     const audioContext = new AudioContext();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
 
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    function playTone(frequency: number, startTime: number, duration: number) {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
 
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5
-    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
 
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.1);
+        oscillator.type = 'triangle'; // Un tono un poco menos "puro" que 'sine'
+        oscillator.frequency.setValueAtTime(frequency, startTime);
+        
+        // Un ataque y decaída rápidos para hacerlo más percusivo
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.05); // Volumen máximo
+        gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+    }
+    
+    // Secuencia de tonos para llamar la atención
+    const now = audioContext.currentTime;
+    playTone(980, now, 0.15);         // Tono alto
+    playTone(780, now + 0.2, 0.15);   // Tono más bajo
+    playTone(980, now + 0.4, 0.15);   // Tono alto
+    playTone(780, now + 0.6, 0.25);   // Tono más bajo y un poco más largo
+
   }, [isMuted]);
 
   // Efecto para reproducir sonido cuando llegan nuevas notificaciones
