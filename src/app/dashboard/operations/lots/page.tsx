@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React from "react";
@@ -13,19 +14,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Inbox, PackageMinus, PackagePlus, Check, FolderPlus } from "lucide-react";
+import { Inbox, PackageMinus, FolderPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -38,28 +28,10 @@ import { CreateLotForm } from "@/components/operations/create-lot-form";
 
 export default function OperationsLotsPage() {
   const { approvedRequests, batchedLots } = useLots();
-  const { batchApprovedRequests, removeRequestFromLot, addRequestToLot } = useAppState();
+  const { removeRequestFromLot, addRequestToLot } = useAppState();
   const { toast } = useToast();
 
   // ----- Handlers -----
-  const handleBatchByCategory = async () => {
-    try {
-      await batchApprovedRequests(approvedRequests.map((r) => r.id), { mode: "category" });
-      toast({ title: "Lotes creados", description: "Agrupados por categoría." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e?.message || "Error inesperado" });
-    }
-  };
-
-  const handleBatchBySupplier = async () => {
-    try {
-      await batchApprovedRequests(approvedRequests.map((r) => r.id), { mode: "supplier" });
-      toast({ title: "Lotes creados", description: "Agrupados por proveedor." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e?.message || "Error inesperado" });
-    }
-  };
-
   const handleRemove = async (requestId: string) => {
     try {
       await removeRequestFromLot(requestId);
@@ -78,6 +50,7 @@ export default function OperationsLotsPage() {
       toast({ variant: "destructive", title: "Error", description: e?.message || "Error inesperado" });
     }
   };
+
 
   // ----- UI -----
   return (
@@ -139,30 +112,6 @@ export default function OperationsLotsPage() {
                 <p className="mt-2">Cuando se aprueben nuevas solicitudes, aparecerán aquí.</p>
               </div>
             )}
-
-            {/* Botón crear lotes */}
-            <div className="pt-4 border-t">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button className="w-full" disabled={approvedRequests.length === 0}>
-                    <PackagePlus className="mr-2" /> Crear Lotes Automáticos
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Cómo quieres crear los lotes?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Puedes agrupar las solicitudes aprobadas por <b>categoría</b> o por <b>proveedor</b>.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <Button onClick={handleBatchByCategory} className="w-full">Por Categoría</Button>
-                    <Button onClick={handleBatchBySupplier} className="w-full">Por Proveedor</Button>
-                    <AlertDialogCancel className="w-full">Cancelar</AlertDialogCancel>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
           </CardContent>
         </Card>
 
@@ -185,7 +134,7 @@ export default function OperationsLotsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Check /> Lotes de Compra Activos
+                 Lotes de Compra Activos
               </CardTitle>
               <CardDescription>
                 Estos lotes están listos. Ve a "Órdenes de Compra" para generar los documentos, o ajústalos aquí.
@@ -195,7 +144,7 @@ export default function OperationsLotsPage() {
               <ScrollArea className="h-[65vh]">
                 {batchedLots.length > 0 ? (
                   batchedLots.map((lot) => (
-                    <div key={lot.lotId} className="p-4 border rounded-lg bg-muted/30 mb-4">
+                    <div key={lot.lotId} className="p-4 border rounded-lg bg-muted/30 mb-4 relative">
                       <h3 className="font-semibold text-lg text-primary capitalize">{lot.category}</h3>
                       <p className="text-sm text-muted-foreground mb-3">
                         {lot.requests.length} solicitudes, {lot.totalQuantity.toLocaleString()} unidades en total.

@@ -29,7 +29,7 @@ export function generatePurchaseOrderPDF(order: PurchaseOrder, supplier: Supplie
   const margin = 15;
 
   try {
-    doc.addImage(logoBase64, 'JPEG', margin, margin, 30, 30);
+    doc.addImage(logoBase64, 'PNG', margin, margin, 30, 30);
   } catch (e) {
     console.error('Error al añadir la imagen al PDF:', e);
     doc.text('Logo no disponible', margin, margin + 15);

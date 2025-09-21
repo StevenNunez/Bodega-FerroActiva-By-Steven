@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -23,7 +24,7 @@ interface GenerateOrderCardProps {
 }
 
 const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
-    const { suppliers, generatePurchaseOrder } = useAppState();
+    const { suppliers, generatePurchaseOrder, deleteLot } = useAppState();
     const [selectedSupplier, setSelectedSupplier] = useState<string>('');
     const { toast } = useToast();
 
@@ -45,21 +46,55 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
         }
     };
     
+    const handleDeleteLot = async () => {
+        try {
+          await deleteLot(lot.lotId);
+          toast({ title: "Lote Procesado", description: "El lote ha sido marcado como procesado y eliminado de esta lista." });
+        } catch (e: any) {
+          toast({ variant: "destructive", title: "Error", description: e?.message || "Error inesperado al procesar el lote." });
+        }
+    };
+
     const totalRequests = lot.requests.length;
     const totalQuantity = lot.requests.reduce((acc, curr) => acc + curr.quantity, 0)
 
     return (
-        <Card className="bg-card">
+        <Card className="bg-card flex flex-col">
             <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base capitalize">
-                    <PackagePlus className="h-5 w-5 text-primary"/>
-                    {lot.category}
-                </CardTitle>
-                <CardDescription>
-                    {totalRequests} solicitudes, {totalQuantity.toLocaleString()} unidades en total.
-                </CardDescription>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle className="flex items-center gap-2 text-base capitalize">
+                            <PackagePlus className="h-5 w-5 text-primary"/>
+                            {lot.category}
+                        </CardTitle>
+                        <CardDescription>
+                            {totalRequests} solicitudes, {totalQuantity.toLocaleString()} unidades en total.
+                        </CardDescription>
+                    </div>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-4 w-4"/>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Marcar lote "{lot.category}" como procesado?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción quitará el lote de esta lista de "lotes listos". No eliminará las solicitudes ni afectará las órdenes de compra ya generadas. Se usa para limpiar la vista de trabajo.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteLot} className="bg-destructive hover:bg-destructive/90">
+                                    Sí, marcar como procesado
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex-grow flex flex-col justify-end">
                 <div className="space-y-2">
                     <Select onValueChange={setSelectedSupplier} value={selectedSupplier}>
                         <SelectTrigger>
@@ -102,7 +137,7 @@ export default function OperationsOrdersPage() {
     const handleCancelOrder = async (orderId: string) => {
         try {
             await cancelPurchaseOrder(orderId);
-            toast({ title: 'Orden Anulada', description: `La orden ${orderId} fue cancelada y las solicitudes devueltas a lotes.` });
+            toast({ title: 'Orden Anulada', description: `La orden ${orderId} fue cancelada y las solicitudes devueltas a su estado anterior.` });
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo anular la orden.' });
         }
@@ -171,7 +206,7 @@ export default function OperationsOrdersPage() {
                                                 <AlertDialogHeader>
                                                     <AlertDialogTitle>¿Anular Orden de Compra?</AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        Esta acción eliminará la orden y devolverá todas sus solicitudes al estado "En Lote" para que puedas volver a generar una orden. ¿Estás seguro?
+                                                        Esta acción eliminará la orden y devolverá todas sus solicitudes a su estado anterior. ¿Estás seguro?
                                                     </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>
