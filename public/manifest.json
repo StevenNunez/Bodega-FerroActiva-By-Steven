@@ -1,6 +1,6 @@
 {
-  "name": "Control de Bodega",
-  "short_name": "BodegaApp",
+  "name": "BodegaApp",
+  "short_name": "FerroActiva",
   "description": "Gestión de inventario y herramientas para Constructora FerroActiva",
   "start_url": "/",
   "display": "standalone",
