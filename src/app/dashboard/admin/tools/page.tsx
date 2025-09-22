@@ -1,12 +1,14 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { useAppState } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRight, Undo2, History, ArrowDown, ArrowUp, X, Trash2, AlertTriangle, MoreHorizontal, Edit, CalendarIcon, Loader2 } from "lucide-react";
+import { ArrowRight, Undo2, History, ArrowDown, ArrowUp, X, Trash2, AlertTriangle, MoreHorizontal, Edit, CalendarIcon, Loader2, QrCode } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { GenerateToolForm } from "@/components/admin/generate-tool-form";
 import type { Tool as ToolType, PurchaseRequest, MaterialRequest, ToolLog } from "@/lib/data";
@@ -23,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 type DailyMovement = {
   id: string;
@@ -33,10 +36,16 @@ type DailyMovement = {
   log?: ToolLog;
 };
 
+type CompatibleMaterialRequest = MaterialRequest & {
+  materialId?: string;
+  quantity?: number;
+};
+
 export default function AdminToolsPage() {
   const { users, toolLogs, tools, deleteTool, requests, materials, purchaseRequests, isLoading } = useAppState();
   const [editingTool, setEditingTool] = useState<ToolType | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [toolSearchTerm, setToolSearchTerm] = useState("");
   const [toolStatusFilter, setToolStatusFilter] = useState<"all" | "Disponible" | "Ocupado">("all");
   const [movementTypeFilter, setMovementTypeFilter] = useState<"all" | DailyMovement["type"]>("all");
   const [toolPage, setToolPage] = useState(1);
@@ -82,12 +91,22 @@ export default function AdminToolsPage() {
   };
 
   const filteredTools = useMemo(() => {
-    if (toolStatusFilter === "all") return tools;
-    return tools.filter((tool) => getToolCheckoutInfo(tool.id).status === toolStatusFilter);
-  }, [tools, toolStatusFilter, getToolCheckoutInfo]);
+    let filtered = tools;
+    if (toolSearchTerm) {
+      filtered = filtered.filter(tool => 
+        tool.name.toLowerCase().includes(toolSearchTerm.toLowerCase())
+      );
+    }
+    if (toolStatusFilter !== "all") {
+      filtered = filtered.filter((tool) => getToolCheckoutInfo(tool.id).status === toolStatusFilter);
+    }
+    return filtered;
+  }, [tools, toolStatusFilter, getToolCheckoutInfo, toolSearchTerm]);
 
   const paginatedTools = filteredTools.slice((toolPage - 1) * itemsPerPage, toolPage * itemsPerPage);
   const totalToolPages = Math.ceil(filteredTools.length / itemsPerPage);
+
+  const materialMap = useMemo(() => new Map(materials.map(m => [m.id, m])), [materials]);
 
   const historicalMovements = useMemo((): DailyMovement[] => {
     if (!selectedDate) return [];
@@ -113,15 +132,27 @@ export default function AdminToolsPage() {
         user: users.find((u) => u.id === pr.supervisorId)?.name ?? "N/A",
       }));
 
-    const materialExits: DailyMovement[] = requests
-      .filter((r: MaterialRequest) => r.status === "approved" && isSameDay(r.createdAt))
-      .map((r: MaterialRequest) => ({
-        id: `req-${r.id}`,
-        type: "Salida Material" as const,
-        date: getDate(r.createdAt)!,
-        description: `${materials.find((m) => m.id === r.materialId)?.name ?? "N/A"} (${r.quantity} uds)`,
-        user: users.find((u) => u.id === r.supervisorId)?.name ?? "N/A",
-      }));
+    const materialExits: DailyMovement[] = (requests as CompatibleMaterialRequest[])
+      .filter((r) => r.status === "approved" && isSameDay(r.createdAt))
+      .map((r) => {
+        let description = "N/A";
+        if (r.items && Array.isArray(r.items)) {
+            description = r.items.map(item => {
+                const mat = materialMap.get(item.materialId);
+                return `${mat?.name || 'N/A'} (${item.quantity} uds)`;
+            }).join(', ');
+        } else if (r.materialId && r.quantity) { // Legacy support
+            const mat = materialMap.get(r.materialId);
+            description = `${mat?.name || 'N/A'} (${r.quantity} uds)`;
+        }
+        return {
+            id: `req-${r.id}`,
+            type: "Salida Material" as const,
+            date: getDate(r.createdAt)!,
+            description: description,
+            user: users.find((u) => u.id === r.supervisorId)?.name ?? "N/A",
+        }
+      });
 
     const toolCheckouts: DailyMovement[] = toolLogs
       .filter((log) => isSameDay(log.checkoutDate))
@@ -150,7 +181,7 @@ export default function AdminToolsPage() {
       movements = movements.filter((m) => m.type === movementTypeFilter);
     }
     return movements.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [requests, purchaseRequests, materials, users, toolLogs, tools, selectedDate, movementTypeFilter]);
+  }, [requests, purchaseRequests, materials, users, toolLogs, tools, selectedDate, movementTypeFilter, materialMap]);
 
   const paginatedMovements = historicalMovements.slice(
     (movementPage - 1) * itemsPerPage,
@@ -237,32 +268,50 @@ export default function AdminToolsPage() {
         <div className="lg:col-span-2 space-y-8">
           <Card className="!max-w-none">
             <CardHeader>
-              <CardTitle>Inventario de Herramientas</CardTitle>
-              <CardDescription>Lista completa de todas las herramientas y su estado actual.</CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle>Inventario de Herramientas</CardTitle>
+                    <CardDescription>Lista completa de todas las herramientas y su estado actual.</CardDescription>
+                  </div>
+                  <Button asChild>
+                      <Link href="/dashboard/admin/tools/print-qrs">
+                          <QrCode className="mr-2 h-4 w-4" />
+                          Imprimir Códigos QR
+                      </Link>
+                  </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="p-6 space-y-4">
-                <div className="w-[180px]">
-                  <Label htmlFor="tool-status-filter">Filtrar por estado</Label>
-                  <Select
-                    value={toolStatusFilter}
-                    onValueChange={(value) => {
-                      setToolStatusFilter(value as "all" | "Disponible" | "Ocupado");
-                      setToolPage(1);
-                    }}
-                  >
-                    <SelectTrigger id="tool-status-filter" aria-describedby="tool-status-filter-description">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="Disponible">Disponible</SelectItem>
-                      <SelectItem value="Ocupado">Ocupado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span id="tool-status-filter-description" className="sr-only">
-                    Filtra herramientas por estado de disponibilidad
-                  </span>
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <Input 
+                      placeholder="Buscar herramienta por nombre..."
+                      value={toolSearchTerm}
+                      onChange={(e) => setToolSearchTerm(e.target.value)}
+                      className="flex-grow"
+                    />
+                    <div className="w-full sm:w-[180px]">
+                      <Label htmlFor="tool-status-filter" className="sr-only">Filtrar por estado</Label>
+                      <Select
+                        value={toolStatusFilter}
+                        onValueChange={(value) => {
+                          setToolStatusFilter(value as "all" | "Disponible" | "Ocupado");
+                          setToolPage(1);
+                        }}
+                      >
+                        <SelectTrigger id="tool-status-filter" aria-describedby="tool-status-filter-description">
+                          <SelectValue placeholder="Todos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="Disponible">Disponible</SelectItem>
+                          <SelectItem value="Ocupado">Ocupado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span id="tool-status-filter-description" className="sr-only">
+                        Filtra herramientas por estado de disponibilidad
+                      </span>
+                    </div>
                 </div>
                 <div className="relative overflow-x-auto max-w-full">
                   <div className="min-w-[800px]">

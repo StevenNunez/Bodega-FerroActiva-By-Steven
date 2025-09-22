@@ -1,4 +1,4 @@
-    
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -334,7 +334,18 @@ export default function OperationsPage() {
                             const changeTooltip = getChangeTooltip(req);
                             return (
                               <TableRow key={req.id}>
-                                <TableCell className="font-medium max-w-[200px] truncate">{req.materialName}</TableCell>
+                                <TableCell className="font-medium max-w-[200px] truncate">
+                                   <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="cursor-pointer">{req.materialName}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>{req.materialName}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                </TableCell>
                                 <TableCell className="flex items-center gap-2">
                                   {req.quantity} {req.unit}
                                   {changeTooltip && (
@@ -541,3 +552,5 @@ export default function OperationsPage() {
     </div>
   );
 }
+
+    
