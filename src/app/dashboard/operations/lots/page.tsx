@@ -149,26 +149,32 @@ export default function OperationsLotsPage() {
                       <p className="text-sm text-muted-foreground mb-3">
                         {lot.requests.length} solicitudes, {lot.totalQuantity.toLocaleString()} unidades en total.
                       </p>
-                      <div className="space-y-2">
-                        {lot.requests.map((req) => (
-                          <div key={req.id} className="flex items-center justify-between bg-card p-2 rounded-md">
-                            <div>
-                              <p className="font-medium text-sm">
-                                {req.materialName} ({req.quantity} {req.unit})
-                              </p>
-                              <p className="text-xs text-muted-foreground">Para: {req.area}</p>
+                       {lot.requests.length > 0 ? (
+                            <div className="space-y-2">
+                                {lot.requests.map((req) => (
+                                <div key={req.id} className="flex items-center justify-between bg-card p-2 rounded-md">
+                                    <div>
+                                    <p className="font-medium text-sm">
+                                        {req.materialName} ({req.quantity} {req.unit})
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Para: {req.area}</p>
+                                    </div>
+                                    <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => handleRemove(req.id)}
+                                    >
+                                    <PackageMinus className="mr-2 h-4 w-4" /> Quitar
+                                    </Button>
+                                </div>
+                                ))}
                             </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => handleRemove(req.id)}
-                            >
-                              <PackageMinus className="mr-2 h-4 w-4" /> Quitar
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
+                        ) : (
+                            <div className="text-center text-xs text-muted-foreground italic py-4">
+                                Lote vacío. Asigna solicitudes aprobadas a este lote.
+                            </div>
+                        )}
                     </div>
                   ))
                 ) : (

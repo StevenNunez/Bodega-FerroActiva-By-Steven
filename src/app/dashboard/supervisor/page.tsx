@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import React, { useState, useMemo } from "react";
-import { Package, Send, Loader2, ChevronsUpDown, Check, Wrench, Plus, Trash2 } from "lucide-react";
+import { Package, Send, Loader2, ChevronsUpDown, Check, Wrench, Plus, Trash2, PackageSearch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -16,6 +16,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Material } from "@/lib/data";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 
 interface CartItem {
     materialId: string;
@@ -38,6 +41,10 @@ export default function SupervisorPage() {
   const [currentMaterialId, setCurrentMaterialId] = useState<string | null>(null);
   const [currentQuantity, setCurrentQuantity] = useState<number | string>("");
   const [popoverOpen, setPopoverOpen] = useState(false);
+
+  // State for stock viewer
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const materialMap = useMemo(() => new Map(materials.map((m) => [m.id, m])), [materials]);
 
@@ -108,6 +115,25 @@ export default function SupervisorPage() {
     }
   }
 
+  // Memoized lists for the stock viewer
+  const categories = useMemo(() => {
+    const uniqueCats = [...new Set(materials.map((m) => m.category))];
+    return ["all", ...uniqueCats].sort();
+  }, [materials]);
+
+  const filteredMaterials = useMemo(() => {
+    let filtered = materials;
+    if (searchTerm) {
+      filtered = filtered.filter((material) =>
+        material.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((material) => material.category === categoryFilter);
+    }
+    return filtered;
+  }, [materials, searchTerm, categoryFilter]);
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -135,7 +161,10 @@ export default function SupervisorPage() {
                         })}
                     </div>
                     ) : (
-                        <p className="text-sm text-center text-muted-foreground py-4">Ningún trabajador de tu equipo tiene herramientas asignadas.</p>
+                        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-4">
+                            <PackageSearch className="h-10 w-10 mb-2"/>
+                            <p>Ningún trabajador de tu equipo tiene herramientas asignadas.</p>
+                        </div>
                     )}
                   </ScrollArea>
               </CardContent>
@@ -146,7 +175,56 @@ export default function SupervisorPage() {
                   <CardDescription>Consulta los materiales disponibles en bodega.</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">Usa el formulario de la derecha para solicitar materiales. El stock se muestra en el selector.</p>
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Buscar material..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                      <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Categoría" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat, index) => (
+                          <SelectItem key={`${cat}-${index}`} value={cat}>
+                            {cat === "all" ? "Todas" : cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <ScrollArea className="h-60 border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Material</TableHead>
+                          <TableHead className="text-right">Stock</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredMaterials.length > 0 ? (
+                          filteredMaterials.map((material) => (
+                            <TableRow key={material.id}>
+                              <TableCell>
+                                <div className="font-medium">{material.name}</div>
+                                <div className="text-xs text-muted-foreground">{material.category}</div>
+                              </TableCell>
+                              <TableCell className="text-right font-mono">{material.stock.toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={2} className="h-24 text-center">
+                              No se encontraron materiales.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
               </CardContent>
           </Card>
         </div>
@@ -245,3 +323,5 @@ export default function SupervisorPage() {
     </div>
   );
 }
+
+    

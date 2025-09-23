@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -38,10 +38,12 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>;
 
 export default function SupervisorPurchaseRequestPage() {
-  const { purchaseRequests, addPurchaseRequest, materialCategories } = useAppState();
+  const { purchaseRequests, materials, addPurchaseRequest, materialCategories } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
 
   const {
     register,
@@ -53,6 +55,17 @@ export default function SupervisorPurchaseRequestPage() {
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
   });
+  
+  useEffect(() => {
+    if (selectedMaterialId) {
+      const material = materials.find(m => m.id === selectedMaterialId);
+      if (material) {
+        setValue("materialName", material.name, { shouldValidate: true });
+        setValue("unit", material.unit, { shouldValidate: true });
+        setValue("category", material.category, { shouldValidate: true });
+      }
+    }
+  }, [selectedMaterialId, materials, setValue]);
 
   const myRequests = purchaseRequests.filter(pr => pr.supervisorId === authUser?.id);
 
@@ -68,6 +81,7 @@ export default function SupervisorPurchaseRequestPage() {
       });
       toast({ title: 'Éxito', description: 'Tu solicitud de compra ha sido enviada.' });
       reset();
+      setSelectedMaterialId(null);
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar la solicitud.' });
     }
@@ -118,6 +132,49 @@ export default function SupervisorPurchaseRequestPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+               <div className="space-y-2">
+                <Label>Seleccionar material existente (Opcional)</Label>
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between">
+                      <span className="truncate">
+                        {selectedMaterialId
+                          ? materials.find((m) => m.id === selectedMaterialId)?.name
+                          : "Selecciona un material para autocompletar..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar material..." />
+                      <CommandList>
+                        <CommandEmpty>No se encontró el material.</CommandEmpty>
+                        <CommandGroup>
+                          {materials.map((m) => (
+                            <CommandItem
+                              key={m.id}
+                              value={m.name}
+                              onSelect={() => {
+                                setSelectedMaterialId(m.id);
+                                setPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedMaterialId === m.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {m.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="materialName">Nombre del Material</Label>
@@ -281,4 +338,3 @@ export default function SupervisorPurchaseRequestPage() {
   );
 }
 
-    

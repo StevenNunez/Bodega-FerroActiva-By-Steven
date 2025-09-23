@@ -35,7 +35,7 @@ const FormSchema = z.object({
 
 type FormData = z.infer<typeof FormSchema>;
 
-export default function AdminPurchaseRequestPage() {
+export default function AdminPurchaseRequestFormPage() {
   const { purchaseRequests, materials, addPurchaseRequest, materialCategories, isLoading } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
@@ -508,3 +508,5 @@ export default function AdminPurchaseRequestPage() {
 }
 
     
+
+   

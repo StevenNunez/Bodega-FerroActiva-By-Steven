@@ -27,10 +27,10 @@ export function useLots() {
   const batchedLots: IntelligentLot[] = useMemo(() => {
     const lotsMap = new Map<string, IntelligentLot>();
 
-    // First, process all requests that are already in a lot
-    const batchedRequests = purchaseRequests.filter(pr => pr.lotId && pr.status === 'batched');
+    // A lot is active if its requests are batched OR ordered (but not yet received)
+    const activeLotRequests = purchaseRequests.filter(pr => pr.lotId && (pr.status === 'batched' || pr.status === 'ordered'));
 
-    batchedRequests.forEach((req) => {
+    activeLotRequests.forEach((req) => {
       if (!req.lotId) return;
 
       if (!lotsMap.has(req.lotId)) {
@@ -63,23 +63,26 @@ export function useLots() {
       lot.totalQuantity += req.quantity;
     });
     
-    // Now, ensure all manually created lots exist, even if empty
+    // Now, ensure all manually created lots exist, even if empty, as long as they don't have associated received items
     manualLots.forEach(lotId => {
         if (!lotsMap.has(lotId)) {
-            const categoryName = lotId.substring(7, lotId.lastIndexOf('-')).replace(/-/g, " ");
-            lotsMap.set(lotId, {
-                lotId: lotId,
-                category: categoryName,
-                requests: [],
-                totalQuantity: 0,
-                type: 'manual',
-            });
+            const hasReceivedItems = purchaseRequests.some(pr => pr.lotId === lotId && pr.status === 'received');
+            if (!hasReceivedItems) {
+                const categoryName = lotId.substring(7, lotId.lastIndexOf('-')).replace(/-/g, " ");
+                lotsMap.set(lotId, {
+                    lotId: lotId,
+                    category: categoryName,
+                    requests: [],
+                    totalQuantity: 0,
+                    type: 'manual',
+                });
+            }
         }
     });
 
-    return Array.from(lotsMap.values()).sort((a, b) =>
-      a.category.localeCompare(b.category)
-    );
+    return Array.from(lotsMap.values())
+      .sort((a, b) => a.category.localeCompare(b.category));
+      
   }, [purchaseRequests, suppliers, manualLots]);
 
   return { approvedRequests, batchedLots };

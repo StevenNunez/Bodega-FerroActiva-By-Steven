@@ -641,42 +641,48 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
  const generatePurchaseOrder = async (requests: PurchaseRequest[], supplierId: string) => {
     checkAuthAndRole(["operations"]);
     try {
-      const itemMap = new Map<string, { totalQuantity: number; unit: string; category: string }>();
+        const batch = writeBatch(db);
 
-      for (const req of requests) {
-        const key = `${req.materialName}__${req.unit}`;
-        if (itemMap.has(key)) {
-          const existing = itemMap.get(key)!;
-          existing.totalQuantity += req.quantity;
-        } else {
-          itemMap.set(key, { totalQuantity: req.quantity, unit: req.unit, category: req.category });
+        const newOrderRef = doc(collection(db, "purchaseOrders"));
+        
+        const itemMap = new Map<string, { totalQuantity: number; unit: string; category: string }>();
+        for (const req of requests) {
+            const key = `${req.materialName}__${req.unit}`;
+            if (itemMap.has(key)) {
+                itemMap.get(key)!.totalQuantity += req.quantity;
+            } else {
+                itemMap.set(key, { totalQuantity: req.quantity, unit: req.unit, category: req.category });
+            }
         }
-      }
 
-      const batch = writeBatch(db);
+        batch.set(newOrderRef, {
+            id: newOrderRef.id,
+            supplierId,
+            createdAt: Timestamp.now(),
+            status: "generated",
+            requestIds: requests.map((req) => req.id),
+            items: Array.from(itemMap.entries()).map(([key, { totalQuantity, unit, category }]) => ({
+                materialName: key.split("__")[0],
+                totalQuantity,
+                unit,
+                category,
+            })),
+        });
 
-      const newOrderRef = doc(collection(db, "purchaseOrders"));
-      batch.set(newOrderRef, {
-        id: newOrderRef.id,
-        supplierId,
-        createdAt: Timestamp.now(),
-        status: "generated",
-        requestIds: requests.map((req) => req.id),
-        items: Array.from(itemMap.entries()).map(([key, { totalQuantity, unit, category }]) => ({
-          materialName: key.split("__")[0],
-          totalQuantity,
-          unit,
-          category,
-        })),
-      });
+        // Also change the status of the requests to "ordered"
+        for (const req of requests) {
+            const reqRef = doc(db, "purchaseRequests", req.id);
+            batch.update(reqRef, { status: "ordered" });
+        }
 
-      await batch.commit();
-      notify("Orden de compra generada exitosamente.", "success");
+        await batch.commit();
+        notify("Orden de compra generada exitosamente.", "success");
     } catch (err: any) {
-      notify("Error al generar orden de compra: " + err.message, "destructive");
-      throw err;
+        notify("Error al generar orden de compra: " + err.message, "destructive");
+        throw err;
     }
-  };
+};
+
 
   const cancelPurchaseOrder = async (orderId: string) => {
     checkAuthAndRole(["operations"]);
@@ -842,8 +848,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         const q = query(collection(db, "purchaseRequests"), where("lotId", "==", lotId));
         const querySnapshot = await getDocs(q);
         
-        // This is a "soft delete" from the active lots view.
-        // We change the status so it's no longer considered "batched".
         querySnapshot.forEach(doc => {
             if (doc.data().status === 'batched') {
                 batch.update(doc.ref, { status: "ordered" });

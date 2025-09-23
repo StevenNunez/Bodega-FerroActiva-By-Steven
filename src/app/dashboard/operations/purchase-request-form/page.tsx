@@ -37,7 +37,7 @@ const FormSchema = z.object({
 
 type FormData = z.infer<typeof FormSchema>;
 
-export default function AprPurchaseRequestPage() {
+export default function OperationsPurchaseRequestPage() {
   const { purchaseRequests, materials, addPurchaseRequest, materialCategories } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
@@ -55,7 +55,7 @@ export default function AprPurchaseRequestPage() {
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
   });
-
+  
   useEffect(() => {
     if (selectedMaterialId) {
       const material = materials.find(m => m.id === selectedMaterialId);
@@ -128,7 +128,7 @@ export default function AprPurchaseRequestPage() {
         <Card>
           <CardHeader>
             <CardTitle>Generar Solicitud de Compra</CardTitle>
-            <CardDescription>Completa el formulario para pedir nuevos materiales. El Jefe de Operaciones deberá aprobar la compra.</CardDescription>
+            <CardDescription>Completa el formulario para pedir nuevos materiales.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -281,7 +281,7 @@ export default function AprPurchaseRequestPage() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Historial de Solicitudes de Compra</CardTitle>
+            <CardTitle>Historial de Mis Solicitudes de Compra</CardTitle>
             <CardDescription>El estado de tus solicitudes se actualizará aquí una vez gestionadas.</CardDescription>
           </CardHeader>
           <CardContent>

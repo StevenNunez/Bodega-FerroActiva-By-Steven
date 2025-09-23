@@ -24,7 +24,7 @@ interface GenerateOrderCardProps {
 }
 
 const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
-    const { suppliers, generatePurchaseOrder, deleteLot } = useAppState();
+    const { suppliers, generatePurchaseOrder } = useAppState();
     const [selectedSupplier, setSelectedSupplier] = useState<string>('');
     const { toast } = useToast();
 
@@ -46,15 +46,6 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
         }
     };
     
-    const handleDeleteLot = async () => {
-        try {
-          await deleteLot(lot.lotId);
-          toast({ title: "Lote Procesado", description: "El lote ha sido marcado como procesado y eliminado de esta lista." });
-        } catch (e: any) {
-          toast({ variant: "destructive", title: "Error", description: e?.message || "Error inesperado al procesar el lote." });
-        }
-    };
-
     const totalRequests = lot.requests.length;
     const totalQuantity = lot.requests.reduce((acc, curr) => acc + curr.quantity, 0)
 
@@ -71,27 +62,6 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
                             {totalRequests} solicitudes, {totalQuantity.toLocaleString()} unidades en total.
                         </CardDescription>
                     </div>
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                                <Trash2 className="h-4 w-4"/>
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Marcar lote "{lot.category}" como procesado?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Esta acción quitará el lote de esta lista de "lotes listos". No eliminará las solicitudes ni afectará las órdenes de compra ya generadas. Se usa para limpiar la vista de trabajo.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteLot} className="bg-destructive hover:bg-destructive/90">
-                                    Sí, marcar como procesado
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
                 </div>
             </CardHeader>
             <CardContent className="space-y-4 flex-grow flex flex-col justify-end">
@@ -191,7 +161,7 @@ export default function OperationsOrdersPage() {
                                                 Proveedor: <span className="font-medium text-primary">{getSupplierName(order.supplierId)}</span>
                                             </p>
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                Generada el: {getDate(order.createdAt).toLocaleDateString()}
+                                                Generada el: {getDate(order.createdAt).toLocaleDateString('es-CL')}
                                             </p>
                                         </div>
                                     </AccordionTrigger>

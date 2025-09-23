@@ -61,6 +61,8 @@ const workerNavItems = [
 
 const operationsNavItems = [
     { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras', notificationKey: 'pendingPurchaseRequests' },
+    { href: '/dashboard/operations/request', icon: PlusCircle, label: 'Solicitar Materiales' },
+    { href: '/dashboard/operations/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
     { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
     { href: '/dashboard/operations/categories', icon: FolderTree, label: 'Categorías' },
     { href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' },
@@ -164,3 +166,5 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     </>
   );
 }
+
+  
