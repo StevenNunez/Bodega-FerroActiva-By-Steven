@@ -48,29 +48,61 @@ export function ToolCheckoutCard() {
   const checkedOutTools = useMemo(() => toolLogs.filter(log => log.returnDate === null), [toolLogs]);
 
   const processScan = async (qrCode: string) => {
-    if (returnMode) {
+    if (scannerPurpose === 'return-tool' || returnMode) {
       await handleReturnScan(qrCode);
       return;
     }
 
-    if (!checkoutState.worker) {
-      const sanitizedQrCode = qrCode.replace(/['\-]/g, '');
-      const worker = users.find(u => {
-        if (!u.qrCode) return false;
-        const sanitizedUserQr = u.qrCode.replace(/['\-]/g, '');
-        return sanitizedUserQr === sanitizedQrCode && (u.role === 'worker' || u.role === 'supervisor');
-      });
+    if (scannerPurpose === 'checkout-worker') {
+        const sanitizedQrCode = qrCode.replace(/['\-]/g, '');
+        const worker = users.find(u => {
+            if (!u.qrCode) return false;
+            const sanitizedUserQr = u.qrCode.replace(/['\-]/g, '');
+            return sanitizedUserQr === sanitizedQrCode && (u.role === 'worker' || u.role === 'supervisor');
+        });
 
-      if (worker) {
-        setCheckoutState({ worker, tools: [] });
-        toast({ title: 'Trabajador Seleccionado', description: `Nombre: ${worker.name}. Ahora escanea las herramientas.` });
-      } else {
-        toast({ variant: 'destructive', title: 'Error', description: 'Código QR inválido o no corresponde a un trabajador.' });
-      }
-    } else {
-      await handleCheckoutToolScan(qrCode);
+        if (worker) {
+            setCheckoutState({ worker, tools: [] });
+            toast({ title: 'Trabajador Seleccionado', description: `Nombre: ${worker.name}. Ahora escanea las herramientas.` });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: 'Código QR inválido o no corresponde a un trabajador.' });
+        }
+        return;
+    }
+    
+    if (scannerPurpose === 'checkout-tool') {
+        if (!checkoutState.worker) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Primero escanea el QR de un trabajador.' });
+            return;
+        }
+        await handleCheckoutToolScan(qrCode);
     }
   };
+  
+  const handleManualScan = async (qrCode: string) => {
+      if (returnMode) {
+          await handleReturnScan(qrCode);
+      } else {
+          if (!checkoutState.worker) {
+              const sanitizedQrCode = qrCode.replace(/['\-]/g, '');
+              const worker = users.find(u => {
+                if (!u.qrCode) return false;
+                const sanitizedUserQr = u.qrCode.replace(/['\-]/g, '');
+                return sanitizedUserQr === sanitizedQrCode && (u.role === 'worker' || u.role === 'supervisor');
+              });
+
+              if (worker) {
+                setCheckoutState({ worker, tools: [] });
+                toast({ title: 'Trabajador Seleccionado', description: `Nombre: ${worker.name}. Ahora escanea las herramientas.` });
+              } else {
+                toast({ variant: 'destructive', title: 'Error', description: 'Código QR inválido o no corresponde a un trabajador.' });
+              }
+          } else {
+              await handleCheckoutToolScan(qrCode);
+          }
+      }
+  }
+
 
   const handleCheckoutToolScan = async (qrCode: string) => {
     const sanitizedQrCode = normalizeString(qrCode).replace(/['\-]/g, '');
@@ -129,7 +161,7 @@ export function ToolCheckoutCard() {
   const handleManualScanSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (manualScanInput.trim()) {
-          processScan(manualScanInput.trim());
+          handleManualScan(manualScanInput.trim());
           setManualScanInput('');
       }
   }
