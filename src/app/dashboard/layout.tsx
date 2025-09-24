@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth, useAppState } from "@/contexts/app-provider";
 import { Sidebar } from "@/components/sidebar";
 import { Menu, Loader2, Bell, Volume2, VolumeX } from "lucide-react";
@@ -17,10 +18,15 @@ export default function DashboardLayout({
   const { user, authLoading } = useAuth();
   const { requests, purchaseRequests } = useAppState();
   const router = useRouter();
+  const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(false);
 
-  // Solicitudes pendientes
+  // Determine if the current page should have a sidebar.
+  // The main hub page (/dashboard) will not have it.
+  const showSidebar = pathname !== "/dashboard";
+
+
   const pendingMaterialRequests = React.useMemo(() => {
     return (requests || []).filter((r) => r.status === "pending").length;
   }, [requests]);
@@ -29,11 +35,9 @@ export default function DashboardLayout({
     return (purchaseRequests || []).filter((pr) => pr.status === "pending").length;
   }, [purchaseRequests]);
 
-  // Contar solicitudes pendientes según el rol
   const pendingCount =
     user?.role === "admin" ? pendingMaterialRequests : user?.role === "operations" ? pendingPurchaseRequests : 0;
   
-  // --- Lógica de Sonido ---
   const playNotificationSound = React.useCallback(() => {
     if (isMuted || typeof window === 'undefined') return;
 
@@ -51,42 +55,37 @@ export default function DashboardLayout({
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
 
-        oscillator.type = 'triangle'; // Un tono un poco menos "puro" que 'sine'
+        oscillator.type = 'triangle';
         oscillator.frequency.setValueAtTime(frequency, startTime);
         
-        // Un ataque y decaída rápidos para hacerlo más percusivo
         gainNode.gain.setValueAtTime(0, startTime);
-        gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.05); // Volumen máximo
+        gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.05);
         gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
         oscillator.start(startTime);
         oscillator.stop(startTime + duration);
     }
     
-    // Secuencia de tonos para llamar la atención
     const now = audioContext.currentTime;
-    playTone(980, now, 0.15);         // Tono alto
-    playTone(780, now + 0.2, 0.15);   // Tono más bajo
-    playTone(980, now + 0.4, 0.15);   // Tono alto
-    playTone(780, now + 0.6, 0.25);   // Tono más bajo y un poco más largo
+    playTone(980, now, 0.15);
+    playTone(780, now + 0.2, 0.15);
+    playTone(980, now + 0.4, 0.15);
+    playTone(780, now + 0.6, 0.25);
 
   }, [isMuted]);
 
-  // Efecto para reproducir sonido cuando llegan nuevas notificaciones
   React.useEffect(() => {
     if (pendingCount > 0) {
       playNotificationSound();
     }
   }, [pendingCount, playNotificationSound]);
 
-  // Redirección si no hay sesión
   React.useEffect(() => {
     if (!authLoading && !user) {
       router.replace("/login");
     }
   }, [user, authLoading, router]);
 
-  // Loader mientras carga sesión
   if (authLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
@@ -98,38 +97,42 @@ export default function DashboardLayout({
     );
   }
 
-  return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] overflow-x-hidden">
-      {/* Sidebar desktop */}
-      <div className="hidden border-r bg-muted/40 md:block">
-        <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
-      </div>
+  const layoutClasses = showSidebar
+    ? "grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
+    : "flex min-h-screen w-full flex-col";
 
-      {/* Contenido principal */}
+  return (
+    <div className={layoutClasses}>
+      {showSidebar && (
+        <div className="hidden border-r bg-muted/40 md:block">
+          <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
+        </div>
+      )}
+      
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          {/* Sidebar móvil */}
-          <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0 md:hidden"
-                aria-label="Abrir menú de navegación"
-              >
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Abrir menú de navegación</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col p-0 transition-transform duration-300">
-              <SheetTitle className="sr-only">Menú de Navegación</SheetTitle>
-              <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
-            </SheetContent>
-          </Sheet>
+          {showSidebar && (
+            <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0 md:hidden"
+                  aria-label="Abrir menú de navegación"
+                >
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Abrir menú de navegación</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="flex flex-col p-0 transition-transform duration-300">
+                <SheetTitle className="sr-only">Menú de Navegación</SheetTitle>
+                <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
+              </SheetContent>
+            </Sheet>
+          )}
 
           <div className="flex-1" />
 
-          {/* Notificación y control de sonido */}
           <div className="flex items-center gap-4">
              {(user?.role === "admin" || user?.role === "operations") && (
                 <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)}>
@@ -152,7 +155,7 @@ export default function DashboardLayout({
 
         </header>
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-x-hidden">{children}</main>
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">{children}</main>
       </div>
     </div>
   );

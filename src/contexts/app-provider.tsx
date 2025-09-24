@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -14,6 +13,7 @@ import {
   Supplier,
   PurchaseOrder,
   MaterialCategory,
+  AttendanceLog,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -66,11 +66,14 @@ const convertTimestamps = (data: any) => {
 
 const normalizeString = (str: string) => {
   if (!str) return "";
+  // Keeps only letters and numbers
   return str
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase();
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, ''); // Remove non-alphanumeric characters
 };
+
 
 // App State Context
 interface AppStateContextType {
@@ -80,6 +83,7 @@ interface AppStateContextType {
   materialCategories: MaterialCategory[];
   requests: MaterialRequest[];
   toolLogs: ToolLog[];
+  attendanceLogs: AttendanceLog[];
   purchaseRequests: PurchaseRequest[];
   suppliers: Supplier[];
   purchaseOrders: PurchaseOrder[];
@@ -93,6 +97,7 @@ interface AppStateContextType {
   approveRequest: (requestId: string) => Promise<void>;
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
   returnTool: (logId: string, condition: "ok" | "damaged", notes?: string) => Promise<void>;
+  handleAttendanceScan: (userId: string) => Promise<void>;
   addMaterial: (material: Omit<Material, "id">) => Promise<void>;
   updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
   deleteMaterial: (materialId: string) => Promise<void>;
@@ -104,7 +109,7 @@ interface AppStateContextType {
   updatePurchaseRequestStatus: (
     id: string,
     status: PurchaseRequestStatus,
-    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "notes">>
+    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "notes" | "justification">>
   ) => Promise<void>;
   receivePurchaseRequest: (purchaseRequestId: string) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
@@ -131,6 +136,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [materialCategories, setMaterialCategories] = React.useState<MaterialCategory[]>([]);
   const [requests, setRequests] = React.useState<MaterialRequest[]>([]);
   const [toolLogs, setToolLogs] = React.useState<ToolLog[]>([]);
+  const [attendanceLogs, setAttendanceLogs] = React.useState<AttendanceLog[]>([]);
   const [purchaseRequests, setPurchaseRequests] = React.useState<PurchaseRequest[]>([]);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [purchaseOrders, setPurchaseOrders] = React.useState<PurchaseOrder[]>([]);
@@ -154,10 +160,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   React.useEffect(() => {
-    const setup = async () => {
-      setLoading(true);
-
-      const collections: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>>; sortField?: string }[] = [
+    setLoading(true);
+    const collections: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>>; sortField?: string }[] = [
         { name: "users", setter: setUsers, sortField: "name" },
         { name: "tools", setter: setTools, sortField: "name" },
         { name: "materials", setter: setMaterials, sortField: "name" },
@@ -165,53 +169,37 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "suppliers", setter: setSuppliers, sortField: "name" },
         { name: "requests", setter: setRequests, sortField: "createdAt" },
         { name: "toolLogs", setter: setToolLogs, sortField: "checkoutDate" },
+        { name: "attendanceLogs", setter: setAttendanceLogs, sortField: "checkInTime" },
         { name: "purchaseRequests", setter: setPurchaseRequests, sortField: "createdAt" },
         { name: "purchaseOrders", setter: setPurchaseOrders, sortField: "createdAt" },
-      ];
+    ];
 
-      const unsubscribes = collections.map(({ name, setter, sortField }) => {
-        const collRef = collection(db, name);
-        
-        const queryConstraints: QueryConstraint[] = [];
-        if (sortField) {
-            queryConstraints.push(orderBy(sortField, "desc"));
+    const unsubscribes = collections.map(({ name, setter, sortField }) => {
+      const collRef = collection(db, name);
+      
+      const queryConstraints: QueryConstraint[] = [];
+      if (sortField) {
+          queryConstraints.push(orderBy(sortField, "desc"));
+      }
+      
+      const q = query(collRef, ...queryConstraints);
+      
+      return onSnapshot(
+        q,
+        (snapshot) => {
+          const data = snapshot.docs.map((doc) => convertTimestamps({ ...doc.data(), id: doc.id }));
+          setter(data);
+        },
+        (err) => {
+          console.error(`Error fetching ${name}:`, err);
+          setError(`Error al cargar datos de ${name}.`);
         }
-        if (authUser?.role === "worker" && name === "requests") {
-            queryConstraints.push(where("supervisorId", "==", authUser.id));
-        }
-
-        const q = query(collRef, ...queryConstraints);
-        
-        return onSnapshot(
-          q,
-          (snapshot) => {
-            const data = snapshot.docs.map((doc) => convertTimestamps({ ...doc.data(), id: doc.id }));
-            setter(data);
-          },
-          (err) => {
-            console.error(`Error fetching ${name}:`, err);
-            const errorMessage = `Error al cargar datos de ${name}. Revisa tu conexión o la configuración de Firebase.`;
-            setError(errorMessage);
-            notify(errorMessage, "destructive");
-          }
-        );
-      });
-
-      setLoading(false);
-
-      return () => unsubscribes.forEach((unsub) => unsub());
-    };
-
-    setup().catch((e) => {
-      console.error("Error setting up listeners:", e);
-      const errorMessage = "Error al inicializar la aplicación. Intenta recargar la página.";
-      setError(errorMessage);
-      notify(errorMessage, "destructive");
+      );
     });
-    
-    // This return function is for cleanup, but the re-creation of setup on authUser change is key.
-    // The previous implementation had a logic flaw in how it handled cleanup.
-  }, [authUser, notify]);
+
+    setLoading(false);
+    return () => unsubscribes.forEach((unsub) => unsub());
+  }, []);
 
   const checkAuthAndRole = (allowedRoles: string[]) => {
     if (!authUser) throw new Error("Acción no autorizada: usuario no autenticado.");
@@ -223,12 +211,12 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const addTool = async (toolName: string) => {
     checkAuthAndRole(["admin"]);
     try {
-      const normalizedToolName = normalizeString(toolName);
       const newDocRef = doc(collection(db, "tools"));
+      const normalizedToolName = normalizeString(toolName);
       await setDoc(newDocRef, {
         id: newDocRef.id,
         name: toolName,
-        qrCode: `TOOL-${normalizedToolName.replace(/\s/g, "-")}-${nanoid(4)}`,
+        qrCode: `TOOL-${normalizedToolName}-${nanoid(4)}`,
       });
       notify("Herramienta agregada exitosamente.", "success");
     } catch (err: any) {
@@ -404,7 +392,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addMaterialCategory = async (name: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "operations", "supervisor"]);
     try {
       const newDocRef = doc(collection(db, "materialCategories"));
       await setDoc(newDocRef, { name, id: newDocRef.id });
@@ -416,7 +404,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateMaterialCategory = async (id: string, name: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "operations", "supervisor"]);
     try {
       const categoryRef = doc(db, "materialCategories", id);
       await updateDoc(categoryRef, { name });
@@ -457,7 +445,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addRequest = async (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => {
-    checkAuthAndRole(["supervisor", "worker", "admin", "apr"]);
+    checkAuthAndRole(["supervisor", "worker", "admin", "apr", "operations"]);
     try {
       const newDocRef = doc(collection(db, "requests"));
       await setDoc(newDocRef, {
@@ -508,7 +496,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const checkoutTool = async (toolId: string, workerId: string, supervisorId: string) => {
-    checkAuthAndRole(["admin", "supervisor", "apr"]);
+    checkAuthAndRole(["admin", "supervisor", "apr", "operations"]);
     try {
       const newDocRef = doc(collection(db, "toolLogs"));
       await setDoc(newDocRef, {
@@ -527,7 +515,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const returnTool = async (logId: string, condition: "ok" | "damaged" = "ok", notes: string = "") => {
-    checkAuthAndRole(["admin", "supervisor", "apr"]);
+    checkAuthAndRole(["admin", "supervisor", "apr", "operations"]);
     try {
       const logRef = doc(db, "toolLogs", logId);
       await updateDoc(logRef, {
@@ -541,6 +529,56 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       throw err;
     }
   };
+  
+  const handleAttendanceScan = async (userId: string) => {
+    checkAuthAndRole(["admin", "guardia", "operations"]);
+    try {
+        const userRef = doc(db, "users", userId);
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists()) {
+            throw new Error("Usuario no encontrado en la base de datos.");
+        }
+        const user = userDoc.data() as User;
+        
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        const q = query(
+            collection(db, "attendanceLogs"),
+            where("userId", "==", userId),
+            where("date", "==", today)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            // First time today -> Check-in
+            const newLogRef = doc(collection(db, "attendanceLogs"));
+            await setDoc(newLogRef, {
+                id: newLogRef.id,
+                userId: userId,
+                userName: user.name,
+                checkInTime: Timestamp.now(),
+                date: today,
+            });
+            notify(`Entrada registrada para ${user.name}.`, "success");
+        } else {
+            // Already checked in today -> Check-out
+            const existingLogDoc = querySnapshot.docs[0];
+            if (existingLogDoc.data().checkOutTime) {
+                notify(`${user.name} ya registró su salida hoy.`, "default");
+            } else {
+                await updateDoc(existingLogDoc.ref, {
+                    checkOutTime: Timestamp.now(),
+                });
+                notify(`Salida registrada para ${user.name}.`, "success");
+            }
+        }
+    } catch (err: any) {
+      notify("Error al registrar asistencia: " + err.message, "destructive");
+      throw err;
+    }
+  };
+
 
   const addPurchaseRequest = async (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => {
     checkAuthAndRole(["supervisor", "worker", "admin", "operations", "apr"]);
@@ -564,37 +602,38 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updatePurchaseRequestStatus = async (
     id: string,
     status: PurchaseRequestStatus,
-    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "notes">>
+    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "notes" | "justification">>
   ) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "admin"]);
     try {
       if (!authUser) throw new Error("Acción no autorizada.");
       const requestRef = doc(db, "purchaseRequests", id);
+      const originalRequest = purchaseRequests.find((pr) => pr.id === id);
+      if (!originalRequest) throw new Error("Solicitud original no encontrada.");
 
-      let updateData: any = {
-        status,
-        approvedById: authUser.id,
-        approvedAt: Timestamp.now(),
-      };
+      // Prepare the data to be updated
+      let updateData: any = { ...data };
 
-      if (data) {
-        const originalRequest = purchaseRequests.find((pr) => pr.id === id);
-        if (originalRequest) {
-          updateData = {
-            ...updateData,
-            ...data,
-            originalQuantity: originalRequest.quantity,
-          };
-        }
+      // Only update the status if it's different
+      if (originalRequest.status !== status) {
+        updateData.status = status;
+        updateData.approvedById = authUser.id;
+        updateData.approvedAt = Timestamp.now();
       }
 
+      // If the quantity is being changed, record the original quantity
+      if (data?.quantity && data.quantity !== originalRequest.quantity && originalRequest.originalQuantity === undefined) {
+         updateData.originalQuantity = originalRequest.quantity;
+      }
+      
       await updateDoc(requestRef, updateData);
-      notify("Estado de solicitud de compra actualizado exitosamente.", "success");
+      notify("Solicitud de compra actualizada exitosamente.", "success");
     } catch (err: any) {
       notify("Error al actualizar solicitud de compra: " + err.message, "destructive");
       throw err;
     }
   };
+
 
   const receivePurchaseRequest = async (purchaseRequestId: string) => {
     checkAuthAndRole(["admin"]);
@@ -873,6 +912,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     materialCategories,
     requests,
     toolLogs,
+    attendanceLogs,
     purchaseRequests,
     suppliers,
     purchaseOrders,
@@ -886,6 +926,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     approveRequest,
     checkoutTool,
     returnTool,
+    handleAttendanceScan,
     addMaterial,
     updateMaterial,
     deleteMaterial,

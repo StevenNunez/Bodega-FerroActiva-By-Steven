@@ -20,12 +20,15 @@ import {
   Upload,
   FolderTree,
   Edit,
+  CalendarCheck,
+  Clock,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
+// --- Warehouse Module ---
 const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
@@ -69,12 +72,22 @@ const operationsNavItems = [
     { href: '/dashboard/operations/suppliers', icon: Briefcase, label: 'Proveedores' },
 ];
 
+
+// --- Attendance Module ---
+const attendanceNavItems = [
+    { href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' },
+    { href: '/dashboard/attendance/overtime', icon: Clock, label: 'Horas Extras' },
+];
+
+
 const navItems = {
   admin: adminNavItems,
   supervisor: supervisorNavItems,
   worker: workerNavItems,
   operations: operationsNavItems,
   apr: aprNavItems,
+  // Guardia doesn't need a complex menu, they are redirected
+  guardia: [{ href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' }], 
 };
 
 interface SidebarProps {
@@ -100,7 +113,24 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     router.push('/');
   };
 
-  const userNavItems = user ? navItems[user.role] : [];
+  // Determine which module is active
+  const isWarehouseModule = adminNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/')))) 
+    || supervisorNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))))
+    || workerNavItems.some(item => pathname.startsWith(item.href))
+    || operationsNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))))
+    || aprNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))));
+    
+  const isAttendanceModule = pathname.startsWith('/dashboard/attendance');
+  
+  let currentNavItems = [];
+  if (isAttendanceModule && user && (user.role === 'admin' || user.role === 'operations')) {
+      currentNavItems = attendanceNavItems;
+  } else if (isWarehouseModule && user) {
+      currentNavItems = navItems[user.role] || [];
+  } else if (user?.role === 'guardia') {
+      currentNavItems = navItems.guardia;
+  }
+
   const getRoleDisplayName = (role: string) => {
     switch (role) {
       case 'admin': return 'Administrador de Bodega';
@@ -108,6 +138,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
       case 'worker': return 'Colaborador';
       case 'operations': return 'Jefe de Operaciones';
       case 'apr': return 'APR';
+      case 'guardia': return 'Guardia';
       default: return 'Usuario';
     }
   }
@@ -124,13 +155,15 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold" onClick={handleLinkClick}>
             <Warehouse className="h-6 w-6 text-primary" />
-            <span className="">Control de Bodega</span>
+            <span className="">Portal de Módulos</span>
           </Link>
         </div>
         <div className="flex-1 overflow-auto py-2">
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-            {userNavItems.map(item => {
+            {currentNavItems.map(item => {
               const notifCount = item.notificationKey ? notificationCounts[item.notificationKey as keyof typeof notificationCounts] : 0;
+              const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/dashboard');
+              
               return (
                 <Link
                   key={item.href}
@@ -138,7 +171,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
                   onClick={handleLinkClick}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
-                    { 'bg-primary/10 text-primary': pathname.startsWith(item.href) && (item.href !== '/dashboard/admin' && item.href !== '/dashboard/supervisor' && item.href !== '/dashboard/operations' && item.href !== '/dashboard/apr' || pathname === item.href) }
+                     { 'bg-primary/10 text-primary': isActive }
                   )}
                 >
                   <item.icon className="h-4 w-4" />
@@ -166,5 +199,3 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     </>
   );
 }
-
-  

@@ -18,6 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 const FormSchema = z.object({
   materialName: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   quantity: z.coerce.number().min(1, 'La cantidad debe ser al menos 1.'),
+  justification: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -31,13 +32,13 @@ interface EditPurchaseRequestFormProps {
 
 export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurchaseRequestFormProps) {
   const { updatePurchaseRequestStatus } = useAppState();
-  const { user: authUser } = useAuth();
   const { toast } = useToast();
 
   const {
     register,
     handleSubmit,
     reset,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
@@ -48,36 +49,43 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
           reset({
             materialName: request.materialName,
             quantity: request.quantity,
+            justification: request.justification,
             notes: request.notes || '',
           });
       }
   }, [request, reset]);
 
-  const handleAction = async (status: 'approved' | 'rejected', data?: FormData) => {
-    try {
-        if (status === 'approved' && data) {
-             await updatePurchaseRequestStatus(request.id, 'approved', {
-                materialName: data.materialName,
-                quantity: data.quantity,
-                notes: data.notes
-            });
-            toast({
-                title: 'Solicitud Aprobada',
-                description: `La solicitud para ${data.materialName} ha sido aprobada.`,
-            });
-        } else {
-             await updatePurchaseRequestStatus(request.id, 'rejected');
-             toast({
-                title: 'Solicitud Rechazada',
-                variant: 'destructive'
-            });
-        }
+  const handleStatusChange = async (status: 'approved' | 'rejected') => {
+      try {
+        await updatePurchaseRequestStatus(request.id, status, getValues());
+        toast({
+            title: status === 'approved' ? 'Solicitud Aprobada' : 'Solicitud Rechazada',
+            description: `La solicitud ha sido marcada como ${status === 'approved' ? 'aprobada' : 'rechazada'}.`,
+            variant: status === 'rejected' ? 'destructive' : 'default'
+        });
+        onClose();
+      } catch (error) {
+           toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'No se pudo actualizar el estado de la solicitud.',
+          });
+      }
+  }
+
+  const onSubmit: SubmitHandler<FormData> = async (data) => {
+     try {
+      await updatePurchaseRequestStatus(request.id, request.status, data);
+      toast({
+        title: 'Cambios Guardados',
+        description: `La solicitud de compra ha sido actualizada.`,
+      });
       onClose();
     } catch (error) {
        toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'No se pudo procesar la solicitud.',
+        description: 'No se pudieron guardar los cambios.',
       });
     }
   };
@@ -91,58 +99,69 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
                     Revisa, ajusta y aprueba o rechaza la solicitud.
                 </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit((data) => handleAction('approved', data))} className="space-y-4 py-4">
-                <div className="space-y-2">
-                    <Label htmlFor="materialName">Nombre del Material</Label>
-                    <Input id="materialName" {...register('materialName')} />
-                    {errors.materialName && <p className="text-xs text-destructive">{errors.materialName.message}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit(onSubmit)}>
+                <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="quantity">Cantidad</Label>
-                        <Input id="quantity" type="number" {...register('quantity')} />
-                        {errors.quantity && <p className="text-xs text-destructive">{errors.quantity.message}</p>}
+                        <Label htmlFor="materialName">Nombre del Material</Label>
+                        <Input id="materialName" {...register('materialName')} />
+                        {errors.materialName && <p className="text-xs text-destructive">{errors.materialName.message}</p>}
                     </div>
-                     <div className="space-y-2">
-                        <Label>Unidad</Label>
-                        <Input value={request.unit} disabled />
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="quantity">Cantidad</Label>
+                            <Input id="quantity" type="number" {...register('quantity')} />
+                            {errors.quantity && <p className="text-xs text-destructive">{errors.quantity.message}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Unidad</Label>
+                            <Input value={request.unit} disabled />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="justification">Justificación Original</Label>
+                        <Textarea id="justification" {...register('justification')} />
+                        {errors.justification && <p className="text-xs text-destructive">{errors.justification.message}</p>}
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <Label htmlFor="notes">Notas de Aprobación (Opcional)</Label>
+                        <Textarea id="notes" placeholder="Ej: Ajustado a cantidad por caja, cambiado a marca XXX." {...register('notes')} />
+                        <p className="text-xs text-muted-foreground">Esta nota será visible para el solicitante.</p>
                     </div>
                 </div>
-                
-                 <div className="space-y-2">
-                    <Label htmlFor="notes">Notas (Opcional)</Label>
-                    <Textarea id="notes" placeholder="Ej: Ajustado a cantidad por caja, cambiado a marca XXX." {...register('notes')} />
-                    <p className="text-xs text-muted-foreground">Esta nota será visible para el solicitante.</p>
-                </div>
 
-
-                <DialogFooter className="grid grid-cols-2 gap-2 pt-4">
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button type="button" variant="destructive" className="w-full">
-                                <ThumbsDown className="mr-2 h-4 w-4"/> Rechazar
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Confirmar Rechazo?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Esta acción marcará la solicitud de compra como rechazada. ¿Estás seguro?
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleAction('rejected')} className="bg-destructive hover:bg-destructive/90">
-                                Sí, Rechazar
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ThumbsUp className="mr-2 h-4 w-4" />}
-                        Aprobar
+                <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between w-full">
+                     <div className="flex gap-2">
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button type="button" variant="destructive" className="w-full sm:w-auto">
+                                    <ThumbsDown className="mr-2 h-4 w-4"/> Rechazar
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Confirmar Rechazo?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción marcará la solicitud de compra como rechazada. ¿Estás seguro?
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleStatusChange('rejected')} className="bg-destructive hover:bg-destructive/90">
+                                    Sí, Rechazar
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                        <Button type="button" onClick={() => handleStatusChange('approved')} className="w-full sm:w-auto bg-green-600 hover:bg-green-700">
+                             <ThumbsUp className="mr-2 h-4 w-4"/> Aprobar
+                        </Button>
+                     </div>
+                     <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Guardar Cambios
                     </Button>
                 </DialogFooter>
             </form>

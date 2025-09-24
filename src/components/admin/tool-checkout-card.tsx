@@ -24,9 +24,14 @@ type ScanPurpose = 'checkout-worker' | 'checkout-tool' | 'return-tool';
 
 const normalizeString = (str: string) => {
   if (!str) return '';
-  // This will remove accents and convert to uppercase
-  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+  // Keeps only letters and numbers
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, ''); // Remove non-alphanumeric characters
 }
+
 
 export function ToolCheckoutCard() {
   const { users, tools, toolLogs, checkoutTool, returnTool } = useAppState();
@@ -48,24 +53,24 @@ export function ToolCheckoutCard() {
   const checkedOutTools = useMemo(() => toolLogs.filter(log => log.returnDate === null), [toolLogs]);
 
   const processScan = async (qrCode: string) => {
-    if (scannerPurpose === 'return-tool' || returnMode) {
+    if (scannerPurpose === 'return-tool') {
       await handleReturnScan(qrCode);
       return;
     }
 
     if (scannerPurpose === 'checkout-worker') {
-        const sanitizedQrCode = qrCode.replace(/['\-]/g, '');
+        const sanitizedQrCode = normalizeString(qrCode);
         const worker = users.find(u => {
             if (!u.qrCode) return false;
-            const sanitizedUserQr = u.qrCode.replace(/['\-]/g, '');
-            return sanitizedUserQr === sanitizedQrCode && (u.role === 'worker' || u.role === 'supervisor');
+            const sanitizedUserQr = normalizeString(u.qrCode);
+            return sanitizedUserQr === sanitizedQrCode;
         });
 
         if (worker) {
             setCheckoutState({ worker, tools: [] });
             toast({ title: 'Trabajador Seleccionado', description: `Nombre: ${worker.name}. Ahora escanea las herramientas.` });
         } else {
-            toast({ variant: 'destructive', title: 'Error', description: 'Código QR inválido o no corresponde a un trabajador.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'Código QR inválido o no corresponde a un usuario del sistema.' });
         }
         return;
     }
@@ -84,18 +89,18 @@ export function ToolCheckoutCard() {
           await handleReturnScan(qrCode);
       } else {
           if (!checkoutState.worker) {
-              const sanitizedQrCode = qrCode.replace(/['\-]/g, '');
+              const sanitizedQrCode = normalizeString(qrCode);
               const worker = users.find(u => {
                 if (!u.qrCode) return false;
-                const sanitizedUserQr = u.qrCode.replace(/['\-]/g, '');
-                return sanitizedUserQr === sanitizedQrCode && (u.role === 'worker' || u.role === 'supervisor');
+                const sanitizedUserQr = normalizeString(u.qrCode);
+                return sanitizedUserQr === sanitizedQrCode;
               });
 
               if (worker) {
                 setCheckoutState({ worker, tools: [] });
-                toast({ title: 'Trabajador Seleccionado', description: `Nombre: ${worker.name}. Ahora escanea las herramientas.` });
+                toast({ title: 'Usuario Seleccionado', description: `Nombre: ${worker.name}. Ahora escanea las herramientas.` });
               } else {
-                toast({ variant: 'destructive', title: 'Error', description: 'Código QR inválido o no corresponde a un trabajador.' });
+                toast({ variant: 'destructive', title: 'Error', description: 'Código QR inválido o no corresponde a un usuario.' });
               }
           } else {
               await handleCheckoutToolScan(qrCode);
@@ -105,10 +110,10 @@ export function ToolCheckoutCard() {
 
 
   const handleCheckoutToolScan = async (qrCode: string) => {
-    const sanitizedQrCode = normalizeString(qrCode).replace(/['\-]/g, '');
+    const sanitizedQrCode = normalizeString(qrCode);
     const tool = tools.find(t => {
         if (!t.qrCode) return false;
-        const sanitizedToolQr = normalizeString(t.qrCode).replace(/['\-]/g, '');
+        const sanitizedToolQr = normalizeString(t.qrCode);
         return sanitizedToolQr === sanitizedQrCode;
     });
 
@@ -132,10 +137,10 @@ export function ToolCheckoutCard() {
   }
   
   const handleReturnScan = async (qrCode: string) => {
-    const sanitizedQrCode = normalizeString(qrCode).replace(/['\-]/g, '');
+    const sanitizedQrCode = normalizeString(qrCode);
     const tool = tools.find(t => {
       if (!t.qrCode) return false;
-      const sanitizedToolQr = normalizeString(t.qrCode).replace(/['\-]/g, '');
+      const sanitizedToolQr = normalizeString(t.qrCode);
       return sanitizedToolQr === sanitizedQrCode;
     });
     
@@ -206,12 +211,12 @@ export function ToolCheckoutCard() {
   }
 
   const scannerTitles: Record<ScanPurpose, string> = {
-    'checkout-worker': 'Escanear ID de Trabajador para Entrega',
+    'checkout-worker': 'Escanear ID de Usuario para Entrega',
     'checkout-tool': 'Escanear QR de Herramienta para Entrega',
     'return-tool': 'Escanear QR de Herramienta a Devolver'
   }
   const scannerDescriptions: Record<ScanPurpose, string> = {
-    'checkout-worker': 'Apunta la cámara al código QR del carnet del trabajador que recibirá la(s) herramienta(s).',
+    'checkout-worker': 'Apunta la cámara al código QR del carnet del usuario que recibirá la(s) herramienta(s).',
     'checkout-tool': 'Escanea los códigos QR de todas las herramientas a entregar.',
     'return-tool': 'Escanea el código QR de la herramienta que se está devolviendo para registrar su reingreso.'
   }
@@ -239,7 +244,7 @@ export function ToolCheckoutCard() {
                     <Input
                       ref={manualScanInputRef}
                       id="manual-scan"
-                      placeholder={returnMode ? "Escanear herramienta a devolver..." : "Escanear trabajador o herramienta..."}
+                      placeholder={returnMode ? "Escanear herramienta a devolver..." : "Escanear usuario o herramienta..."}
                       value={manualScanInput}
                       onChange={(e) => setManualScanInput(e.target.value)}
                       />
@@ -278,7 +283,7 @@ export function ToolCheckoutCard() {
                     
                     {!checkoutState.worker ? (
                       <Button className="w-full" onClick={() => openScanner('checkout-worker')}>
-                          <User className="mr-2 h-4 w-4"/> Escanear Trabajador (Cámara)
+                          <User className="mr-2 h-4 w-4"/> Escanear Usuario (Cámara)
                       </Button>
                     ) : (
                       <div className="space-y-4">

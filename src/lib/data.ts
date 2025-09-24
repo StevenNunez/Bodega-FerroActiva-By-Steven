@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia";
 
 export interface User {
   id: string; // Corresponds to Firebase Auth UID
@@ -75,6 +75,16 @@ export interface ToolLog {
   returnCondition?: 'ok' | 'damaged';
   returnNotes?: string;
 }
+
+export interface AttendanceLog {
+  id: string;
+  userId: string;
+  userName: string;
+  checkInTime: Date | Timestamp;
+  checkOutTime?: Date | Timestamp | null;
+  date: string; // YYYY-MM-DD for easy querying
+}
+
 
 export interface Supplier {
     id: string;

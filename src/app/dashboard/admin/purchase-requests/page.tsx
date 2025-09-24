@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -9,10 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { PurchaseRequest, PurchaseRequestStatus } from "@/lib/data";
-import { Check, Clock, X, PackageCheck, Loader2, Box, FileText } from "lucide-react";
+import { Check, Clock, X, PackageCheck, Loader2, Box, FileText, Edit, AlertCircle } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { EditPurchaseRequestForm } from "@/components/operations/edit-purchase-request-form";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 export default function AdminPurchaseRequestsPage() {
   const { purchaseRequests, users, receivePurchaseRequest, isLoading } = useAppState();
@@ -21,6 +25,7 @@ export default function AdminPurchaseRequestsPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [page, setPage] = useState(1);
   const itemsPerPage = 5;
+  const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
 
   if (isLoading) {
     return (
@@ -129,43 +134,27 @@ export default function AdminPurchaseRequestsPage() {
     []
   );
 
-  const getActionContent = (req: PurchaseRequest) => {
-    if (req.justification === "Ingreso Manual de Stock Inicial") {
-      return <span className="text-xs text-blue-500">Ingreso Manual</span>;
+  const getChangeTooltip = (req: PurchaseRequest) => {
+    if (req.originalQuantity && req.originalQuantity !== req.quantity) {
+      return `Cantidad original: ${req.originalQuantity}. ${req.notes || "Sin notas adicionales."}`;
     }
-
-    if (["approved", "batched", "ordered"].includes(req.status)) {
-      return (
-        <Button
-          size="sm"
-          onClick={() => handleReceive(req.id)}
-          disabled={updatingId === req.id}
-          aria-label={`Recibir solicitud de compra ${req.materialName}`}
-        >
-          {updatingId === req.id ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <PackageCheck className="mr-2 h-4 w-4" />
-          )}
-          Recibir
-        </Button>
-      );
+    if (req.notes) {
+      return req.notes;
     }
-
-    switch (req.status) {
-      case "received":
-        return <span className="text-xs text-green-500">Ingresado</span>;
-      case "pending":
-        return <span className="text-xs text-muted-foreground">Pendiente de Aprobación</span>;
-      case "rejected":
-        return <span className="text-xs text-red-500">Rechazada</span>;
-      default:
-        return <span className="text-xs text-muted-foreground">No requiere acción</span>;
-    }
+    return null;
   };
+
 
   return (
     <div className="flex flex-col gap-8">
+      {editingRequest && (
+        <EditPurchaseRequestForm
+          request={editingRequest}
+          isOpen={!!editingRequest}
+          onClose={() => setEditingRequest(null)}
+        />
+      )}
+
       <PageHeader
         title="Visualización de Solicitudes de Compra"
         description="Aquí puedes ver el estado de todas las solicitudes y gestionar el ingreso de materiales aprobados."
@@ -175,7 +164,7 @@ export default function AdminPurchaseRequestsPage() {
         <CardHeader>
           <CardTitle>Historial de Solicitudes de Compra</CardTitle>
           <CardDescription>
-            El Jefe de Operaciones aprueba y gestiona las compras. Tú te encargas de registrar su ingreso a la bodega. También se muestran los ingresos manuales de stock.
+            Puedes revisar, gestionar y registrar el ingreso de materiales a bodega.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -212,27 +201,91 @@ export default function AdminPurchaseRequestsPage() {
                   <TableHeader className="sticky top-0 bg-card">
                     <TableRow>
                       <TableHead className="w-[200px]">Material</TableHead>
-                      <TableHead className="w-[100px]">Cantidad</TableHead>
+                      <TableHead className="w-[150px]">Cantidad</TableHead>
+                      <TableHead className="w-[200px]">Justificación</TableHead>
                       <TableHead className="w-[150px]">Solicitante</TableHead>
                       <TableHead className="w-[150px]">Fecha Solicitud</TableHead>
                       <TableHead className="w-[150px]">Estado</TableHead>
-                      <TableHead className="w-[150px]">Fecha Ingreso</TableHead>
                       <TableHead className="w-[150px] text-right">Acción</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedRequests.length > 0 ? (
-                      paginatedRequests.map((req) => (
+                      paginatedRequests.map((req) => {
+                         const supervisor = supervisorMap.get(req.supervisorId) ?? "N/A";
+                         const changeTooltip = getChangeTooltip(req);
+                        return (
                         <TableRow key={req.id}>
                           <TableCell className="font-medium max-w-[200px] truncate">{req.materialName}</TableCell>
-                          <TableCell>{req.quantity}</TableCell>
+                           <TableCell className="flex items-center gap-2">
+                                {req.quantity} {req.unit}
+                                {changeTooltip && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                    <TooltipTrigger>
+                                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p className="max-w-xs">{changeTooltip}</p>
+                                    </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                )}
+                            </TableCell>
+                           <TableCell className="max-w-[200px] truncate">
+                                {req.justification ? (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="cursor-pointer">{req.justification}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p className="max-w-xs">{req.justification}</p>
+                                    </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                ) : (
+                                "N/A"
+                                )}
+                          </TableCell>
                           <TableCell>{supervisorMap.get(req.supervisorId) ?? "N/A"}</TableCell>
                           <TableCell>{formatDate(req.createdAt)}</TableCell>
                           <TableCell>{getStatusBadge(req.status)}</TableCell>
-                          <TableCell>{formatDate(req.receivedAt)}</TableCell>
-                          <TableCell className="text-right">{getActionContent(req)}</TableCell>
+                          <TableCell className="text-right">
+                             {req.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingRequest(req)}
+                                  aria-label={`Gestionar solicitud de compra para ${req.materialName}`}
+                                >
+                                  <Edit className="mr-2 h-4 w-4" /> Gestionar
+                                </Button>
+                             )}
+                            {["approved", "batched", "ordered"].includes(req.status) && (
+                                <Button
+                                size="sm"
+                                onClick={() => handleReceive(req.id)}
+                                disabled={updatingId === req.id}
+                                aria-label={`Recibir solicitud de compra ${req.materialName}`}
+                                >
+                                {updatingId === req.id ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <PackageCheck className="mr-2 h-4 w-4" />
+                                )}
+                                Recibir
+                                </Button>
+                            )}
+                            {req.status === "received" && (
+                                <span className="text-xs text-green-500">Ingresado</span>
+                            )}
+                            {req.status === "rejected" && (
+                                <span className="text-xs text-red-500">Rechazada</span>
+                            )}
+                          </TableCell>
                         </TableRow>
-                      ))
+                      )})
                     ) : (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center">
