@@ -42,7 +42,7 @@ export default function AdminPurchaseRequestFormPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<PurchaseRequestStatus | "all">("all");
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
@@ -412,7 +412,7 @@ export default function AdminPurchaseRequestFormPage() {
                   value={statusFilter}
                   onValueChange={(value) => {
                     setStatusFilter(value as PurchaseRequestStatus | "all");
-                    setCurrentPage(1); // Resetear página al cambiar filtro
+                    setCurrentPage(1);
                   }}
                 >
                   <SelectTrigger id="status-filter" className="w-[180px]">
@@ -429,15 +429,15 @@ export default function AdminPurchaseRequestFormPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="relative overflow-x-auto max-w-full">
+              <div className="relative w-full overflow-x-auto">
                 <div className="min-w-[800px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[300px]">Material</TableHead>
-                        <TableHead className="w-[200px]">Cant.</TableHead>
-                        <TableHead className="w-[150px]">Fecha</TableHead>
-                        <TableHead className="w-[150px]">Estado</TableHead>
+                        <TableHead className="min-w-[300px]">Material</TableHead>
+                        <TableHead className="min-w-[120px]">Cant.</TableHead>
+                        <TableHead className="min-w-[150px]">Fecha</TableHead>
+                        <TableHead className="min-w-[150px]">Estado</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -446,8 +446,8 @@ export default function AdminPurchaseRequestFormPage() {
                           const changeTooltip = getChangeTooltip(req);
                           return (
                             <TableRow key={req.id}>
-                              <TableCell className="font-medium max-w-[300px] truncate">{req.materialName}</TableCell>
-                              <TableCell className="flex items-center gap-2">
+                              <TableCell className="font-medium min-w-[300px] whitespace-pre-wrap break-words">{req.materialName}</TableCell>
+                              <TableCell className="flex items-center gap-2 min-w-[120px]">
                                 {req.quantity} {req.unit}
                                 {changeTooltip && (
                                   <TooltipProvider>
@@ -462,8 +462,8 @@ export default function AdminPurchaseRequestFormPage() {
                                   </TooltipProvider>
                                 )}
                               </TableCell>
-                              <TableCell>{getDate(req.createdAt)}</TableCell>
-                              <TableCell>{statusBadges[index]}</TableCell>
+                              <TableCell className="min-w-[150px]">{getDate(req.createdAt)}</TableCell>
+                              <TableCell className="min-w-[150px]">{statusBadges[index]}</TableCell>
                             </TableRow>
                           );
                         })
@@ -506,7 +506,3 @@ export default function AdminPurchaseRequestFormPage() {
     </div>
   );
 }
-
-    
-
-   

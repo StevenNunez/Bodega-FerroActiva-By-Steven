@@ -32,7 +32,7 @@ export default function OperationsPage() {
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 10;
 
   const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
@@ -71,7 +71,6 @@ export default function OperationsPage() {
   );
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
 
-  // Stats for cards
   const pendingPurchaseRequestsCount = useMemo(() => purchaseRequests.filter((r) => r.status === "pending").length, [purchaseRequests]);
   const approvedNotInLotCount = useMemo(() => purchaseRequests.filter((r) => r.status === "approved").length, [purchaseRequests]);
   const batchedCount = useMemo(() => purchaseRequests.filter((r) => r.status === "batched").length, [purchaseRequests]);
@@ -314,18 +313,18 @@ export default function OperationsPage() {
                     Filtra solicitudes de compra por estado
                   </span>
                 </div>
-                <div className="relative overflow-x-auto max-w-full">
-                  <div className="min-w-[800px]">
+                <div className="relative w-full overflow-x-auto">
+                  <div className="min-w-[1000px]">
                     <Table>
                       <TableHeader className="sticky top-0 bg-card">
                         <TableRow>
-                          <TableHead className="w-[200px]">Material</TableHead>
-                          <TableHead className="w-[150px]">Cantidad</TableHead>
-                          <TableHead className="w-[200px]">Justificación</TableHead>
-                          <TableHead className="w-[150px]">Solicitante</TableHead>
-                          <TableHead className="w-[150px]">Fecha</TableHead>
-                          <TableHead className="w-[150px]">Estado</TableHead>
-                          <TableHead className="w-[150px] text-right">Acción</TableHead>
+                          <TableHead className="min-w-[250px]">Material</TableHead>
+                          <TableHead className="min-w-[120px]">Cantidad</TableHead>
+                          <TableHead className="min-w-[300px]">Justificación</TableHead>
+                          <TableHead className="min-w-[150px]">Solicitante</TableHead>
+                          <TableHead className="min-w-[150px]">Fecha</TableHead>
+                          <TableHead className="min-w-[150px]">Estado</TableHead>
+                          <TableHead className="min-w-[180px] text-right">Acción</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -335,19 +334,10 @@ export default function OperationsPage() {
                             const changeTooltip = getChangeTooltip(req);
                             return (
                               <TableRow key={req.id}>
-                                <TableCell className="font-medium max-w-[200px] truncate">
-                                   <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <span className="cursor-pointer">{req.materialName}</span>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>{req.materialName}</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
+                                <TableCell className="font-medium min-w-[250px] whitespace-pre-wrap break-words">
+                                  {req.materialName}
                                 </TableCell>
-                                <TableCell className="flex items-center gap-2">
+                                <TableCell className="flex items-center gap-2 min-w-[120px]">
                                   {req.quantity} {req.unit}
                                   {changeTooltip && (
                                     <TooltipProvider>
@@ -362,26 +352,13 @@ export default function OperationsPage() {
                                     </TooltipProvider>
                                   )}
                                 </TableCell>
-                                <TableCell className="max-w-[200px] truncate">
-                                  {req.justification ? (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <span className="cursor-pointer">{req.justification}</span>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p className="max-w-xs">{req.justification}</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  ) : (
-                                    "N/A"
-                                  )}
+                                <TableCell className="min-w-[300px] whitespace-pre-wrap break-words">
+                                  {req.justification || "N/A"}
                                 </TableCell>
-                                <TableCell>{supervisor}</TableCell>
-                                <TableCell>{formatDate(req.createdAt)}</TableCell>
-                                <TableCell>{getStatusBadge(req.status)}</TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="min-w-[150px]">{supervisor}</TableCell>
+                                <TableCell className="min-w-[150px]">{formatDate(req.createdAt)}</TableCell>
+                                <TableCell className="min-w-[150px]">{getStatusBadge(req.status)}</TableCell>
+                                <TableCell className="text-right min-w-[180px]">
                                   {req.status === "pending" ? (
                                     <Button
                                       size="sm"
@@ -553,7 +530,3 @@ export default function OperationsPage() {
     </div>
   );
 }
-
-    
-
-    

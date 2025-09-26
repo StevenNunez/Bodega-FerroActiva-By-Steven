@@ -5,27 +5,58 @@ import React, { useState, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
 import { useAppState } from "@/contexts/app-provider";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { PurchaseRequest, PurchaseRequestStatus } from "@/lib/data";
-import { Check, Clock, X, PackageCheck, Loader2, Box, FileText, Edit, AlertCircle } from "lucide-react";
+import {
+  Check,
+  Clock,
+  X,
+  PackageCheck,
+  Loader2,
+  Box,
+  FileText,
+  Edit,
+  AlertCircle,
+} from "lucide-react";
 import { Timestamp } from "firebase/firestore";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { EditPurchaseRequestForm } from "@/components/operations/edit-purchase-request-form";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
 
 export default function AdminPurchaseRequestsPage() {
-  const { purchaseRequests, users, receivePurchaseRequest, isLoading } = useAppState();
+  const { purchaseRequests, users, receivePurchaseRequest, isLoading } =
+    useAppState();
   const { toast } = useToast();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | PurchaseRequestStatus
+  >("all");
   const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
-  const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
+  const itemsPerPage = 10;
+  const [editingRequest, setEditingRequest] =
+    useState<PurchaseRequest | null>(null);
 
   if (isLoading) {
     return (
@@ -50,7 +81,10 @@ export default function AdminPurchaseRequestsPage() {
     });
   };
 
-  const supervisorMap = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users]);
+  const supervisorMap = useMemo(
+    () => new Map(users.map((u) => [u.id, u.name])),
+    [users]
+  );
 
   const filteredRequests = useMemo(() => {
     if (statusFilter === "all") return purchaseRequests;
@@ -75,7 +109,10 @@ export default function AdminPurchaseRequestsPage() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo actualizar el stock.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "No se pudo actualizar el stock.",
       });
     } finally {
       setUpdatingId(null);
@@ -136,14 +173,15 @@ export default function AdminPurchaseRequestsPage() {
 
   const getChangeTooltip = (req: PurchaseRequest) => {
     if (req.originalQuantity && req.originalQuantity !== req.quantity) {
-      return `Cantidad original: ${req.originalQuantity}. ${req.notes || "Sin notas adicionales."}`;
+      return `Cantidad original: ${req.originalQuantity}. ${
+        req.notes || "Sin notas adicionales."
+      }`;
     }
     if (req.notes) {
       return req.notes;
     }
     return null;
   };
-
 
   return (
     <div className="flex flex-col gap-8">
@@ -164,7 +202,8 @@ export default function AdminPurchaseRequestsPage() {
         <CardHeader>
           <CardTitle>Historial de Solicitudes de Compra</CardTitle>
           <CardDescription>
-            Puedes revisar, gestionar y registrar el ingreso de materiales a bodega.
+            Puedes revisar, gestionar y registrar el ingreso de materiales a
+            bodega.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -178,7 +217,10 @@ export default function AdminPurchaseRequestsPage() {
                   setPage(1);
                 }}
               >
-                <SelectTrigger id="status-filter" aria-describedby="status-filter-description">
+                <SelectTrigger
+                  id="status-filter"
+                  aria-describedby="status-filter-description"
+                >
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -195,64 +237,63 @@ export default function AdminPurchaseRequestsPage() {
                 Filtra solicitudes de compra por estado
               </span>
             </div>
-            <div className="relative overflow-x-auto max-w-full">
-              <div className="min-w-[800px]">
+
+            <div className="relative w-full overflow-x-auto">
+              <div className="min-w-[1000px]">
                 <Table>
                   <TableHeader className="sticky top-0 bg-card">
                     <TableRow>
-                      <TableHead className="w-[200px]">Material</TableHead>
-                      <TableHead className="w-[150px]">Cantidad</TableHead>
-                      <TableHead className="w-[200px]">Justificación</TableHead>
-                      <TableHead className="w-[150px]">Solicitante</TableHead>
-                      <TableHead className="w-[150px]">Fecha Solicitud</TableHead>
-                      <TableHead className="w-[150px]">Estado</TableHead>
-                      <TableHead className="w-[150px] text-right">Acción</TableHead>
+                      <TableHead className="min-w-[250px]">Material</TableHead>
+                      <TableHead className="min-w-[120px]">Cantidad</TableHead>
+                      <TableHead className="min-w-[300px]">
+                        Justificación
+                      </TableHead>
+                      <TableHead className="min-w-[150px]">
+                        Solicitante
+                      </TableHead>
+                      <TableHead className="min-w-[150px]">
+                        Fecha Solicitud
+                      </TableHead>
+                      <TableHead className="min-w-[150px]">Estado</TableHead>
+                      <TableHead className="min-w-[180px] text-right">
+                        Acción
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedRequests.length > 0 ? (
                       paginatedRequests.map((req) => {
-                         const supervisor = supervisorMap.get(req.supervisorId) ?? "N/A";
-                         const changeTooltip = getChangeTooltip(req);
+                        const supervisor =
+                          supervisorMap.get(req.supervisorId) ?? "N/A";
+                        const changeTooltip = getChangeTooltip(req);
                         return (
-                        <TableRow key={req.id}>
-                          <TableCell className="font-medium max-w-[200px] truncate">{req.materialName}</TableCell>
-                           <TableCell className="flex items-center gap-2">
-                                {req.quantity} {req.unit}
-                                {changeTooltip && (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                    <TooltipTrigger>
-                                        <AlertCircle className="h-4 w-4 text-amber-500" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p className="max-w-xs">{changeTooltip}</p>
-                                    </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                )}
+                          <TableRow key={req.id}>
+                            <TableCell className="font-medium min-w-[250px] whitespace-pre-wrap break-words">
+                              {req.materialName}
                             </TableCell>
-                           <TableCell className="max-w-[200px] truncate">
-                                {req.justification ? (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <span className="cursor-pointer">{req.justification}</span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p className="max-w-xs">{req.justification}</p>
-                                    </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                ) : (
-                                "N/A"
-                                )}
-                          </TableCell>
-                          <TableCell>{supervisorMap.get(req.supervisorId) ?? "N/A"}</TableCell>
-                          <TableCell>{formatDate(req.createdAt)}</TableCell>
-                          <TableCell>{getStatusBadge(req.status)}</TableCell>
-                          <TableCell className="text-right">
-                             {req.status === "pending" && (
+
+                            <TableCell className="flex items-center gap-2 min-w-[120px]">
+                              {req.quantity} {req.unit}
+                              {changeTooltip && (
+                                <AlertCircle className="h-4 w-4 text-amber-500" />
+                              )}
+                            </TableCell>
+
+                            <TableCell className="min-w-[300px] whitespace-pre-wrap break-words">
+                              {req.justification || "N/A"}
+                            </TableCell>
+
+                            <TableCell className="min-w-[150px]">
+                              {supervisor}
+                            </TableCell>
+                            <TableCell className="min-w-[150px]">
+                              {formatDate(req.createdAt)}
+                            </TableCell>
+                            <TableCell className="min-w-[150px]">
+                              {getStatusBadge(req.status)}
+                            </TableCell>
+                            <TableCell className="text-right min-w-[180px]">
+                              {req.status === "pending" && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -261,35 +302,43 @@ export default function AdminPurchaseRequestsPage() {
                                 >
                                   <Edit className="mr-2 h-4 w-4" /> Gestionar
                                 </Button>
-                             )}
-                            {["approved", "batched", "ordered"].includes(req.status) && (
+                              )}
+                              {["approved", "batched", "ordered"].includes(
+                                req.status
+                              ) && (
                                 <Button
-                                size="sm"
-                                onClick={() => handleReceive(req.id)}
-                                disabled={updatingId === req.id}
-                                aria-label={`Recibir solicitud de compra ${req.materialName}`}
+                                  size="sm"
+                                  onClick={() => handleReceive(req.id)}
+                                  disabled={updatingId === req.id}
+                                  aria-label={`Recibir solicitud de compra ${req.materialName}`}
                                 >
-                                {updatingId === req.id ? (
+                                  {updatingId === req.id ? (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                ) : (
+                                  ) : (
                                     <PackageCheck className="mr-2 h-4 w-4" />
-                                )}
-                                Recibir
+                                  )}
+                                  Recibir
                                 </Button>
-                            )}
-                            {req.status === "received" && (
-                                <span className="text-xs text-green-500">Ingresado</span>
-                            )}
-                            {req.status === "rejected" && (
-                                <span className="text-xs text-red-500">Rechazada</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )})
+                              )}
+                              {req.status === "received" && (
+                                <span className="text-xs text-green-500">
+                                  Ingresado
+                                </span>
+                              )}
+                              {req.status === "rejected" && (
+                                <span className="text-xs text-red-500">
+                                  Rechazada
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     ) : (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center">
-                          No hay solicitudes de compra para el estado seleccionado.
+                          No hay solicitudes de compra para el estado
+                          seleccionado.
                         </TableCell>
                       </TableRow>
                     )}

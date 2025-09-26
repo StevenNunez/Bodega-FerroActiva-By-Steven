@@ -44,6 +44,9 @@ export default function OperationsPurchaseRequestPage() {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const {
     register,
@@ -68,6 +71,11 @@ export default function OperationsPurchaseRequestPage() {
   }, [selectedMaterialId, materials, setValue]);
 
   const myRequests = purchaseRequests.filter(pr => pr.supervisorId === authUser?.id);
+  const paginatedRequests = myRequests.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  const totalPages = Math.ceil(myRequests.length / itemsPerPage);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     if (!authUser) {
@@ -285,56 +293,80 @@ export default function OperationsPurchaseRequestPage() {
             <CardDescription>El estado de tus solicitudes se actualizará aquí una vez gestionadas.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-96">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Material</TableHead>
-                      <TableHead>Cant.</TableHead>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Estado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {myRequests.length > 0 ? (
-                      myRequests.map((req) => {
-                        const changeTooltip = getChangeTooltip(req);
-                        return (
-                        <TableRow key={req.id}>
-                          <TableCell className="font-medium max-w-xs truncate">{req.materialName}</TableCell>
-                          <TableCell className="flex items-center gap-2">
-                            {req.quantity} {req.unit}
-                            {changeTooltip && (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger>
-                                            <AlertCircle className="h-4 w-4 text-amber-500" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p className="max-w-xs">{changeTooltip}</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            )}
-                          </TableCell>
-                          <TableCell>{getDate(req.createdAt).toLocaleDateString()}</TableCell>
-                          <TableCell>{getStatusBadge(req.status)}</TableCell>
-                        </TableRow>
-                      )})
-                    ) : (
+            <ScrollArea className="h-[calc(80vh-12rem)]">
+              <div className="relative w-full overflow-x-auto">
+                <div className="min-w-[800px]">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
-                          No has realizado solicitudes de compra.
-                        </TableCell>
+                        <TableHead className="min-w-[300px]">Material</TableHead>
+                        <TableHead className="min-w-[120px]">Cant.</TableHead>
+                        <TableHead className="min-w-[150px]">Fecha</TableHead>
+                        <TableHead className="min-w-[150px]">Estado</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedRequests.length > 0 ? (
+                        paginatedRequests.map((req) => {
+                          const changeTooltip = getChangeTooltip(req);
+                          return (
+                          <TableRow key={req.id}>
+                            <TableCell className="font-medium min-w-[300px] whitespace-pre-wrap break-words">{req.materialName}</TableCell>
+                            <TableCell className="flex items-center gap-2 min-w-[120px]">
+                              {req.quantity} {req.unit}
+                              {changeTooltip && (
+                                  <TooltipProvider>
+                                      <Tooltip>
+                                          <TooltipTrigger>
+                                              <AlertCircle className="h-4 w-4 text-amber-500" />
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                              <p className="max-w-xs">{changeTooltip}</p>
+                                          </TooltipContent>
+                                      </Tooltip>
+                                  </TooltipProvider>
+                              )}
+                            </TableCell>
+                            <TableCell className="min-w-[150px]">{getDate(req.createdAt).toLocaleDateString()}</TableCell>
+                            <TableCell className="min-w-[150px]">{getStatusBadge(req.status)}</TableCell>
+                          </TableRow>
+                        )})
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="h-24 text-center">
+                            No has realizado solicitudes de compra.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </ScrollArea>
+             {totalPages > 1 && (
+                <div className="flex justify-between items-center mt-4">
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((prev) => prev - 1)}
+                  >
+                    Anterior
+                  </Button>
+                  <span>
+                    Página {currentPage} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((prev) => prev + 1)}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              )}
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
