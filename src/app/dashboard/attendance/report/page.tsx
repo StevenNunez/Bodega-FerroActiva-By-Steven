@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
@@ -10,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAppState } from "@/contexts/app-provider";
+import { useAppState, useAuth } from "@/contexts/app-provider";
 import { User, AttendanceLog, WORK_SCHEDULE } from "@/lib/data";
 import {
   Popover,
@@ -48,7 +47,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Command,
   CommandEmpty,
@@ -70,19 +68,17 @@ interface DailySummary {
   date: string;
   dayName: string;
   dayDate: Date;
-  entries: (AttendanceLog & { time: string })[];
+  entries: (AttendanceLog & { time: string; dateObj: Date })[];
   totalHours: number;
   delayMinutes: number;
-  overtimeHours: string; // Cambiado a string para mostrar HH:mm
+  overtimeHours: string;
   isAbsent: boolean;
 }
 
 const WEEK_START_ON = 1; // Lunes
-const MAX_WEEKLY_HOURS = 44; // Jornada máxima legal en Chile (Ley 21.561)
-const HOLIDAYS = [
-  new Date(2025, 8, 18), // 18 de septiembre
-  new Date(2025, 8, 19), // 19 de septiembre
-  // Agrega más feriados según el calendario chileno
+const HOLIDAYS: Date[] = [
+  new Date(2025, 8, 18),
+  new Date(2025, 8, 19),
 ];
 
 export default function AttendanceReportPage() {
@@ -93,7 +89,11 @@ export default function AttendanceReportPage() {
   const [editingLog, setEditingLog] = useState<
     (Partial<AttendanceLog> & { forDate?: Date; forUser?: User }) | null
   >(null);
-  const [isLoading, setIsLoading] = useState(false); // Feedback de carga
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Depuración: Verificar authUser y canEdit
+  console.log("authUser:", authUser);
+  console.log("canEdit:", authUser?.role === "admin" || authUser?.role === "operations");
 
   const canEdit = useMemo(
     () => authUser?.role === "admin" || authUser?.role === "operations",
@@ -121,7 +121,19 @@ export default function AttendanceReportPage() {
       const isSaturday = dayOfWeek === 6;
       const isFriday = dayOfWeek === 5;
 
-      if (!logs || logs.length === 0) {
+      const entries = logs
+        .filter((l) => l.timestamp)
+        .map((l) => ({
+          ...l,
+          dateObj:
+            l.timestamp instanceof Timestamp
+              ? l.timestamp.toDate()
+              : new Date(l.timestamp),
+        }))
+        .filter((l) => !isNaN(l.dateObj.getTime()))
+        .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+      if (entries.length === 0) {
         return {
           date: format(day, "dd/MM/yyyy"),
           dayName: isHoliday
@@ -136,59 +148,57 @@ export default function AttendanceReportPage() {
         };
       }
 
-      const startWork = parse("08:00", "HH:mm", day);
-      const endWork = parse(isFriday ? "17:00" : "18:00", "HH:mm", day);
-      const lunchStart = parse("13:00", "HH:mm", day);
-      const lunchEnd = parse("14:00", "HH:mm", day);
-      const lunchDurationMillis = lunchEnd.getTime() - lunchStart.getTime();
+      const startWorkTime = parse(WORK_SCHEDULE.weekdays.start, "HH:mm", day);
+      const endWorkTime = parse(
+        isFriday ? WORK_SCHEDULE.friday.end : WORK_SCHEDULE.weekdays.end,
+        "HH:mm",
+        day
+      );
+      const lunchStartTime = parse(WORK_SCHEDULE.lunchBreak.start, "HH:mm", day);
+      const lunchEndTime = parse(WORK_SCHEDULE.lunchBreak.end, "HH:mm", day);
 
       let totalMillis = 0;
       let delayMinutes = 0;
       let overtimeMillis = 0;
 
-      const entries = logs
-        .filter((l) => l.timestamp)
-        .map((l) => ({
-          ...l,
-          dateObj:
-            l.timestamp instanceof Timestamp
-              ? l.timestamp.toDate()
-              : new Date(l.timestamp),
-        }))
-        .filter((l) => !isNaN(l.dateObj.getTime()))
-        .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+      const effectiveStart = max([entries[0].dateObj, startWorkTime]);
+      const lastOut = entries[entries.length - 1];
 
-      if (entries.length > 0) {
-        const firstIn = entries[0];
-        const lastOut = entries[entries.length - 1];
-
-        if (isSaturday || isHoliday) {
-          // Sábados y feriados: todo es hora extra, desde las 08:00
-          const effectiveStart = max([firstIn.dateObj, startWork]);
-          const workedMillis = lastOut.dateObj.getTime() - effectiveStart.getTime();
-          overtimeMillis = Math.max(0, workedMillis);
-        } else {
-          // Lunes a viernes
-          const effectiveStart = max([firstIn.dateObj, startWork]);
-          if (firstIn.dateObj > startWork) {
-            delayMinutes = Math.round(
-              (firstIn.dateObj.getTime() - startWork.getTime()) / 60000
-            );
-          }
-          const effectiveEnd = lastOut.dateObj;
-          if (effectiveEnd > endWork) {
-            overtimeMillis = Math.min(
-              effectiveEnd.getTime() - endWork.getTime(),
-              2 * 60 * 60 * 1000 // Máximo 2 horas diarias
-            );
-          }
-          const workedMillis =
-            effectiveEnd.getTime() - effectiveStart.getTime() - lunchDurationMillis;
-          totalMillis = Math.max(0, workedMillis);
-        }
+      if (!isHoliday && !isSaturday && entries[0].dateObj > startWorkTime) {
+        delayMinutes = Math.round(
+          (entries[0].dateObj.getTime() - startWorkTime.getTime()) / 60000
+        );
       }
 
-      // Convertir overtimeMillis a formato HH:mm
+      if (!isHoliday && !isSaturday && lastOut.dateObj > endWorkTime) {
+        overtimeMillis = Math.min(
+          lastOut.dateObj.getTime() - endWorkTime.getTime(),
+          2 * 60 * 60 * 1000
+        );
+      }
+
+      let morningMillis = 0;
+      let afternoonMillis = 0;
+
+      if (entries.length === 4) {
+        morningMillis = entries[1].dateObj.getTime() - effectiveStart.getTime();
+        afternoonMillis = entries[3].dateObj.getTime() - entries[2].dateObj.getTime();
+      } else {
+        const workPeriodEnd = min([lastOut.dateObj, lunchStartTime]);
+        morningMillis = workPeriodEnd.getTime() - effectiveStart.getTime();
+
+        if (lastOut.dateObj > lunchEndTime) {
+          const afternoonStart = max([effectiveStart, lunchEndTime]);
+          afternoonMillis = lastOut.dateObj.getTime() - afternoonStart.getTime();
+        }
+      }
+      totalMillis = Math.max(0, morningMillis) + Math.max(0, afternoonMillis);
+
+      if (isSaturday || isHoliday) {
+        totalMillis = 0;
+        overtimeMillis = Math.max(0, lastOut.dateObj.getTime() - effectiveStart.getTime());
+      }
+
       const overtimeHours = Math.floor(overtimeMillis / (1000 * 60 * 60));
       const overtimeMinutes = Math.floor(
         (overtimeMillis % (1000 * 60 * 60)) / (1000 * 60)
@@ -210,14 +220,17 @@ export default function AttendanceReportPage() {
         totalHours: totalMillis / (1000 * 60 * 60),
         overtimeHours: overtimeFormatted,
         delayMinutes,
-        isAbsent: logs.length === 0,
+        isAbsent: false,
       };
     },
     []
   );
 
   const weeklyReport = useMemo((): DailySummary[] => {
-    if (!selectedUserId || !users || !attendanceLogs) return [];
+    if (!selectedUserId || !users || !attendanceLogs) {
+      console.log("Datos faltantes:", { selectedUserId, users, attendanceLogs });
+      return [];
+    }
 
     setIsLoading(true);
     const userLogs = attendanceLogs.filter(
@@ -241,32 +254,40 @@ export default function AttendanceReportPage() {
         );
       return calculateDailySummary(logsForDay, day);
     });
+    console.log("weeklyReport:", report); // Depuración
     setIsLoading(false);
     return report;
   }, [selectedUserId, weekDays, attendanceLogs, users, calculateDailySummary]);
 
+  const formatHoursDecimal = (decimalHours: number) => {
+    if (typeof decimalHours !== "number" || isNaN(decimalHours)) {
+      return "00:00";
+    }
+    const hours = Math.floor(decimalHours);
+    const minutes = Math.round((decimalHours - hours) * 60);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+      2,
+      "0"
+    )}`;
+  };
+
   const weeklyTotals = useMemo(() => {
-    const totalHours = weeklyReport.reduce(
-      (acc, day) => acc + day.totalHours,
-      0
-    );
-    const totalDelays = weeklyReport.reduce(
-      (acc, day) => acc + day.delayMinutes,
-      0
-    );
+    const totalHoursDecimal = weeklyReport.reduce((acc, day) => acc + day.totalHours, 0);
+    const totalDelays = weeklyReport.reduce((acc, day) => acc + day.delayMinutes, 0);
+    
     const overtimeMillis = weeklyReport.reduce((acc, day) => {
       const [hours, minutes] = day.overtimeHours.split(":").map(Number);
       return acc + hours * 60 * 60 * 1000 + minutes * 60 * 1000;
     }, 0);
-    const overtimeHours = Math.floor(overtimeMillis / (1000 * 60 * 60));
-    const overtimeMinutes = Math.floor(
-      (overtimeMillis % (1000 * 60 * 60)) / (1000 * 60)
-    );
-    const overtimeFormatted = `${overtimeHours
-      .toString()
-      .padStart(2, "0")}:${overtimeMinutes.toString().padStart(2, "0")}`;
 
-    return { totalHours, totalDelays, overtimeHours: overtimeFormatted };
+    const overtimeHours = Math.floor(overtimeMillis / (1000 * 60 * 60));
+    const overtimeMinutes = Math.floor((overtimeMillis % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return { 
+      totalHours: formatHoursDecimal(totalHoursDecimal), 
+      totalDelays, 
+      overtimeHours: `${overtimeHours.toString().padStart(2, "0")}:${overtimeMinutes.toString().padStart(2, "0")}`
+    };
   }, [weeklyReport]);
 
   const selectedUser = useMemo(
@@ -276,7 +297,11 @@ export default function AttendanceReportPage() {
 
   const handleAddNewEntry = useCallback(
     (day: DailySummary) => {
-      if (!selectedUser) return;
+      if (!selectedUser) {
+        console.error("No se seleccionó un usuario para añadir entrada");
+        return;
+      }
+      console.log("handleAddNewEntry called for day:", day); // Depuración
       setEditingLog({
         forDate: day.dayDate,
         forUser: selectedUser,
@@ -284,15 +309,26 @@ export default function AttendanceReportPage() {
     },
     [selectedUser]
   );
-  
-  const formatHoursDecimal = (decimalHours: number) => {
-    const hours = Math.floor(decimalHours);
-    const minutes = Math.round((decimalHours - hours) * 60);
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  };
+
+  const handleEditEntry = useCallback(
+    (entry: AttendanceLog & { time: string; dateObj: Date }, day: DailySummary) => {
+      if (!selectedUser) {
+        console.error("No se seleccionó un usuario para editar entrada");
+        return;
+      }
+      console.log("handleEditEntry called with:", { entry, day }); // Depuración
+      setEditingLog({
+        ...entry,
+        forDate: day.dayDate,
+        forUser: selectedUser,
+      });
+    },
+    [selectedUser]
+  );
 
   return (
     <div className="flex flex-col gap-8">
+      {console.log("editingLog:", editingLog)} {/* Depuración */}
       {editingLog && (
         <EditAttendanceLogDialog
           log={editingLog}
@@ -306,12 +342,10 @@ export default function AttendanceReportPage() {
         description="Selecciona un trabajador y una semana para ver el detalle de horas trabajadas, atrasos y horas extras (Ley 21.561 - 44 horas semanales)."
       />
 
-      {/* Filtros */}
       <Card>
         <CardHeader>
           <CardTitle>Filtros del Reporte</CardTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-            {/* Selector de trabajador */}
             <div>
               <label className="text-sm font-medium">Trabajador</label>
               <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -337,26 +371,28 @@ export default function AttendanceReportPage() {
                     <CommandList>
                       <CommandEmpty>No se encontró el trabajador.</CommandEmpty>
                       <CommandGroup>
-                        {users?.filter((u) => u.role !== "guardia").map((user) => (
-                          <CommandItem
-                            key={user.id}
-                            value={user.name}
-                            onSelect={() => {
-                              setSelectedUserId(user.id);
-                              setPopoverOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedUserId === user.id
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                            {user.name}
-                          </CommandItem>
-                        ))}
+                        {users
+                          ?.filter((u) => u.role !== "guardia")
+                          .map((user) => (
+                            <CommandItem
+                              key={user.id}
+                              value={user.name}
+                              onSelect={() => {
+                                setSelectedUserId(user.id);
+                                setPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedUserId === user.id
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                )}
+                              />
+                              {user.name}
+                            </CommandItem>
+                          ))}
                       </CommandGroup>
                     </CommandList>
                   </Command>
@@ -364,7 +400,6 @@ export default function AttendanceReportPage() {
               </Popover>
             </div>
 
-            {/* Selector de semana */}
             <div>
               <label className="text-sm font-medium">Semana del</label>
               <Popover>
@@ -403,26 +438,17 @@ export default function AttendanceReportPage() {
         </Card>
       ) : selectedUser ? (
         <>
-          {/* Resumen semanal */}
           <Card>
             <CardHeader>
               <CardTitle>Resumen Semanal de {selectedUser.name}</CardTitle>
               <CardDescription>
                 Total de horas trabajadas, atrasos y horas extras para la semana seleccionada.
-                {weeklyTotals.totalHours > MAX_WEEKLY_HOURS && (
-                  <span className="text-red-500">
-                    {" "}
-                    ¡Advertencia! Las horas trabajadas exceden el límite legal de 44 horas semanales.
-                  </span>
-                )}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
               <div className="p-4 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground">Horas Trabajadas</p>
-                <p className="text-3xl font-bold">
-                  {formatHoursDecimal(weeklyTotals.totalHours)}
-                </p>
+                <p className="text-3xl font-bold">{weeklyTotals.totalHours}</p>
               </div>
               <div className="p-4 bg-muted rounded-lg">
                 <p className="text-sm text-muted-foreground">Minutos de Atraso</p>
@@ -439,138 +465,137 @@ export default function AttendanceReportPage() {
             </CardContent>
           </Card>
 
-          {/* Detalle diario */}
           <Card>
             <CardHeader>
               <CardTitle>Detalle Diario</CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[50vh]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Día</TableHead>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Registros</TableHead>
-                      <TableHead className="text-right">Atraso (min)</TableHead>
-                      <TableHead className="text-right">Horas</TableHead>
-                      <TableHead className="text-right">Extras</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {weeklyReport.map((day) => (
-                      <TableRow
-                        key={day.date}
-                        className={day.isAbsent ? "bg-muted/30" : ""}
-                      >
-                        <TableCell className="font-medium capitalize">
-                          {day.dayName}
-                        </TableCell>
-                        <TableCell>{day.date}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                            {day.isAbsent ? (
-                              <span className="text-muted-foreground text-xs">
-                                Ausente
-                              </span>
-                            ) : (
-                              day.entries.map((e, i) => (
-                                <div key={i} className="flex items-center gap-1">
-                                  <span
-                                    className={
-                                      e.type === "in"
-                                        ? "text-green-400"
-                                        : "text-red-400"
-                                    }
-                                  >
-                                    {e.time}
-                                  </span>
-                                  {e.modifiedAt && e.modifiedBy && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger>
-                                          <AlertTriangle
-                                            className="h-3 w-3 text-yellow-400"
-                                            aria-label="Registro modificado"
-                                          />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>
-                                            Original:{" "}
-                                            {e.originalTimestamp
-                                              ? format(
-                                                  e.originalTimestamp instanceof Timestamp
-                                                    ? e.originalTimestamp.toDate()
-                                                    : new Date(e.originalTimestamp),
-                                                  "HH:mm"
-                                                )
-                                              : "N/A"}
-                                          </p>
-                                          <p>
-                                            Modificado por:{" "}
-                                            {userMap.get(e.modifiedBy) ??
-                                              "Desconocido"}
-                                          </p>
-                                          <p>
-                                            Fecha mod:{" "}
-                                            {format(
-                                              e.modifiedAt instanceof Timestamp
-                                                ? e.modifiedAt.toDate()
-                                                : new Date(e.modifiedAt),
-                                              "dd/MM/yy HH:mm"
-                                            )}
-                                          </p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                  {canEdit && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5"
-                                      onClick={() => setEditingLog(e)}
-                                      aria-label="Editar registro"
-                                    >
-                                      <Edit className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                              ))
-                            )}
-                            {canEdit && (
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-6 w-6 ml-2"
-                                onClick={() => handleAddNewEntry(day)}
-                                aria-label="Agregar nuevo registro"
-                              >
-                                <PlusCircle className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {day.delayMinutes > 0 ? (
-                            <span className="text-amber-500 font-bold">
-                              {day.delayMinutes}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Día</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Registros</TableHead>
+                    <TableHead className="text-right">Atraso (min)</TableHead>
+                    <TableHead className="text-right">Horas</TableHead>
+                    <TableHead className="text-right">Extras</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {weeklyReport.map((day) => (
+                    <TableRow
+                      key={day.date}
+                      className={day.isAbsent ? "bg-muted/30" : ""}
+                    >
+                      <TableCell className="font-medium capitalize">
+                        {day.dayName}
+                      </TableCell>
+                      <TableCell>{day.date}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                          {console.log("Day entries:", day.entries)} {/* Depuración */}
+                          {day.isAbsent ? (
+                            <span className="text-muted-foreground text-xs">
+                              Ausente
                             </span>
                           ) : (
-                            "0"
+                            day.entries.map((e, i) => (
+                              <div key={i} className="flex items-center gap-1">
+                                <span
+                                  className={
+                                    e.type === "in"
+                                      ? "text-green-400"
+                                      : "text-red-400"
+                                  }
+                                >
+                                  {e.time}
+                                </span>
+                                {e.modifiedAt && e.modifiedBy && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <AlertTriangle
+                                          className="h-3 w-3 text-yellow-400"
+                                          aria-label="Registro modificado"
+                                        />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>
+                                          Original:{" "}
+                                          {e.originalTimestamp
+                                            ? format(
+                                                e.originalTimestamp instanceof Timestamp
+                                                  ? e.originalTimestamp.toDate()
+                                                  : new Date(e.originalTimestamp),
+                                                "HH:mm"
+                                              )
+                                            : "N/A"}
+                                        </p>
+                                        <p>
+                                          Modificado por:{" "}
+                                          {userMap.get(e.modifiedBy) ?? "Desconocido"}
+                                        </p>
+                                        <p>
+                                          Fecha mod:{" "}
+                                          {format(
+                                            e.modifiedAt instanceof Timestamp
+                                              ? e.modifiedAt.toDate()
+                                              : new Date(e.modifiedAt),
+                                            "dd/MM/yy HH:mm"
+                                          )}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {canEdit && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5"
+                                    onClick={() => {
+                                      console.log("Edit button clicked for entry:", e); // Depuración
+                                      handleEditEntry(e, day);
+                                    }}
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            ))
                           )}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatHoursDecimal(day.totalHours)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-green-600">
-                          {day.overtimeHours}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                          {canEdit && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-6 w-6 ml-2"
+                              onClick={() => handleAddNewEntry(day)}
+                              aria-label="Agregar nuevo registro"
+                            >
+                              <PlusCircle className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {day.delayMinutes > 0 ? (
+                          <span className="text-amber-500 font-bold">
+                            {day.delayMinutes}
+                          </span>
+                        ) : (
+                          "0"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatHoursDecimal(day.totalHours)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-green-600">
+                        {day.overtimeHours}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </>

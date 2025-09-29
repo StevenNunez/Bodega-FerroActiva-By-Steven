@@ -79,6 +79,7 @@ const normalizeString = (str: string) => {
 
 // App State Context
 interface AppStateContextType {
+  user: (User & { fb: FirebaseAuthUser }) | null;
   users: User[];
   tools: Tool[];
   materials: Material[];
@@ -100,8 +101,9 @@ interface AppStateContextType {
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
   returnTool: (logId: string, condition: "ok" | "damaged", notes?: string) => Promise<void>;
   handleAttendanceScan: (userId: string) => Promise<void>;
-  addManualAttendance: (userId: string, date: Date, time: string, type: 'in' | 'out') => Promise<void>;
+  addManualAttendance: (userId: string, forDate: Date, time: string, type: 'in' | 'out') => Promise<void>;
   updateAttendanceLog: (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => Promise<void>;
+  deleteAttendanceLog: (logId: string) => Promise<void>;
   addMaterial: (material: Omit<Material, "id">) => Promise<void>;
   updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
   deleteMaterial: (materialId: string) => Promise<void>;
@@ -572,39 +574,36 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       throw err;
     }
   };
-  
-    const addManualAttendance = async (userId: string, date: Date, time: string, type: 'in' | 'out') => {
+
+  const addManualAttendance = async (userId: string, forDate: Date, time: string, type: 'in' | 'out') => {
     checkAuthAndRole(["admin", "operations"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
-
+    
     try {
         const user = users.find(u => u.id === userId);
         if (!user) throw new Error("Usuario no encontrado.");
-
+        
         const [hours, minutes] = time.split(':').map(Number);
-        const timestamp = new Date(date);
-        timestamp.setHours(hours, minutes, 0, 0);
+        const newTimestamp = new Date(forDate);
+        newTimestamp.setHours(hours, minutes, 0, 0);
 
         const newLogRef = doc(collection(db, "attendanceLogs"));
         await setDoc(newLogRef, {
             id: newLogRef.id,
             userId: userId,
             userName: user.name,
-            timestamp: Timestamp.fromDate(timestamp),
-            date: timestamp.toISOString().split('T')[0], // YYYY-MM-DD
+            timestamp: Timestamp.fromDate(newTimestamp),
+            date: newTimestamp.toISOString().split('T')[0],
             type: type,
             modifiedAt: Timestamp.now(),
             modifiedBy: authUser.id,
         });
-
-        notify(`Registro manual de ${type === 'in' ? 'entrada' : 'salida'} añadido para ${user.name}.`, "success");
-
+        notify("Registro manual añadido exitosamente.", "success");
     } catch (err: any) {
         notify("Error al añadir registro manual: " + err.message, "destructive");
         throw err;
     }
-  };
-
+};
 
   const updateAttendanceLog = async (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => {
     checkAuthAndRole(["admin", "operations"]);
@@ -626,6 +625,18 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
 };
 
+  const deleteAttendanceLog = async (logId: string) => {
+    checkAuthAndRole(["admin", "operations"]);
+    try {
+      if (!logId) throw new Error("Log ID is required");
+      const logRef = doc(db, "attendanceLogs", logId);
+      await deleteDoc(logRef);
+      notify("Registro de asistencia eliminado exitosamente.", "success");
+    } catch (err: any) {
+      notify("Error al eliminar el registro: " + err.message, "destructive");
+      throw err;
+    }
+  };
 
   const addPurchaseRequest = async (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => {
     checkAuthAndRole(["supervisor", "worker", "admin", "operations", "apr"]);
@@ -955,6 +966,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const contextValue = {
+    user: authUser,
     users,
     tools,
     materials,
@@ -978,6 +990,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     handleAttendanceScan,
     addManualAttendance,
     updateAttendanceLog,
+    deleteAttendanceLog,
     addMaterial,
     updateMaterial,
     deleteMaterial,
