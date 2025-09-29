@@ -44,19 +44,106 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { EditPurchaseRequestForm } from "@/components/operations/edit-purchase-request-form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+
+
+interface ReceiveRequestDialogProps {
+  request: PurchaseRequest | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (requestId: string, quantity: number) => Promise<void>;
+}
+
+function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRequestDialogProps) {
+  const [receivedQuantity, setReceivedQuantity] = useState<number | string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  React.useEffect(() => {
+    if (request) {
+      setReceivedQuantity(request.quantity);
+    } else {
+      setReceivedQuantity("");
+    }
+  }, [request]);
+
+  const handleConfirmClick = async () => {
+    if (!request) return;
+    const quantityNum = Number(receivedQuantity);
+    if (isNaN(quantityNum) || quantityNum <= 0) {
+      toast({ variant: "destructive", title: "Error", description: "La cantidad debe ser un número positivo." });
+      return;
+    }
+    if (quantityNum > request.quantity) {
+      toast({ variant: "destructive", title: "Error", description: `La cantidad recibida no puede ser mayor a la aprobada (${request.quantity}).` });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onConfirm(request.id, quantityNum);
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!request) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Registrar Recepción de Material</DialogTitle>
+          <DialogDescription>
+            Confirma la cantidad de <span className="font-semibold">{request.materialName}</span> que ha llegado a bodega.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="approved-quantity">Cantidad Aprobada</Label>
+            <Input id="approved-quantity" value={request.quantity} disabled />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="received-quantity">Cantidad Recibida</Label>
+            <Input
+              id="received-quantity"
+              type="number"
+              value={receivedQuantity}
+              onChange={(e) => setReceivedQuantity(e.target.value)}
+              placeholder="Ingresa la cantidad real..."
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
+          <Button onClick={handleConfirmClick} disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
+            Confirmar Recepción
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 export default function AdminPurchaseRequestsPage() {
-  const { purchaseRequests, users, receivePurchaseRequest, isLoading } =
-    useAppState();
+  const { purchaseRequests, users, receivePurchaseRequest, isLoading } = useAppState();
   const { toast } = useToast();
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | PurchaseRequestStatus
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
-  const [editingRequest, setEditingRequest] =
-    useState<PurchaseRequest | null>(null);
+  const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
+  const [receivingRequest, setReceivingRequest] = useState<PurchaseRequest | null>(null);
 
   if (isLoading) {
     return (
@@ -97,10 +184,9 @@ export default function AdminPurchaseRequestsPage() {
   );
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
 
-  const handleReceive = async (id: string) => {
-    setUpdatingId(id);
+  const handleReceive = async (id: string, quantity: number) => {
     try {
-      await receivePurchaseRequest(id);
+      await receivePurchaseRequest(id, quantity);
       toast({
         title: "Stock Actualizado",
         description: "El material ha sido ingresado al inventario.",
@@ -114,8 +200,6 @@ export default function AdminPurchaseRequestsPage() {
             ? error.message
             : "No se pudo actualizar el stock.",
       });
-    } finally {
-      setUpdatingId(null);
     }
   };
 
@@ -192,6 +276,13 @@ export default function AdminPurchaseRequestsPage() {
           onClose={() => setEditingRequest(null)}
         />
       )}
+
+      <ReceiveRequestDialog
+        request={receivingRequest}
+        isOpen={!!receivingRequest}
+        onClose={() => setReceivingRequest(null)}
+        onConfirm={handleReceive}
+      />
 
       <PageHeader
         title="Visualización de Solicitudes de Compra"
@@ -308,15 +399,10 @@ export default function AdminPurchaseRequestsPage() {
                               ) && (
                                 <Button
                                   size="sm"
-                                  onClick={() => handleReceive(req.id)}
-                                  disabled={updatingId === req.id}
+                                  onClick={() => setReceivingRequest(req)}
                                   aria-label={`Recibir solicitud de compra ${req.materialName}`}
                                 >
-                                  {updatingId === req.id ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <PackageCheck className="mr-2 h-4 w-4" />
-                                  )}
+                                  <PackageCheck className="mr-2 h-4 w-4" />
                                   Recibir
                                 </Button>
                               )}
@@ -375,3 +461,5 @@ export default function AdminPurchaseRequestsPage() {
     </div>
   );
 }
+
+  
