@@ -22,6 +22,7 @@ import {
   Edit,
   CalendarCheck,
   Clock,
+  BookOpen,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -76,6 +77,7 @@ const operationsNavItems = [
 // --- Attendance Module ---
 const attendanceNavItems = [
     { href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' },
+    { href: '/dashboard/attendance/report', icon: BookOpen, label: 'Reporte Semanal' },
     { href: '/dashboard/attendance/overtime', icon: Clock, label: 'Horas Extras' },
 ];
 

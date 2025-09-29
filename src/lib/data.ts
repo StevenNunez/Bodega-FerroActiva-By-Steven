@@ -1,3 +1,4 @@
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia";
@@ -46,6 +47,22 @@ export type PurchaseRequestStatus = "pending" | "approved" | "rejected" | "recei
 
 export const PURCHASE_UNITS = ["un", "kg", "gl", "m", "m2", "m3", "L", "caja", "saco"];
 
+export const WORK_SCHEDULE = {
+  weekdays: {
+    start: "08:00",
+    end: "18:00",
+  },
+  friday: {
+    start: "08:00",
+    end: "17:00",
+  },
+  lunchBreak: {
+    start: "12:00",
+    end: "13:00",
+  }
+};
+
+
 export interface PurchaseRequest {
   id: string;
   materialName: string;
@@ -80,9 +97,12 @@ export interface AttendanceLog {
   id: string;
   userId: string;
   userName: string;
-  checkInTime: Date | Timestamp;
-  checkOutTime?: Date | Timestamp | null;
+  timestamp: Date | Timestamp;
+  type: 'in' | 'out';
   date: string; // YYYY-MM-DD for easy querying
+  originalTimestamp?: Date | Timestamp | null;
+  modifiedAt?: Date | Timestamp | null;
+  modifiedBy?: string | null; // User ID of the admin who modified it
 }
 
 

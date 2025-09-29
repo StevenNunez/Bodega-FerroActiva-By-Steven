@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -14,6 +15,7 @@ import {
   PurchaseOrder,
   MaterialCategory,
   AttendanceLog,
+  WORK_SCHEDULE,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -98,6 +100,8 @@ interface AppStateContextType {
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
   returnTool: (logId: string, condition: "ok" | "damaged", notes?: string) => Promise<void>;
   handleAttendanceScan: (userId: string) => Promise<void>;
+  addManualAttendance: (userId: string, date: Date, time: string, type: 'in' | 'out') => Promise<void>;
+  updateAttendanceLog: (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => Promise<void>;
   addMaterial: (material: Omit<Material, "id">) => Promise<void>;
   updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
   deleteMaterial: (materialId: string) => Promise<void>;
@@ -169,7 +173,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "suppliers", setter: setSuppliers, sortField: "name" },
         { name: "requests", setter: setRequests, sortField: "createdAt" },
         { name: "toolLogs", setter: setToolLogs, sortField: "checkoutDate" },
-        { name: "attendanceLogs", setter: setAttendanceLogs, sortField: "checkInTime" },
+        { name: "attendanceLogs", setter: setAttendanceLogs, sortField: "timestamp" },
         { name: "purchaseRequests", setter: setPurchaseRequests, sortField: "createdAt" },
         { name: "purchaseOrders", setter: setPurchaseOrders, sortField: "createdAt" },
     ];
@@ -531,7 +535,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const handleAttendanceScan = async (userId: string) => {
-    checkAuthAndRole(["admin", "guardia", "operations"]);
+    checkAuthAndRole(["admin", "guardia", "operations", "supervisor", "apr"]);
     try {
         const userRef = doc(db, "users", userId);
         const userDoc = await getDoc(userRef);
@@ -542,51 +546,96 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
-        const q = query(
-            collection(db, "attendanceLogs"),
-            where("userId", "==", userId),
-            where("date", "==", today)
-        );
+        // Find the latest log for this user today, regardless of type
+        const allLogsForUserToday = attendanceLogs
+            .filter(log => log.userId === userId && log.date === today)
+            .sort((a,b) => (b.timestamp as Timestamp).toMillis() - (a.timestamp as Timestamp).toMillis());
         
-        const querySnapshot = await getDocs(q);
+        const lastLog = allLogsForUserToday.length > 0 ? allLogsForUserToday[0] : null;
+
+        const newLogType = !lastLog || lastLog.type === 'out' ? 'in' : 'out';
         
-        if (querySnapshot.empty) {
-            // First time today -> Check-in
-            const newLogRef = doc(collection(db, "attendanceLogs"));
-            await setDoc(newLogRef, {
-                id: newLogRef.id,
-                userId: userId,
-                userName: user.name,
-                checkInTime: Timestamp.now(),
-                date: today,
-            });
-            notify(`Entrada registrada para ${user.name}.`, "success");
-        } else {
-            // Already checked in today -> Check-out
-            const existingLogDoc = querySnapshot.docs[0];
-            if (existingLogDoc.data().checkOutTime) {
-                notify(`${user.name} ya registró su salida hoy.`, "default");
-            } else {
-                await updateDoc(existingLogDoc.ref, {
-                    checkOutTime: Timestamp.now(),
-                });
-                notify(`Salida registrada para ${user.name}.`, "success");
-            }
-        }
+        const newLogRef = doc(collection(db, "attendanceLogs"));
+        await setDoc(newLogRef, {
+            id: newLogRef.id,
+            userId: userId,
+            userName: user.name,
+            timestamp: Timestamp.now(),
+            date: today,
+            type: newLogType,
+        });
+
+        notify(`${newLogType === 'in' ? 'Entrada' : 'Salida'} registrada para ${user.name}.`, "success");
+        
     } catch (err: any) {
       notify("Error al registrar asistencia: " + err.message, "destructive");
       throw err;
     }
   };
+  
+    const addManualAttendance = async (userId: string, date: Date, time: string, type: 'in' | 'out') => {
+    checkAuthAndRole(["admin", "operations"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+
+    try {
+        const user = users.find(u => u.id === userId);
+        if (!user) throw new Error("Usuario no encontrado.");
+
+        const [hours, minutes] = time.split(':').map(Number);
+        const timestamp = new Date(date);
+        timestamp.setHours(hours, minutes, 0, 0);
+
+        const newLogRef = doc(collection(db, "attendanceLogs"));
+        await setDoc(newLogRef, {
+            id: newLogRef.id,
+            userId: userId,
+            userName: user.name,
+            timestamp: Timestamp.fromDate(timestamp),
+            date: timestamp.toISOString().split('T')[0], // YYYY-MM-DD
+            type: type,
+            modifiedAt: Timestamp.now(),
+            modifiedBy: authUser.id,
+        });
+
+        notify(`Registro manual de ${type === 'in' ? 'entrada' : 'salida'} añadido para ${user.name}.`, "success");
+
+    } catch (err: any) {
+        notify("Error al añadir registro manual: " + err.message, "destructive");
+        throw err;
+    }
+  };
+
+
+  const updateAttendanceLog = async (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => {
+    checkAuthAndRole(["admin", "operations"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+    
+    try {
+        const logRef = doc(db, "attendanceLogs", logId);
+        await updateDoc(logRef, {
+            timestamp: Timestamp.fromDate(newTimestamp),
+            type: newType,
+            originalTimestamp: Timestamp.fromDate(originalTimestamp),
+            modifiedAt: Timestamp.now(),
+            modifiedBy: authUser.id,
+        });
+        notify("Registro de asistencia actualizado exitosamente.", "success");
+    } catch (err: any) {
+        notify("Error al actualizar el registro: " + err.message, "destructive");
+        throw err;
+    }
+};
 
 
   const addPurchaseRequest = async (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => {
     checkAuthAndRole(["supervisor", "worker", "admin", "operations", "apr"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
     try {
       const newDocRef = doc(collection(db, "purchaseRequests"));
       await setDoc(newDocRef, {
         ...request,
         id: newDocRef.id,
+        supervisorId: authUser.id,
         status: "pending",
         createdAt: Timestamp.now(),
         receivedAt: null,
@@ -927,6 +976,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     checkoutTool,
     returnTool,
     handleAttendanceScan,
+    addManualAttendance,
+    updateAttendanceLog,
     addMaterial,
     updateMaterial,
     deleteMaterial,
