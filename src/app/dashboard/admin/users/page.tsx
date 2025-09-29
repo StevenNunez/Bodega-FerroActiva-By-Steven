@@ -51,6 +51,7 @@ export default function AdminUsersPage() {
             case 'worker': return 'Colaborador';
             case 'operations': return 'Jefe de Operaciones';
             case 'apr': return 'APR';
+            case 'guardia': return 'Guardia';
             default: return 'Usuario';
         }
     }
@@ -127,7 +128,10 @@ export default function AdminUsersPage() {
                                                 <div className="flex flex-col gap-1">
                                                     <p className="font-semibold">{user.name}</p>
                                                     <p className="text-xs text-muted-foreground">{user.email}</p>
-                                                    <Badge variant={getRoleBadgeVariant(user.role)} className="w-fit mt-1">{getRoleDisplayName(user.role)}</Badge>
+                                                    <div className="flex items-center gap-2">
+                                                      <Badge variant={getRoleBadgeVariant(user.role)} className="w-fit mt-1">{getRoleDisplayName(user.role)}</Badge>
+                                                      {user.rut && <Badge variant="outline" className="w-fit mt-1">{user.rut}</Badge>}
+                                                    </div>
                                                 </div>
                                             </div>
                                              <div className="flex items-center gap-4">
@@ -146,7 +150,7 @@ export default function AdminUsersPage() {
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuItem onClick={() => setEditingUser(user)}>
                                                             <Edit className="mr-2 h-4 w-4"/>
-                                                            <span>Editar</span>
+                                                            <span>Editar Perfil</span>
                                                         </DropdownMenuItem>
                                                         <AlertDialog>
                                                             <AlertDialogTrigger asChild>

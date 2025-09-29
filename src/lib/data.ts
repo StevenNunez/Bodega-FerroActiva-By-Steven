@@ -9,6 +9,13 @@ export interface User {
   email: string;
   role: UserRole;
   qrCode: string;
+  // Payroll information
+  rut?: string;
+  cargo?: string;
+  fechaIngreso?: Date | Timestamp;
+  afp?: string;
+  tipoSalud?: 'Fonasa' | 'Isapre';
+  cargasFamiliares?: number;
 }
 
 export interface Tool {
