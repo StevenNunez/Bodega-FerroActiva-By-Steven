@@ -8,17 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import React, { useState, useMemo } from "react";
-import { Package, Send, Loader2, ChevronsUpDown, Check, Wrench, Plus, Trash2, PackageSearch } from "lucide-react";
+import { Package, Send, Loader2, ChevronsUpDown, Check, Wrench, Plus, Trash2, PackageSearch, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Material } from "@/lib/data";
+import type { Material, UserRole } from "@/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
 
 interface CartItem {
     materialId: string;
@@ -27,7 +26,6 @@ interface CartItem {
     unit: string;
     stock: number;
 }
-
 
 export default function SupervisorPage() {
   const { materials, addRequest, users, toolLogs, tools } = useAppState();
@@ -90,7 +88,7 @@ export default function SupervisorPage() {
   const handleRemoveItemFromCart = (materialId: string) => {
       setCart(cart.filter(item => item.materialId !== materialId));
   }
-
+  
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0 || !area || !authUser) {
@@ -137,12 +135,11 @@ export default function SupervisorPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title={`Bienvenido, ${authUser?.name}`} description="Gestiona el inventario y las herramientas desde tu panel." />
+      <PageHeader title={`Panel de Supervisor`} description="Gestiona el inventario y las herramientas desde tu panel." />
       
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-start">
-        <div className="space-y-8">
-          <Card>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 items-start">
+         <div className="lg:col-span-1 space-y-8">
+             <Card>
               <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Wrench /> Herramientas Asignadas al Equipo</CardTitle>
                   <CardDescription>Visualiza las herramientas que están actualmente en uso por los trabajadores bajo tu supervisión.</CardDescription>
@@ -169,6 +166,8 @@ export default function SupervisorPage() {
                   </ScrollArea>
               </CardContent>
           </Card>
+         </div>
+         <div className="lg:col-span-2 space-y-8">
            <Card>
               <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Package /> Stock Disponible</CardTitle>
@@ -227,101 +226,99 @@ export default function SupervisorPage() {
                 </div>
               </CardContent>
           </Card>
-        </div>
-        <Card>
-          <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Send /> Solicitar Materiales para la Obra</CardTitle>
-              <CardDescription>Pide materiales del stock existente en bodega. El administrador deberá aprobar la solicitud.</CardDescription>
-          </CardHeader>
-          <CardContent>
-              <form onSubmit={handleRequestSubmit} className="space-y-4">
-                  <div className="space-y-4 p-4 border rounded-md bg-muted/50">
-                    <h4 className="font-medium text-center">Añadir Material a la Solicitud</h4>
-                    <div className="space-y-2">
-                        <Label htmlFor="material">Material</Label>
-                        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                            <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" className="w-full justify-between" disabled={isSubmitting}>
-                                <span className="truncate">
-                                {currentMaterialId ? materialMap.get(currentMaterialId)?.name : "Selecciona un material..."}
-                                </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
-                                <CommandInput placeholder="Buscar material..." />
-                                <CommandList>
-                                <CommandEmpty>No se encontró el material.</CommandEmpty>
-                                <CommandGroup>
-                                    {materials.map((m) => (
-                                    <CommandItem
-                                        key={m.id}
-                                        value={m.name}
-                                        disabled={m.stock <= 0}
-                                        onSelect={() => {
-                                            setCurrentMaterialId(m.id);
-                                            setPopoverOpen(false);
-                                        }}
-                                        className="flex justify-between"
-                                    >
-                                        <div className="flex items-center">
-                                        <Check className={cn("mr-2 h-4 w-4", currentMaterialId === m.id ? "opacity-100" : "opacity-0")} />
-                                        {m.name}
-                                        </div>
-                                        <span className="text-xs text-muted-foreground">
-                                        Stock: {m.stock.toLocaleString()}
-                                        </span>
-                                    </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                                </CommandList>
-                            </Command>
-                            </PopoverContent>
-                        </Popover>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="quantity">Cantidad</Label>
-                        <Input id="quantity" type="number" placeholder="Ej: 10" value={currentQuantity} onChange={e => setCurrentQuantity(e.target.value)} disabled={isSubmitting} />
-                    </div>
-                    <Button type="button" variant="secondary" className="w-full" onClick={handleAddItemToCart}><Plus className="mr-2 h-4 w-4"/> Añadir a la Solicitud</Button>
-                </div>
-                
-                {cart.length > 0 && (
-                    <div className="space-y-2">
-                        <Label>Materiales en la Solicitud</Label>
-                        <ScrollArea className="h-32 w-full rounded-md border p-2">
-                            <div className="space-y-2">
-                            {cart.map(item => (
-                                <div key={item.materialId} className="flex items-center justify-between bg-muted p-2 rounded-md">
-                                    <div>
-                                        <p className="text-sm font-medium">{item.materialName}</p>
-                                        <p className="text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
-                                    </div>
-                                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveItemFromCart(item.materialId)}>
-                                        <Trash2 className="h-4 w-4 text-destructive"/>
-                                    </Button>
-                                </div>
-                            ))}
-                            </div>
-                        </ScrollArea>
-                    </div>
-                )}
-                  
-                  <div className="space-y-2">
-                      <Label htmlFor="area">Área / Proyecto de Destino</Label>
-                      <Input id="area" placeholder="Ej: Torre Norte, Piso 5" value={area} onChange={e => setArea(e.target.value)} disabled={isSubmitting}/>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isSubmitting || cart.length === 0}>
-                    {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Enviando...</> : `Enviar Solicitud (${cart.length} Ítems)`}
-                  </Button>
-              </form>
-          </CardContent>
-        </Card>
-      </div>
 
+            <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Send /> Solicitar Materiales para la Obra</CardTitle>
+                <CardDescription>Pide materiales del stock existente en bodega. El administrador deberá aprobar la solicitud.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <form onSubmit={handleRequestSubmit} className="space-y-4">
+                    <div className="space-y-4 p-4 border rounded-md bg-muted/50">
+                        <h4 className="font-medium text-center">Añadir Material a la Solicitud</h4>
+                        <div className="space-y-2">
+                            <Label htmlFor="material">Material</Label>
+                            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" className="w-full justify-between" disabled={isSubmitting}>
+                                    <span className="truncate">
+                                    {currentMaterialId ? materialMap.get(currentMaterialId)?.name : "Selecciona un material..."}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Buscar material..." />
+                                    <CommandList>
+                                    <CommandEmpty>No se encontró el material.</CommandEmpty>
+                                    <CommandGroup>
+                                        {materials.map((m) => (
+                                        <CommandItem
+                                            key={m.id}
+                                            value={m.name}
+                                            disabled={m.stock <= 0}
+                                            onSelect={() => {
+                                                setCurrentMaterialId(m.id);
+                                                setPopoverOpen(false);
+                                            }}
+                                            className="flex justify-between"
+                                        >
+                                            <div className="flex items-center">
+                                            <Check className={cn("mr-2 h-4 w-4", currentMaterialId === m.id ? "opacity-100" : "opacity-0")} />
+                                            {m.name}
+                                            </div>
+                                            <span className="text-xs text-muted-foreground">
+                                            Stock: {m.stock.toLocaleString()}
+                                            </span>
+                                        </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="quantity">Cantidad</Label>
+                            <Input id="quantity" type="number" placeholder="Ej: 10" value={currentQuantity} onChange={e => setCurrentQuantity(e.target.value)} disabled={isSubmitting} />
+                        </div>
+                        <Button type="button" variant="secondary" className="w-full" onClick={handleAddItemToCart}><Plus className="mr-2 h-4 w-4"/> Añadir a la Solicitud</Button>
+                    </div>
+                    
+                    {cart.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>Materiales en la Solicitud</Label>
+                            <ScrollArea className="h-32 w-full rounded-md border p-2">
+                                <div className="space-y-2">
+                                {cart.map(item => (
+                                    <div key={item.materialId} className="flex items-center justify-between bg-muted p-2 rounded-md">
+                                        <div>
+                                            <p className="text-sm font-medium">{item.materialName}</p>
+                                            <p className="text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
+                                        </div>
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveItemFromCart(item.materialId)}>
+                                            <Trash2 className="h-4 w-4 text-destructive"/>
+                                        </Button>
+                                    </div>
+                                ))}
+                                </div>
+                            </ScrollArea>
+                        </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                        <Label htmlFor="area">Área / Proyecto de Destino</Label>
+                        <Input id="area" placeholder="Ej: Torre Norte, Piso 5" value={area} onChange={e => setArea(e.target.value)} disabled={isSubmitting}/>
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isSubmitting || cart.length === 0}>
+                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Enviando...</> : `Enviar Solicitud (${cart.length} Ítems)`}
+                    </Button>
+                </form>
+            </CardContent>
+            </Card>
+        </div>
+      </div>
     </div>
   );
 }
-
-    

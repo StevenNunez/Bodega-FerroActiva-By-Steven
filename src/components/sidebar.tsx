@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -23,6 +24,7 @@ import {
   Clock,
   BookOpen,
   FileBarChart,
+  User as UserIcon,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -82,6 +84,11 @@ const attendanceNavItems = [
     { href: '/dashboard/attendance/overtime', icon: Clock, label: 'Horas Extras' },
 ];
 
+// --- Profile Module ---
+const profileNavItems = [
+    { href: '/dashboard/profile', icon: UserIcon, label: 'Mi Perfil' },
+]
+
 
 const navItems = {
   admin: adminNavItems,
@@ -117,22 +124,19 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
   };
 
   // Determine which module is active
-  const isWarehouseModule = adminNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/')))) 
-    || supervisorNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))))
-    || workerNavItems.some(item => pathname.startsWith(item.href))
-    || operationsNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))))
-    || aprNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))));
-    
+  const isProfileModule = pathname.startsWith('/dashboard/profile');
   const isAttendanceModule = pathname.startsWith('/dashboard/attendance');
   
   let currentNavItems = [];
-  if (isAttendanceModule && user && (user.role === 'admin' || user.role === 'operations')) {
+  if (isProfileModule && user) {
+    currentNavItems = profileNavItems;
+  } else if (isAttendanceModule && user && (user.role === 'admin' || user.role === 'operations')) {
       currentNavItems = attendanceNavItems;
-  } else if (isWarehouseModule && user) {
+  } else if (user) {
+      // Default to warehouse module if none of the specific ones match
       currentNavItems = navItems[user.role] || [];
-  } else if (user?.role === 'guardia') {
-      currentNavItems = navItems.guardia;
   }
+
 
   const getRoleDisplayName = (role: string) => {
     switch (role) {
@@ -165,7 +169,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
             {currentNavItems.map(item => {
               const notifCount = item.notificationKey ? notificationCounts[item.notificationKey as keyof typeof notificationCounts] : 0;
-              const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/dashboard');
+              const isActive = pathname === item.href;
               
               return (
                 <Link

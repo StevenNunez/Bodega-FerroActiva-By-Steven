@@ -31,56 +31,61 @@ export default function WorkerPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title={`Bienvenido, ${user?.name}`}
+        title={`Panel del Colaborador`}
         description="Aquí puedes ver las herramientas que tienes a tu cargo."
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>Herramientas en mi poder</CardTitle>
-          <CardDescription>
-            Actualmente tienes {myCheckedOutTools.length} herramienta(s) bajo tu
-            responsabilidad.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {myCheckedOutTools.length > 0 ? (
-            <ul className="space-y-3">
-              {myCheckedOutTools.map((log) => {
-                const tool = tools.find((t) => t.id === log.toolId);
-                const checkoutDate = getDate(log.checkoutDate);
-                return (
-                  <li
-                    key={log.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4 gap-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Wrench className="h-5 w-5 text-primary" />
-                      <span className="font-semibold">{tool?.name}</span>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-3">
+            <Card>
+                <CardHeader>
+                <CardTitle>Herramientas en mi poder</CardTitle>
+                <CardDescription>
+                    Actualmente tienes {myCheckedOutTools.length} herramienta(s) bajo tu
+                    responsabilidad.
+                </CardDescription>
+                </CardHeader>
+                <CardContent>
+                {myCheckedOutTools.length > 0 ? (
+                    <ul className="space-y-3">
+                    {myCheckedOutTools.map((log) => {
+                        const tool = tools.find((t) => t.id === log.toolId);
+                        const checkoutDate = getDate(log.checkoutDate);
+                        return (
+                        <li
+                            key={log.id}
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between rounded-lg border p-4 gap-2"
+                        >
+                            <div className="flex items-center gap-3">
+                            <Wrench className="h-5 w-5 text-primary" />
+                            <span className="font-semibold">{tool?.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2 sm:mt-0">
+                            <Calendar className="h-4 w-4" />
+                            <span>
+                                Retirado el:{" "}
+                                {checkoutDate ? checkoutDate.toLocaleDateString() : 'Fecha no disponible'}
+                            </span>
+                            </div>
+                        </li>
+                        );
+                    })}
+                    </ul>
+                ) : (
+                    <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center">
+                        <Wrench className="h-12 w-12 text-muted-foreground" />
+                    <h3 className="mt-4 text-lg font-semibold">
+                        No tienes herramientas
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Cuando retires una herramienta de la bodega, aparecerá aquí.
+                    </p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2 sm:mt-0">
-                      <Calendar className="h-4 w-4" />
-                      <span>
-                        Retirado el:{" "}
-                        {checkoutDate ? checkoutDate.toLocaleDateString() : 'Fecha no disponible'}
-                      </span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-12 text-center">
-                <Wrench className="h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold">
-                No tienes herramientas
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Cuando retires una herramienta de la bodega, aparecerá aquí.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                )}
+                </CardContent>
+            </Card>
+          </div>
+      </div>
     </div>
   );
 }

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, VideoOff } from "lucide-react";
-import type { Html5Qrcode } from "html5-qrcode";
+import type { Html5Qrcode, QrDimensions } from "html5-qrcode";
 
 interface QrScannerDialogProps {
   open: boolean;
@@ -48,16 +48,24 @@ export function QrScannerDialog({
           try {
             const cameras = await Html5Qrcode.getCameras();
             if (cameras && cameras.length) {
+              const qrboxFunction = (viewfinderWidth: number, viewfinderHeight: number): QrDimensions => {
+                const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                const qrboxSize = Math.floor(minEdge * 0.9);
+                return { width: qrboxSize, height: qrboxSize };
+              };
+
               await qrScanner.start(
                 { facingMode: "environment" },
                 {
                   fps: 10,
-                  qrbox: { width: 250, height: 250 },
+                  qrbox: qrboxFunction,
                   aspectRatio: 1.0,
                 },
                 (decodedText) => {
                   setScanResult("success");
-                  qrScanner.pause(true);
+                  if(qrScanner.isScanning) {
+                    qrScanner.pause(true);
+                  }
                   setTimeout(() => {
                     onScan(decodedText);
                     onOpenChange(false);
@@ -108,7 +116,7 @@ export function QrScannerDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent onInteractOutside={(e) => { if(scannerRef.current?.isScanning) e.preventDefault(); }} className="sm:max-w-[425px]">
+      <DialogContent onInteractOutside={(e) => { if(scannerRef.current?.isScanning) e.preventDefault(); }} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

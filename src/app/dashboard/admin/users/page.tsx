@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import type { User, UserRole } from "@/lib/data";
-import { MoreHorizontal, Trash2, Edit } from "lucide-react";
+import { MoreHorizontal, Trash2, Edit, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast";
 import { QRCodeSVG } from "qrcode.react";
+import Link from "next/link";
 
 
 export default function AdminUsersPage() {
@@ -113,11 +114,21 @@ export default function AdminUsersPage() {
                 <div className="lg:col-span-2">
                      <Card>
                         <CardHeader>
-                            <CardTitle>Lista de Usuarios</CardTitle>
-                            <CardDescription>Todos los usuarios registrados en el sistema.</CardDescription>
+                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div>
+                                    <CardTitle>Lista de Usuarios</CardTitle>
+                                    <CardDescription>Todos los usuarios registrados en el sistema.</CardDescription>
+                                </div>
+                                <Button asChild>
+                                    <Link href="/dashboard/admin/users/print-qrs">
+                                        <QrCode className="mr-2 h-4 w-4" />
+                                        Imprimir Credenciales
+                                    </Link>
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <ScrollArea className="h-[calc(80vh-10rem)]">
+                            <ScrollArea className="h-[calc(80vh-12rem)]">
                                 <div className="space-y-4 pr-4">
                                     {users.map(user => (
                                         <div key={user.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border gap-4">

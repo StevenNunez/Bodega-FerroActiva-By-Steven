@@ -8,19 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import React, { useState, useMemo } from "react";
-import { Package, Send, Loader2, ChevronsUpDown, Check, Wrench, Plus, Trash2, Clock, X, ShoppingCart, PackageSearch } from "lucide-react";
+import { Package, Send, Loader2, ChevronsUpDown, Check, Wrench, Plus, Trash2, Clock, X, ShoppingCart, PackageSearch, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Material, MaterialRequest, PurchaseRequest as PurchaseRequestType, PurchaseRequestStatus } from "@/lib/data";
+import type { Material, MaterialRequest, PurchaseRequest as PurchaseRequestType, PurchaseRequestStatus, UserRole } from "@/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Timestamp } from "firebase/firestore";
-
 
 interface CartItem {
     materialId: string;
@@ -167,11 +166,10 @@ export default function AprPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title={`Bienvenido, ${authUser?.name}`} description="Gestiona el inventario y las herramientas desde tu panel." />
+      <PageHeader title={`Panel de APR`} description="Gestiona el inventario y las herramientas desde tu panel." />
       
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-start">
-        <div className="space-y-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 items-start">
+        <div className="lg:col-span-1 space-y-8">
             <Card>
                 <CardHeader>
                     <CardTitle>Estado de Mis Solicitudes</CardTitle>
@@ -252,6 +250,9 @@ export default function AprPage() {
                     </Tabs>
                 </CardContent>
             </Card>
+        </div>
+
+        <div className="lg:col-span-2 space-y-8">
            <Card>
               <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Package /> Stock Disponible</CardTitle>
@@ -310,7 +311,7 @@ export default function AprPage() {
                 </div>
               </CardContent>
           </Card>
-        </div>
+        
         <Card>
           <CardHeader>
               <CardTitle className="flex items-center gap-2"><Send /> Solicitar Materiales para la Obra</CardTitle>
@@ -401,10 +402,9 @@ export default function AprPage() {
               </form>
           </CardContent>
         </Card>
+        </div>
       </div>
 
     </div>
   );
 }
-
-   
