@@ -1,217 +1,204 @@
-"use client";
-
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useAppState } from "@/contexts/app-provider";
-import { AttendanceLog, WORK_SCHEDULE } from "@/lib/data";
+'use client';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import * as React from 'react';
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  eachDayOfInterval,
-  getDay,
-  parse,
-  max,
-  min,
-  isSameDay,
-} from "date-fns";
-import { es } from "date-fns/locale";
-import { Timestamp } from "firebase/firestore";
+  LayoutDashboard,
+  Wrench,
+  Users,
+  ClipboardList,
+  LogOut,
+  Warehouse,
+  Package,
+  PlusCircle,
+  ShoppingCart,
+  Briefcase,
+  PackagePlus,
+  FileText,
+  Medal,
+  Upload,
+  FolderTree,
+  Edit,
+  CalendarCheck,
+  Clock,
+  BookOpen,
+  FileBarChart,
+} from 'lucide-react';
 
-const HOLIDAYS: Date[] = [
-  new Date(2025, 8, 18),
-  new Date(2025, 8, 19),
+import { useAppState, useAuth } from '@/contexts/app-provider';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+
+// --- Warehouse Module ---
+const adminNavItems = [
+  { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
+  { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
+  { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
+  { href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' },
+  { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
+  { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales', notificationKey: 'pendingMaterialRequests' },
+  { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
+  { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
+  { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
+  { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
+  { href: '/dashboard/admin/bulk-import', icon: Upload, label: 'Importación Masiva' },
+  { href: '/dashboard/admin/certificate', icon: Medal, label: 'Mi Certificado' },
 ];
 
-interface DailySummary {
-  date: string;
-  dayName: string;
-  dayDate: Date;
-  entries: (AttendanceLog & { time: string; dateObj: Date })[];
-  totalHours: number;
-  delayMinutes: number;
-  overtimeHours: string;
-  isAbsent: boolean;
-  isBusinessDay: boolean;
-}
+const supervisorNavItems = [
+  { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Resumen' },
+  { href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' },
+  { href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
+  { href: '/dashboard/supervisor/suppliers', icon: Briefcase, label: 'Proveedores' },
+  { href: '/dashboard/supervisor/categories', icon: FolderTree, label: 'Categorías' },
+];
 
-const calculateDailySummary = (logs: AttendanceLog[], day: Date): DailySummary => {
-  const dayOfWeek = getDay(day);
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-  const isHoliday = HOLIDAYS.some((h) => isSameDay(h, day));
-  const isBusinessDay = !isWeekend && !isHoliday;
+const aprNavItems = [
+  { href: '/dashboard/apr', icon: LayoutDashboard, label: 'Resumen' },
+  { href: '/dashboard/apr/request', icon: PlusCircle, label: 'Solicitar Materiales' },
+  { href: '/dashboard/apr/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
+];
 
-  const entries = logs
-    .filter((l) => l.timestamp)
-    .map((l) => ({
-      ...l,
-      dateObj:
-        l.timestamp instanceof Timestamp ? l.timestamp.toDate() : new Date(l.timestamp),
-    }))
-    .filter((l) => !isNaN(l.dateObj.getTime()))
-    .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+const workerNavItems = [
+  { href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' },
+];
 
-  if (!isBusinessDay || entries.length === 0) {
-    return {
-      date: format(day, "dd/MM/yyyy"),
-      dayName: format(day, "EEEE", { locale: es }),
-      dayDate: day,
-      entries: [],
-      totalHours: 0,
-      overtimeHours: "00:00",
-      delayMinutes: 0,
-      isAbsent: isBusinessDay,
-      isBusinessDay,
-    };
-  }
-  
-  const isFriday = dayOfWeek === 5;
-  const startWorkTime = parse(WORK_SCHEDULE.weekdays.start, "HH:mm", day);
-  const endWorkTime = parse(
-    isFriday ? WORK_SCHEDULE.friday.end : WORK_SCHEDULE.weekdays.end,
-    "HH:mm",
-    day
-  );
-  const lunchStartTime = parse(WORK_SCHEDULE.lunchBreak.start, "HH:mm", day);
-  const lunchEndTime = parse(WORK_SCHEDULE.lunchBreak.end, "HH:mm", day);
-
-  let totalMillis = 0;
-  let delayMinutes = 0;
-  let overtimeMillis = 0;
-
-  const effectiveStart = max([entries[0].dateObj, startWorkTime]);
-  const lastOut = entries[entries.length - 1];
-
-  if (entries[0].dateObj > startWorkTime) {
-    delayMinutes = Math.round(
-      (entries[0].dateObj.getTime() - startWorkTime.getTime()) / 60000
-    );
-  }
-
-  if (lastOut.dateObj > endWorkTime) {
-    overtimeMillis = Math.min(
-      lastOut.dateObj.getTime() - endWorkTime.getTime(),
-      2 * 60 * 60 * 1000
-    );
-  }
-  
-  let morningMillis = 0;
-  let afternoonMillis = 0;
-  
-  if (entries.length >= 2) {
-      const firstIn = entries[0].dateObj;
-      let lunchOut = entries.find((e, i) => e.type === 'out' && i > 0)?.dateObj;
-      let lunchIn = entries.find((e, i) => e.type === 'in' && i > 1)?.dateObj;
-      const lastOutEntry = entries[entries.length - 1].dateObj;
-
-      const morningStart = max([firstIn, startWorkTime]);
-      const morningEnd = min([lunchOut || lastOutEntry, lunchStartTime]);
-      
-      if(morningEnd > morningStart) {
-          morningMillis = morningEnd.getTime() - morningStart.getTime();
-      }
-
-      if(lunchIn && lastOutEntry > lunchIn) {
-        const afternoonStart = max([lunchIn, lunchEndTime]);
-        if(lastOutEntry > afternoonStart) {
-           afternoonMillis = lastOutEntry.getTime() - afternoonStart.getTime();
-        }
-      } else if (!lunchIn && lastOutEntry > lunchEndTime) {
-         // No explicit lunch break, but worked in the afternoon
-         const afternoonStart = max([firstIn, lunchEndTime]);
-         if(lastOutEntry > afternoonStart) {
-            afternoonMillis = lastOutEntry.getTime() - afternoonStart.getTime();
-         }
-      }
-  }
+const operationsNavItems = [
+    { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras', notificationKey: 'pendingPurchaseRequests' },
+    { href: '/dashboard/operations/request', icon: PlusCircle, label: 'Solicitar Materiales' },
+    { href: '/dashboard/operations/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
+    { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
+    { href: '/dashboard/operations/categories', icon: FolderTree, label: 'Categorías' },
+    { href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' },
+    { href: '/dashboard/operations/suppliers', icon: Briefcase, label: 'Proveedores' },
+];
 
 
-  totalMillis = Math.max(0, morningMillis) + Math.max(0, afternoonMillis);
+// --- Attendance Module ---
+const attendanceNavItems = [
+    { href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' },
+    { href: '/dashboard/attendance/report', icon: BookOpen, label: 'Reporte Semanal' },
+    { href: '/dashboard/attendance/monthly-report', icon: FileBarChart, label: 'Reporte Mensual' },
+    { href: '/dashboard/attendance/overtime', icon: Clock, label: 'Horas Extras' },
+];
 
-  const overtimeHours = Math.floor(overtimeMillis / (1000 * 60 * 60));
-  const overtimeMinutes = Math.floor(
-    (overtimeMillis % (1000 * 60 * 60)) / (1000 * 60)
-  );
 
-  return {
-    date: format(day, "dd/MM/yyyy"),
-    dayName: format(day, "EEEE", { locale: es }),
-    dayDate: day,
-    entries: entries.map((l) => ({ ...l, time: format(l.dateObj, "HH:mm") })),
-    totalHours: totalMillis / (1000 * 60 * 60),
-    overtimeHours: `${String(overtimeHours).padStart(2, "0")}:${String(overtimeMinutes).padStart(2, "0")}`,
-    delayMinutes,
-    isAbsent: false,
-    isBusinessDay,
-  };
+const navItems = {
+  admin: adminNavItems,
+  supervisor: supervisorNavItems,
+  worker: workerNavItems,
+  operations: operationsNavItems,
+  apr: aprNavItems,
+  // Guardia doesn't need a complex menu, they are redirected
+  guardia: [{ href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' }], 
 };
 
-export function useMonthlyAttendance(
-  userId: string | null,
-  year: number,
-  month: number
-) {
-  const { attendanceLogs } = useAppState();
-  const [loading, setLoading] = useState(false);
+interface SidebarProps {
+  onLinkClick?: () => void;
+}
 
-  const report = useMemo(() => {
-    if (!userId) return null;
-    setLoading(true);
+export function Sidebar({ onLinkClick }: SidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const { requests, purchaseRequests } = useAppState();
 
-    const start = startOfMonth(new Date(year, month - 1));
-    const end = endOfMonth(new Date(year, month - 1));
-    const monthDays = eachDayOfInterval({ start, end });
+  const pendingMaterialRequests = React.useMemo(() => requests.filter(r => r.status === 'pending').length, [requests]);
+  const pendingPurchaseRequests = React.useMemo(() => purchaseRequests.filter(pr => pr.status === 'pending').length, [purchaseRequests]);
+  
+  const notificationCounts = {
+    pendingMaterialRequests,
+    pendingPurchaseRequests
+  };
 
-    const userLogs = attendanceLogs.filter(
-      (log) =>
-        log.userId === userId &&
-        new Date(log.timestamp as Date) >= start &&
-        new Date(log.timestamp as Date) <= end
-    );
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
 
-    const dailySummaries = monthDays.map((day) => {
-      const logsForDay = userLogs.filter((log) =>
-        isSameDay(new Date(log.timestamp as Date), day)
-      );
-      return calculateDailySummary(logsForDay, day);
-    });
+  // Determine which module is active
+  const isWarehouseModule = adminNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/')))) 
+    || supervisorNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))))
+    || workerNavItems.some(item => pathname.startsWith(item.href))
+    || operationsNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))))
+    || aprNavItems.some(item => pathname.startsWith(item.href.substring(0, item.href.lastIndexOf('/'))));
     
-    const totalBusinessDays = dailySummaries.filter(d => d.isBusinessDay).length;
-    const workedDays = dailySummaries.filter(d => d.isBusinessDay && !d.isAbsent).length;
-    const absentDays = totalBusinessDays - workedDays;
-    const totalDelayMinutes = dailySummaries.reduce((acc, day) => acc + day.delayMinutes, 0);
-    
-    const formatHoursDecimal = (decimalHours: number) => {
-        const hours = Math.floor(decimalHours);
-        const minutes = Math.round((decimalHours - hours) * 60);
-        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  const isAttendanceModule = pathname.startsWith('/dashboard/attendance');
+  
+  let currentNavItems = [];
+  if (isAttendanceModule && user && (user.role === 'admin' || user.role === 'operations')) {
+      currentNavItems = attendanceNavItems;
+  } else if (isWarehouseModule && user) {
+      currentNavItems = navItems[user.role] || [];
+  } else if (user?.role === 'guardia') {
+      currentNavItems = navItems.guardia;
+  }
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Administrador de Bodega';
+      case 'supervisor': return 'Supervisor';
+      case 'worker': return 'Colaborador';
+      case 'operations': return 'Jefe de Operaciones';
+      case 'apr': return 'APR';
+      case 'guardia': return 'Guardia';
+      default: return 'Usuario';
     }
+  }
 
-    const totalWorkedHoursDecimal = dailySummaries.reduce((acc, day) => acc + day.totalHours, 0);
+  const handleLinkClick = () => {
+    if (onLinkClick) {
+      onLinkClick();
+    }
+  }
 
-    const overtimeMillis = dailySummaries.reduce((acc, day) => {
-      const [hours, minutes] = day.overtimeHours.split(":").map(Number);
-      return acc + hours * 60 * 60 * 1000 + minutes * 60 * 1000;
-    }, 0);
-    const overtimeHours = Math.floor(overtimeMillis / (1000 * 60 * 60));
-    const overtimeMinutes = Math.floor((overtimeMillis % (1000 * 60 * 60)) / (1000 * 60));
-
-
-    const result = {
-      period: { start, end },
-      dailySummaries,
-      summary: {
-        totalBusinessDays,
-        workedDays,
-        absentDays,
-        totalDelayMinutes,
-        totalWorkedHours: formatHoursDecimal(totalWorkedHoursDecimal),
-        totalOvertimeHours: `${String(overtimeHours).padStart(2, "0")}:${String(overtimeMinutes).padStart(2, "0")}`,
-      },
-    };
-    
-    setLoading(false);
-    return result;
-  }, [userId, year, month, attendanceLogs]);
-
-  return { report, loading };
+  return (
+    <>
+      <div className="flex h-full max-h-screen flex-col gap-2">
+        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+          <Link href="/dashboard" className="flex items-center gap-2 font-semibold" onClick={handleLinkClick}>
+            <Warehouse className="h-6 w-6 text-primary" />
+            <span className="">Portal de Módulos</span>
+          </Link>
+        </div>
+        <div className="flex-1 overflow-auto py-2">
+          <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+            {currentNavItems.map(item => {
+              const notifCount = item.notificationKey ? notificationCounts[item.notificationKey as keyof typeof notificationCounts] : 0;
+              const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== '/dashboard');
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={handleLinkClick}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary',
+                     { 'bg-primary/10 text-primary': isActive }
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span className="flex-1">{item.label}</span>
+                  {notifCount > 0 && (
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white animate-pulse">
+                      {notifCount}
+                    </span>
+                  )}
+                </Link>
+            )})}
+          </nav>
+        </div>
+        <div className="mt-auto p-4 border-t">
+           <div className='p-2 mb-2 rounded-lg bg-muted'>
+              <p className='text-sm font-semibold'>{user?.name}</p>
+              <p className='text-xs text-muted-foreground'>{user ? getRoleDisplayName(user.role) : ''}</p>
+          </div>
+          <Button variant="ghost" className="w-full justify-start gap-3 px-3" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" />
+            Cerrar Sesión
+          </Button>
+        </div>
+      </div>
+    </>
+  );
 }
