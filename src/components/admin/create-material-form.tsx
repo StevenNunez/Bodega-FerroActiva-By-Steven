@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,15 +8,18 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, PackagePlus } from 'lucide-react';
-import { PURCHASE_UNITS, Supplier, MaterialCategory } from '@/lib/data';
+import { Loader2, PackagePlus, ChevronsUpDown, Check } from 'lucide-react';
+import { Supplier, MaterialCategory, Unit } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { cn } from '@/lib/utils';
 
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   stock: z.coerce.number().min(0, 'El stock no puede ser negativo.'),
-  unit: z.string({ required_error: 'Debes seleccionar una unidad.' }),
+  unit: z.string({ required_error: 'La unidad no puede estar vacía.' }).min(1, 'La unidad no puede estar vacía.'),
   category: z.string({ required_error: 'Debes seleccionar una categoría.' }),
   supplierId: z.string().nullable(),
 });
@@ -24,8 +27,9 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>;
 
 export function CreateMaterialForm() {
-  const { addMaterial, suppliers, materialCategories } = useAppState();
+  const { addMaterial, suppliers, materialCategories, units } = useAppState();
   const { toast } = useToast();
+  const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
 
   const {
     register,
@@ -33,6 +37,7 @@ export function CreateMaterialForm() {
     control,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
@@ -90,16 +95,50 @@ export function CreateMaterialForm() {
                     name="unit"
                     control={control}
                     render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger id="unit">
-                                <SelectValue placeholder="Unidad" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {PURCHASE_UNITS.map(unit => (
-                                    <SelectItem key={unit} value={unit}>{unit}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                       <Popover open={unitPopoverOpen} onOpenChange={setUnitPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" role="combobox" className="w-full justify-between">
+                              <span className="truncate">{field.value || "Selecciona..."}</span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                              <CommandInput 
+                                placeholder="Buscar o crear unidad..."
+                                onValueChange={(currentValue) => {
+                                  setValue('unit', currentValue, { shouldValidate: true });
+                                }}
+                                value={field.value || ''}
+                              />
+                              <CommandList>
+                                <CommandEmpty>
+                                  <Button className="w-full" variant="outline"
+                                    onClick={() => {
+                                      setUnitPopoverOpen(false);
+                                    }}>
+                                    Usar "{field.value}" como nueva unidad
+                                  </Button>
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {units.map((unit) => (
+                                    <CommandItem
+                                      key={unit.id}
+                                      value={unit.name}
+                                      onSelect={() => {
+                                        setValue("unit", unit.name, { shouldValidate: true });
+                                        setUnitPopoverOpen(false);
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", field.value === unit.name ? "opacity-100" : "opacity-0")} />
+                                      {unit.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                     )}
                 />
                 {errors.unit && <p className="text-xs text-destructive">{errors.unit.message}</p>}

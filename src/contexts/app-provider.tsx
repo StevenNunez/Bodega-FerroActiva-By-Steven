@@ -16,6 +16,7 @@ import {
   MaterialCategory,
   AttendanceLog,
   WORK_SCHEDULE,
+  Unit,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -84,6 +85,7 @@ interface AppStateContextType {
   tools: Tool[];
   materials: Material[];
   materialCategories: MaterialCategory[];
+  units: Unit[];
   requests: MaterialRequest[];
   toolLogs: ToolLog[];
   attendanceLogs: AttendanceLog[];
@@ -112,11 +114,12 @@ interface AppStateContextType {
   addMaterialCategory: (name: string) => Promise<void>;
   updateMaterialCategory: (id: string, name: string) => Promise<void>;
   deleteMaterialCategory: (id: string) => Promise<void>;
+  addUnit: (name: string) => Promise<void>;
   addPurchaseRequest: (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => Promise<void>;
   updatePurchaseRequestStatus: (
     id: string,
     status: PurchaseRequestStatus,
-    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "notes" | "justification">>
+    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "unit" | "notes" | "justification">>
   ) => Promise<void>;
   receivePurchaseRequest: (purchaseRequestId: string, receivedQuantity: number) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
@@ -141,6 +144,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [tools, setTools] = React.useState<Tool[]>([]);
   const [materials, setMaterials] = React.useState<Material[]>([]);
   const [materialCategories, setMaterialCategories] = React.useState<MaterialCategory[]>([]);
+  const [units, setUnits] = React.useState<Unit[]>([]);
   const [requests, setRequests] = React.useState<MaterialRequest[]>([]);
   const [toolLogs, setToolLogs] = React.useState<ToolLog[]>([]);
   const [attendanceLogs, setAttendanceLogs] = React.useState<AttendanceLog[]>([]);
@@ -173,6 +177,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "tools", setter: setTools, sortField: "name" },
         { name: "materials", setter: setMaterials, sortField: "name" },
         { name: "materialCategories", setter: setMaterialCategories, sortField: "name" },
+        { name: "units", setter: setUnits, sortField: "name" },
         { name: "suppliers", setter: setSuppliers, sortField: "name" },
         { name: "requests", setter: setRequests, sortField: "createdAt" },
         { name: "toolLogs", setter: setToolLogs, sortField: "checkoutDate" },
@@ -294,6 +299,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       const batch = writeBatch(db);
       const newMaterialRef = doc(collection(db, "materials"));
 
+      // Check if unit exists, if not, create it
+      const unitExists = units.some(u => u.name.toLowerCase() === material.unit.toLowerCase());
+      if (!unitExists) {
+        const newUnitRef = doc(collection(db, "units"));
+        batch.set(newUnitRef, { name: material.unit, id: newUnitRef.id });
+      }
+
       batch.set(newMaterialRef, { ...material, id: newMaterialRef.id });
 
       if (material.stock > 0 && authUser) {
@@ -325,11 +337,24 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateMaterial = async (materialId: string, data: Partial<Omit<Material, "id">>) => {
     checkAuthAndRole(["admin", "operations"]);
     try {
+      const batch = writeBatch(db);
       const materialRef = doc(db, "materials", materialId);
-      await updateDoc(materialRef, {
+
+      // Check if unit exists, if not, create it
+      if (data.unit) {
+          const unitExists = units.some(u => u.name.toLowerCase() === data.unit!.toLowerCase());
+          if (!unitExists) {
+            const newUnitRef = doc(collection(db, "units"));
+            batch.set(newUnitRef, { name: data.unit, id: newUnitRef.id });
+          }
+      }
+
+      batch.update(materialRef, {
         ...data,
         supplierId: data.supplierId === "ninguno" ? null : data.supplierId,
       });
+
+      await batch.commit();
       notify("Material actualizado exitosamente.", "success");
     } catch (err: any) {
       notify("Error al actualizar material: " + err.message, "destructive");
@@ -448,6 +473,23 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     } catch (err: any) {
       notify("Error al eliminar categoría de material: " + err.message, "destructive");
       throw err;
+    }
+  };
+
+  const addUnit = async (name: string) => {
+    checkAuthAndRole(["admin", "operations", "supervisor", "apr"]);
+    try {
+        const unitExists = units.some(u => u.name.toLowerCase() === name.toLowerCase());
+        if (unitExists) {
+            notify(`La unidad "${name}" ya existe.`, "default");
+            return;
+        }
+        const newDocRef = doc(collection(db, "units"));
+        await setDoc(newDocRef, { name, id: newDocRef.id });
+        notify("Unidad agregada exitosamente.", "success");
+    } catch (err: any) {
+        notify("Error al agregar unidad: " + err.message, "destructive");
+        throw err;
     }
   };
 
@@ -691,8 +733,19 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     checkAuthAndRole(["supervisor", "worker", "admin", "operations", "apr"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
+      const batch = writeBatch(db);
       const newDocRef = doc(collection(db, "purchaseRequests"));
-      await setDoc(newDocRef, {
+
+      // Check if unit exists, if not, create it
+      if (request.unit) {
+          const unitExists = units.some(u => u.name.toLowerCase() === request.unit!.toLowerCase());
+          if (!unitExists) {
+            const newUnitRef = doc(collection(db, "units"));
+            batch.set(newUnitRef, { name: request.unit, id: newUnitRef.id });
+          }
+      }
+
+      batch.set(newDocRef, {
         ...request,
         id: newDocRef.id,
         supervisorId: authUser.id,
@@ -701,6 +754,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         receivedAt: null,
         lotId: null,
       });
+
+      await batch.commit();
+
       notify("Solicitud de compra agregada exitosamente.", "success");
     } catch (err: any) {
       notify("Error al agregar solicitud de compra: " + err.message, "destructive");
@@ -711,7 +767,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updatePurchaseRequestStatus = async (
     id: string,
     status: PurchaseRequestStatus,
-    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "notes" | "justification">>
+    data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "unit" | "notes" | "justification">>
   ) => {
     checkAuthAndRole(["operations", "admin"]);
     try {
@@ -720,22 +776,30 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       const originalRequest = purchaseRequests.find((pr) => pr.id === id);
       if (!originalRequest) throw new Error("Solicitud original no encontrada.");
 
-      // Prepare the data to be updated
+      const batch = writeBatch(db);
       let updateData: any = { ...data };
 
-      // Only update the status if it's different
+      // Check if unit exists, if not, create it
+      if (data?.unit) {
+          const unitExists = units.some(u => u.name.toLowerCase() === data.unit!.toLowerCase());
+          if (!unitExists) {
+            const newUnitRef = doc(collection(db, "units"));
+            batch.set(newUnitRef, { name: data.unit, id: newUnitRef.id });
+          }
+      }
+
       if (originalRequest.status !== status) {
         updateData.status = status;
         updateData.approvedById = authUser.id;
         updateData.approvedAt = Timestamp.now();
       }
 
-      // If the quantity is being changed, record the original quantity
       if (data?.quantity && data.quantity !== originalRequest.quantity && originalRequest.originalQuantity === undefined) {
          updateData.originalQuantity = originalRequest.quantity;
       }
       
-      await updateDoc(requestRef, updateData);
+      batch.update(requestRef, updateData);
+      await batch.commit();
       notify("Solicitud de compra actualizada exitosamente.", "success");
     } catch (err: any) {
       notify("Error al actualizar solicitud de compra: " + err.message, "destructive");
@@ -1053,6 +1117,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     tools,
     materials,
     materialCategories,
+    units,
     requests,
     toolLogs,
     attendanceLogs,
@@ -1081,6 +1146,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     addMaterialCategory,
     updateMaterialCategory,
     deleteMaterialCategory,
+    addUnit,
     addPurchaseRequest,
     updatePurchaseRequestStatus,
     receivePurchaseRequest,

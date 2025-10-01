@@ -1,4 +1,3 @@
-
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia";
@@ -16,6 +15,11 @@ export interface User {
   afp?: string;
   tipoSalud?: 'Fonasa' | 'Isapre';
   cargasFamiliares?: number;
+}
+
+export interface Unit {
+  id: string;
+  name: string;
 }
 
 export interface Tool {
