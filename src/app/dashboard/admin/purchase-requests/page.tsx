@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -82,15 +83,11 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
       toast({ variant: "destructive", title: "Error", description: "La cantidad debe ser un número positivo." });
       return;
     }
-    if (quantityNum > request.quantity) {
-      toast({ variant: "destructive", title: "Error", description: `La cantidad recibida no puede ser mayor a la aprobada (${request.quantity}).` });
-      return;
-    }
-
+    
     setIsSubmitting(true);
     try {
       await onConfirm(request.id, quantityNum);
-      onClose();
+      onClose(); // Cierra el dialogo en caso de éxito
     } finally {
       setIsSubmitting(false);
     }
@@ -99,7 +96,7 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
   if (!request) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Registrar Recepción de Material</DialogTitle>
@@ -113,19 +110,22 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
             <Input id="approved-quantity" value={request.quantity} disabled />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="received-quantity">Cantidad Recibida</Label>
+            <Label htmlFor="received-quantity">Cantidad Recibida Real</Label>
             <Input
               id="received-quantity"
               type="number"
               value={receivedQuantity}
               onChange={(e) => setReceivedQuantity(e.target.value)}
-              placeholder="Ingresa la cantidad real..."
+              placeholder="Ingresa la cantidad que llegó..."
             />
+             <p className="text-xs text-muted-foreground">
+                Puedes ingresar una cantidad mayor o menor a la aprobada.
+             </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
-          <Button onClick={handleConfirmClick} disabled={isSubmitting}>
+          <Button onClick={handleConfirmClick} disabled={isSubmitting || !receivedQuantity}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
             Confirmar Recepción
           </Button>
@@ -187,10 +187,7 @@ export default function AdminPurchaseRequestsPage() {
   const handleReceive = async (id: string, quantity: number) => {
     try {
       await receivePurchaseRequest(id, quantity);
-      toast({
-        title: "Stock Actualizado",
-        description: "El material ha sido ingresado al inventario.",
-      });
+      setReceivingRequest(null); // Close dialog on success
     } catch (error) {
       toast({
         variant: "destructive",
@@ -461,5 +458,3 @@ export default function AdminPurchaseRequestsPage() {
     </div>
   );
 }
-
-  

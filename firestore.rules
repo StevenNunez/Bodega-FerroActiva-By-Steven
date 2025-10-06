@@ -1,0 +1,84 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function hasRole(role) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    
+    function hasAnyRole(roles) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in roles;
+    }
+
+    // Collection: users
+    match /users/{userId} {
+      allow read: true; // Publicly readable to allow role checks on client-side
+      allow create: isSignedIn();
+      allow update: if isUser(userId) || hasAnyRole(['admin']);
+      allow delete: if hasAnyRole(['admin']);
+    }
+
+    // All other collections are readable by any authenticated user
+    match /{document=**} {
+      allow read: if isSignedIn();
+    }
+    
+    // Write rules for specific collections
+    match /materials/{materialId} {
+      allow create, update, delete: if hasAnyRole(['admin', 'operations']);
+    }
+    
+    match /materialCategories/{categoryId} {
+        allow create, update: if hasAnyRole(['admin', 'operations', 'supervisor']);
+        allow delete: if hasAnyRole(['admin']);
+    }
+    
+    match /units/{unitId} {
+       allow create: if isSignedIn();
+       allow update, delete: if hasAnyRole(['admin']);
+    }
+
+    match /tools/{toolId} {
+       allow create, update, delete: if hasAnyRole(['admin']);
+    }
+
+    match /suppliers/{supplierId} {
+       allow create, update: if hasAnyRole(['admin', 'operations', 'supervisor']);
+       allow delete: if hasAnyRole(['admin']);
+    }
+    
+    match /requests/{requestId} {
+      allow create: if isSignedIn();
+      allow update: if hasAnyRole(['admin']);
+      allow delete: if hasAnyRole(['admin']);
+    }
+    
+    match /purchaseRequests/{purchaseRequestId} {
+        allow create: if isSignedIn();
+        allow update: if hasAnyRole(['admin', 'operations']);
+        allow delete: if hasAnyRole(['admin', 'operations']);
+    }
+    
+    match /purchaseOrders/{orderId} {
+        allow create, delete: if hasAnyRole(['operations']);
+        allow update: if hasAnyRole(['operations']);
+    }
+
+    match /toolLogs/{logId} {
+      allow create, update: if hasAnyRole(['admin', 'supervisor', 'apr', 'operations']);
+    }
+    
+    match /attendanceLogs/{logId} {
+      allow create, update, delete: if isSignedIn();
+    }
+  }

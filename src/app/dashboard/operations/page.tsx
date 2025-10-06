@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { PurchaseRequest, PurchaseRequestStatus, MaterialRequest } from "@/lib/data";
-import { Check, Clock, X, Edit, ShoppingCart, Wrench, PackageCheck, AlertTriangle, TrendingUp, PackageSearch, PackageOpen, Box, FileText, AlertCircle, Loader2, ThumbsUp } from "lucide-react";
+import { Check, Clock, X, Edit, ShoppingCart, Wrench, PackageCheck, AlertTriangle, TrendingUp, PackageSearch, PackageOpen, Box, FileText, AlertCircle, Loader2, ThumbsUp, Package } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { EditPurchaseRequestForm } from "@/components/operations/edit-purchase-request-form";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { Input } from "@/components/ui/input";
 
 type CompatibleMaterialRequest = MaterialRequest & {
     materialId?: string;
@@ -26,13 +27,17 @@ type CompatibleMaterialRequest = MaterialRequest & {
 };
 
 export default function OperationsPage() {
-  const { purchaseRequests, users, updatePurchaseRequestStatus, requests, tools, materials, toolLogs, isLoading } = useAppState();
+  const { purchaseRequests, users, updatePurchaseRequestStatus, requests, tools, materials, toolLogs, isLoading, materialCategories } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
+  
+  // State for stock viewer
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
@@ -164,6 +169,24 @@ export default function OperationsPage() {
     }
     return null;
   };
+
+  const categories = useMemo(() => {
+    const uniqueCats = [...new Set(materials.map((m) => m.category))];
+    return ["all", ...uniqueCats].sort();
+  }, [materials]);
+
+  const filteredMaterials = useMemo(() => {
+    let filtered = materials;
+    if (searchTerm) {
+      filtered = filtered.filter((material) =>
+        material.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((material) => material.category === categoryFilter);
+    }
+    return filtered;
+  }, [materials, searchTerm, categoryFilter]);
   
   if (isLoading) {
     return (
@@ -233,6 +256,66 @@ export default function OperationsPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><Package /> Stock Disponible</CardTitle>
+                        <CardDescription>Consulta los materiales disponibles en bodega.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <Input
+                            placeholder="Buscar material..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                            <SelectTrigger className="w-full sm:w-[180px]">
+                                <SelectValue placeholder="Categoría" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {categories.map((cat, index) => (
+                                <SelectItem key={`${cat}-${index}`} value={cat}>
+                                    {cat === "all" ? "Todas" : cat}
+                                </SelectItem>
+                                ))}
+                            </SelectContent>
+                            </Select>
+                        </div>
+                        <ScrollArea className="h-60 border rounded-md">
+                            <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead>Material</TableHead>
+                                <TableHead className="text-right">Stock</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredMaterials.length > 0 ? (
+                                filteredMaterials.map((material) => (
+                                    <TableRow key={material.id}>
+                                    <TableCell>
+                                        <div className="font-medium">{material.name}</div>
+                                        <div className="text-xs text-muted-foreground">{material.category}</div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">{material.stock.toLocaleString()}</TableCell>
+                                    </TableRow>
+                                ))
+                                ) : (
+                                <TableRow>
+                                    <TableCell colSpan={2} className="h-24 text-center">
+                                    No se encontraron materiales.
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                            </TableBody>
+                            </Table>
+                        </ScrollArea>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card className="!max-w-none">
                     <CardHeader>
                     <CardTitle>Gestión de Solicitudes de Compra</CardTitle>

@@ -157,7 +157,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const { user: authUser } = useAuth();
   const { toast } = useToast();
 
-  // Notify function for consistent UX
   const notify = React.useCallback(
     (message: string, variant: "default" | "destructive" | "success" = "default") => {
       toast({
@@ -169,8 +168,25 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     },
     [toast]
   );
-
+  
   React.useEffect(() => {
+    if (!authUser) {
+      setLoading(false);
+      // Clear data when user logs out
+      setUsers([]);
+      setTools([]);
+      setMaterials([]);
+      setMaterialCategories([]);
+      setUnits([]);
+      setRequests([]);
+      setToolLogs([]);
+      setAttendanceLogs([]);
+      setPurchaseRequests([]);
+      setSuppliers([]);
+      setPurchaseOrders([]);
+      return;
+    };
+
     setLoading(true);
     const collections: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>>; sortField?: string }[] = [
         { name: "users", setter: setUsers, sortField: "name" },
@@ -188,12 +204,10 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribes = collections.map(({ name, setter, sortField }) => {
       const collRef = collection(db, name);
-      
       const queryConstraints: QueryConstraint[] = [];
       if (sortField) {
           queryConstraints.push(orderBy(sortField, "desc"));
       }
-      
       const q = query(collRef, ...queryConstraints);
       
       return onSnapshot(
@@ -205,13 +219,22 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         (err) => {
           console.error(`Error fetching ${name}:`, err);
           setError(`Error al cargar datos de ${name}.`);
+          notify(`Error al cargar datos de ${name}: ${err.message}`, "destructive");
         }
       );
     });
 
-    setLoading(false);
+    const allDataLoaded = Promise.all(
+        collections.map(({ name }) => 
+            getDocs(query(collection(db, name))).catch(() => null)
+        )
+    );
+
+    allDataLoaded.finally(() => setLoading(false));
+
     return () => unsubscribes.forEach((unsub) => unsub());
-  }, []);
+  }, [authUser, notify]);
+
 
   const checkAuthAndRole = (allowedRoles: string[]) => {
     if (!authUser) throw new Error("Acción no autorizada: usuario no autenticado.");
@@ -807,34 +830,29 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-
   const receivePurchaseRequest = async (purchaseRequestId: string, receivedQuantity: number) => {
     checkAuthAndRole(["admin"]);
     try {
         const reqRef = doc(db, "purchaseRequests", purchaseRequestId);
         const reqDoc = await getDoc(reqRef);
-        if (!reqDoc.exists()) throw new Error("Solicitud de compra no encontrada");
+        if (!reqDoc.exists()) throw new Error("Solicitud de compra no encontrada.");
         const req = reqDoc.data() as PurchaseRequest;
 
-        if (receivedQuantity > req.quantity) {
-            throw new Error("La cantidad recibida no puede ser mayor a la cantidad aprobada.");
+        if (req.status === 'received') {
+            throw new Error("Esta solicitud ya ha sido marcada como recibida y procesada.");
         }
 
         const batch = writeBatch(db);
 
-        // Actualizar stock del material
+        // Update stock
         const materialsQuery = query(collection(db, "materials"), where("name", "==", req.materialName));
         const materialsSnapshot = await getDocs(materialsQuery);
 
         if (materialsSnapshot.empty) {
             const newMaterialRef = doc(collection(db, "materials"));
             batch.set(newMaterialRef, {
-                id: newMaterialRef.id,
-                name: req.materialName,
-                stock: receivedQuantity,
-                unit: req.unit,
-                category: req.category,
-                supplierId: null,
+                id: newMaterialRef.id, name: req.materialName, stock: receivedQuantity,
+                unit: req.unit, category: req.category, supplierId: null,
             });
         } else {
             const existingMaterialRef = materialsSnapshot.docs[0].ref;
@@ -842,35 +860,41 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             batch.update(existingMaterialRef, { stock: existingMaterialData.stock + receivedQuantity });
         }
 
-        // Si la recepción es parcial
-        if (receivedQuantity < req.quantity) {
-            // 1. Actualizar la solicitud original
-            batch.update(reqRef, { 
-                status: "received", 
-                receivedAt: Timestamp.now(),
-                notes: `Recepción parcial. Recibido: ${receivedQuantity} de ${req.quantity}. ${req.notes || ''}`.trim(),
-                originalQuantity: req.quantity,
-                quantity: receivedQuantity
-            });
+        // Update original request
+        const isPartial = receivedQuantity < req.quantity;
+        const isOver = receivedQuantity > req.quantity;
+        let finalNotes = req.notes || '';
+        
+        if (isPartial) {
+            finalNotes = `Recepción parcial. Recibido: ${receivedQuantity} de ${req.quantity}. ${finalNotes}`.trim();
+        } else if (isOver) {
+             finalNotes = `Recepción con excedente. Recibido: ${receivedQuantity}, Pedido: ${req.quantity}. ${finalNotes}`.trim();
+        }
 
-            // 2. Crear una nueva solicitud con la cantidad faltante
+        batch.update(reqRef, {
+            status: "received",
+            receivedAt: Timestamp.now(),
+            notes: finalNotes,
+            originalQuantity: req.quantity,
+            quantity: receivedQuantity
+        });
+
+        // Create a new request for the remaining quantity if it's a partial reception
+        if (isPartial) {
             const newReqRef = doc(collection(db, "purchaseRequests"));
             const remainingQuantity = req.quantity - receivedQuantity;
             batch.set(newReqRef, {
                 ...req,
                 id: newReqRef.id,
                 quantity: remainingQuantity,
-                status: "approved", // Se mantiene aprobada para seguir gestionando
-                createdAt: Timestamp.now(), // Nueva fecha para esta nueva solicitud
+                status: "approved", // Remains approved to continue flow
+                createdAt: Timestamp.now(),
                 receivedAt: null,
-                notes: `Solicitud generada por faltante de la OC #${req.id}. Cantidad pendiente: ${remainingQuantity}.`,
+                notes: `Generado por faltante de OC #${req.id}. Pendiente: ${remainingQuantity}.`,
                 originalQuantity: null,
             });
-
             notify(`Recepción parcial registrada. Se creó una nueva solicitud por las ${remainingQuantity} unidades faltantes.`, "success");
         } else {
-            // Recepción completa
-            batch.update(reqRef, { status: "received", receivedAt: Timestamp.now() });
             notify("Recepción completa registrada exitosamente.", "success");
         }
 
@@ -957,7 +981,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       notify("Error al anular la orden de compra: " + err.message, "destructive");
       throw err;
     }
-};
+  };
 
   const addSupplier = async (name: string, categories: string[]) => {
     checkAuthAndRole(["admin", "operations", "supervisor"]);

@@ -25,18 +25,20 @@ import {
   BookOpen,
   FileBarChart,
   User as UserIcon,
+  Ruler,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
-// --- Warehouse Module ---
+// --- Main Navigation Definitions ---
 const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
   { href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' },
+  { href: '/dashboard/admin/units', icon: Ruler, label: 'Unidades' },
   { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
   { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales', notificationKey: 'pendingMaterialRequests' },
   { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
@@ -44,6 +46,7 @@ const adminNavItems = [
   { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
   { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
   { href: '/dashboard/admin/bulk-import', icon: Upload, label: 'Importación Masiva' },
+  { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
   { href: '/dashboard/admin/certificate', icon: Medal, label: 'Mi Certificado' },
 ];
 
@@ -59,6 +62,7 @@ const aprNavItems = [
   { href: '/dashboard/apr', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/apr/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/apr/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
+  { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
 ];
 
 const workerNavItems = [
@@ -70,13 +74,12 @@ const operationsNavItems = [
     { href: '/dashboard/operations/request', icon: PlusCircle, label: 'Solicitar Materiales' },
     { href: '/dashboard/operations/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
     { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
+    { href: '/dashboard/operations/units', icon: Ruler, label: 'Unidades' },
     { href: '/dashboard/operations/categories', icon: FolderTree, label: 'Categorías' },
     { href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' },
     { href: '/dashboard/operations/suppliers', icon: Briefcase, label: 'Proveedores' },
 ];
 
-
-// --- Attendance Module ---
 const attendanceNavItems = [
     { href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' },
     { href: '/dashboard/attendance/report', icon: BookOpen, label: 'Reporte Semanal' },
@@ -84,19 +87,13 @@ const attendanceNavItems = [
     { href: '/dashboard/attendance/overtime', icon: Clock, label: 'Horas Extras' },
 ];
 
-// --- Profile Module ---
-const profileNavItems = [
-    { href: '/dashboard/profile', icon: UserIcon, label: 'Mi Perfil' },
-]
 
-
-const navItems = {
+const mainNavItemsByRole = {
   admin: adminNavItems,
   supervisor: supervisorNavItems,
   worker: workerNavItems,
   operations: operationsNavItems,
   apr: aprNavItems,
-  // Guardia doesn't need a complex menu, they are redirected
   guardia: [{ href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' }], 
 };
 
@@ -123,21 +120,9 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     router.push('/');
   };
 
-  // Determine which module is active
-  const isProfileModule = pathname.startsWith('/dashboard/profile');
-  const isAttendanceModule = pathname.startsWith('/dashboard/attendance');
+  // Determine the correct set of navigation items based on user role.
+  const currentNavItems = user ? mainNavItemsByRole[user.role] || [] : [];
   
-  let currentNavItems = [];
-  if (isProfileModule && user) {
-    currentNavItems = profileNavItems;
-  } else if (isAttendanceModule && user && (user.role === 'admin' || user.role === 'operations')) {
-      currentNavItems = attendanceNavItems;
-  } else if (user) {
-      // Default to warehouse module if none of the specific ones match
-      currentNavItems = navItems[user.role] || [];
-  }
-
-
   const getRoleDisplayName = (role: string) => {
     switch (role) {
       case 'admin': return 'Administrador de Bodega';
