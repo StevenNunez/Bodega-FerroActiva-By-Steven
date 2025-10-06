@@ -34,6 +34,7 @@ import {
   FileText,
   Edit,
   AlertCircle,
+  Search,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import {
@@ -87,10 +88,10 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
     setIsSubmitting(true);
     try {
       await onConfirm(request.id, quantityNum);
-      onClose(); // Cierra el dialogo en caso de éxito
     } finally {
-      setIsSubmitting(false);
+        // La lógica de cierre está ahora en la función principal para asegurar que el estado se actualice
     }
+    setIsSubmitting(false);
   };
 
   if (!request) return null;
@@ -140,6 +141,7 @@ export default function AdminPurchaseRequestsPage() {
   const { purchaseRequests, users, receivePurchaseRequest, isLoading } = useAppState();
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
@@ -174,9 +176,19 @@ export default function AdminPurchaseRequestsPage() {
   );
 
   const filteredRequests = useMemo(() => {
-    if (statusFilter === "all") return purchaseRequests;
-    return purchaseRequests.filter((req) => req.status === statusFilter);
-  }, [purchaseRequests, statusFilter]);
+    let requests = purchaseRequests;
+
+    if (statusFilter !== "all") {
+      requests = requests.filter((req) => req.status === statusFilter);
+    }
+    
+    if (searchTerm) {
+        requests = requests.filter(req => 
+            req.materialName.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }
+    return requests;
+  }, [purchaseRequests, statusFilter, searchTerm]);
 
   const paginatedRequests = filteredRequests.slice(
     (page - 1) * itemsPerPage,
@@ -187,7 +199,7 @@ export default function AdminPurchaseRequestsPage() {
   const handleReceive = async (id: string, quantity: number) => {
     try {
       await receivePurchaseRequest(id, quantity);
-      setReceivingRequest(null); // Close dialog on success
+      setReceivingRequest(null);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -296,34 +308,50 @@ export default function AdminPurchaseRequestsPage() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="p-6 space-y-4">
-            <div className="w-[180px]">
-              <Label htmlFor="status-filter">Filtrar por estado</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  setStatusFilter(value as "all" | PurchaseRequestStatus);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger
-                  id="status-filter"
-                  aria-describedby="status-filter-description"
-                >
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pending">Pendiente</SelectItem>
-                  <SelectItem value="approved">Aprobado</SelectItem>
-                  <SelectItem value="rejected">Rechazado</SelectItem>
-                  <SelectItem value="received">Recibido</SelectItem>
-                  <SelectItem value="batched">En Lote</SelectItem>
-                  <SelectItem value="ordered">Orden Generada</SelectItem>
-                </SelectContent>
-              </Select>
-              <span id="status-filter-description" className="sr-only">
-                Filtra solicitudes de compra por estado
-              </span>
+            <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-grow">
+                  <Label htmlFor="search-material">Buscar por material</Label>
+                   <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            id="search-material"
+                            type="search"
+                            placeholder="Nombre del material..."
+                            className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+                <div className="w-full sm:w-[180px]">
+                  <Label htmlFor="status-filter">Filtrar por estado</Label>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => {
+                      setStatusFilter(value as "all" | PurchaseRequestStatus);
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="status-filter"
+                      aria-describedby="status-filter-description"
+                    >
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="pending">Pendiente</SelectItem>
+                      <SelectItem value="approved">Aprobado</SelectItem>
+                      <SelectItem value="rejected">Rechazado</SelectItem>
+                      <SelectItem value="received">Recibido</SelectItem>
+                      <SelectItem value="batched">En Lote</SelectItem>
+                      <SelectItem value="ordered">Orden Generada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span id="status-filter-description" className="sr-only">
+                    Filtra solicitudes de compra por estado
+                  </span>
+                </div>
             </div>
 
             <div className="relative w-full overflow-x-auto">
@@ -420,8 +448,7 @@ export default function AdminPurchaseRequestsPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center">
-                          No hay solicitudes de compra para el estado
-                          seleccionado.
+                          No hay solicitudes de compra para los filtros seleccionados.
                         </TableCell>
                       </TableRow>
                     )}
