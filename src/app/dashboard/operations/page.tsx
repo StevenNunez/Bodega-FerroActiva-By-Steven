@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, memo } from "react";
@@ -56,6 +57,9 @@ interface Material {
   category: string;
   stock: number;
 }
+type PurchaseRequestStatus = import('@/lib/data').PurchaseRequestStatus;
+type PurchaseRequest = import('@/lib/data').PurchaseRequest;
+
 
 // Constantes
 const ITEMS_PER_PAGE = 10;
@@ -76,32 +80,49 @@ const PurchaseRequestTable = memo(
     requests,
     supervisorMap,
     statusFilter,
+    searchTerm,
     page,
     setPage,
     setEditingRequest,
     getStatusBadge,
     getChangeTooltip,
     formatDate,
+    setStatusFilter,
+    setSearchTerm
   }: {
     requests: PurchaseRequest[];
     supervisorMap: Map<string, string>;
     statusFilter: "all" | PurchaseRequestStatus;
+    searchTerm: string;
     page: number;
     setPage: (page: number) => void;
     setEditingRequest: (request: PurchaseRequest | null) => void;
     getStatusBadge: (status: PurchaseRequestStatus) => JSX.Element;
     getChangeTooltip: (req: PurchaseRequest) => string | null;
     formatDate: (date: Date | Timestamp | null | undefined) => string;
+    setStatusFilter: (value: "all" | PurchaseRequestStatus) => void;
+    setSearchTerm: (value: string) => void;
   }) => {
     const filteredRequests = useMemo(() => {
-      return statusFilter === "all" ? requests : requests.filter((r) => r.status === statusFilter);
-    }, [requests, statusFilter]);
+      let filtered = requests;
+      if (statusFilter !== "all") {
+        filtered = filtered.filter((r) => r.status === statusFilter);
+      }
+      if (searchTerm) {
+        filtered = filtered.filter(req => 
+            req.materialName.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+      return filtered;
+    }, [requests, statusFilter, searchTerm]);
 
     const paginatedRequests = useMemo(() => {
       return filteredRequests.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
     }, [filteredRequests, page]);
 
     const totalPages = Math.ceil(filteredRequests.length / ITEMS_PER_PAGE);
+    
+    const editableStatuses: PurchaseRequestStatus[] = ["pending", "approved", "batched"];
 
     return (
       <Card className="!max-w-none transition-all duration-300">
@@ -113,27 +134,40 @@ const PurchaseRequestTable = memo(
         </CardHeader>
         <CardContent className="p-0">
           <div className="p-6 space-y-4">
-            <div className="w-[180px]">
-              <Label htmlFor="status-filter">Filtrar por estado</Label>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  setStatusFilter(value as "all" | PurchaseRequestStatus);
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger id="status-filter" aria-label="Filtrar solicitudes por estado">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {Object.keys(STATUS_CONFIG).map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {STATUS_CONFIG[status as PurchaseRequestStatus].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+             <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-grow">
+                      <Label htmlFor="search-material">Buscar por material</Label>
+                      <Input
+                          id="search-material"
+                          type="search"
+                          placeholder="Nombre del material..."
+                          className="w-full sm:w-[300px]"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                  </div>
+                  <div className="w-full sm:w-[180px]">
+                    <Label htmlFor="status-filter">Filtrar por estado</Label>
+                    <Select
+                        value={statusFilter}
+                        onValueChange={(value) => {
+                        setStatusFilter(value as "all" | PurchaseRequestStatus);
+                        setPage(1);
+                        }}
+                    >
+                        <SelectTrigger id="status-filter" aria-label="Filtrar solicitudes por estado">
+                        <SelectValue placeholder="Todos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {Object.keys(STATUS_CONFIG).map((status) => (
+                            <SelectItem key={status} value={status}>
+                            {STATUS_CONFIG[status as PurchaseRequestStatus].label}
+                            </SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
             </div>
             <div className="relative w-full overflow-x-auto">
               <div className="min-w-[1000px]">
@@ -181,7 +215,7 @@ const PurchaseRequestTable = memo(
                             <TableCell className="min-w-[150px]">{formatDate(req.createdAt)}</TableCell>
                             <TableCell className="min-w-[150px]">{getStatusBadge(req.status)}</TableCell>
                             <TableCell className="text-right min-w-[180px]">
-                              {req.status === "pending" ? (
+                              {editableStatuses.includes(req.status) ? (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -201,7 +235,7 @@ const PurchaseRequestTable = memo(
                     ) : (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center">
-                          No hay solicitudes de compra para el estado seleccionado.
+                          No hay solicitudes de compra para los filtros seleccionados.
                         </TableCell>
                       </TableRow>
                     )}
@@ -587,7 +621,8 @@ export default function OperationsPage() {
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [stockSearchTerm, setStockSearchTerm] = useState("");
+  const [requestSearchTerm, setRequestSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
 
   // Utilidades
@@ -701,8 +736,8 @@ export default function OperationsPage() {
           <StockViewer
             materials={materials}
             categories={categories}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
+            searchTerm={stockSearchTerm}
+            setSearchTerm={setStockSearchTerm}
             categoryFilter={categoryFilter}
             setCategoryFilter={setCategoryFilter}
           />
@@ -710,12 +745,15 @@ export default function OperationsPage() {
             requests={purchaseRequests}
             supervisorMap={supervisorMap}
             statusFilter={statusFilter}
+            searchTerm={requestSearchTerm}
             page={page}
             setPage={setPage}
             setEditingRequest={setEditingRequest}
             getStatusBadge={getStatusBadge}
             getChangeTooltip={getChangeTooltip}
             formatDate={formatDate}
+            setStatusFilter={setStatusFilter}
+            setSearchTerm={setRequestSearchTerm}
           />
         </div>
         {/* Sección de Resumen de Inventario */}
