@@ -133,3 +133,43 @@ export interface PurchaseOrder {
     requestIds: string[];
     items: { materialName: string; totalQuantity: number; unit: string; category: string }[];
 }
+
+export interface ChecklistItem {
+  element: string;
+  yes: boolean;
+  no: boolean;
+  na: boolean;
+  responsible: string;
+  date: string;
+}
+
+export interface Checklist {
+  id: string;
+  work: string;
+  date: Date | Timestamp;
+  items: ChecklistItem[];
+  observations: string;
+  performedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
+  reviewedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
+  createdBy: string; // User ID
+}
+
+export interface SafetyInspection {
+  id: string;
+  createdBy: string;
+  work: string;
+  date: Date | Timestamp;
+  location?: string;
+  inspectorName: string;
+  inspectorRole?: string;
+  description: string;
+  importance: "low" | "medium" | "high";
+  evidencePhotos: string[];
+  correctiveMeasures?: string;
+  responsible?: string;
+  complianceDate?: Date | Timestamp | null;
+  finalPhoto?: string;
+  finalDescription?: string;
+  executorName?: string;
+  finalDate?: Date | Timestamp | null;
+}

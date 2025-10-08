@@ -95,10 +95,19 @@ export default function OperationsOrdersPage() {
     const getSupplierName = (id: string) => suppliers.find(s => s.id === id)?.name || 'Desconocido';
     const getSupplier = (id: string): Supplier | undefined => suppliers.find(s => s.id === id);
     
-    const handleDownloadPDF = (order: PurchaseOrderType) => {
+    const sortedPurchaseOrders = useMemo(() => {
+        return [...purchaseOrders].sort((a, b) => {
+            const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
+            const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
+            return dateA - dateB;
+        });
+    }, [purchaseOrders]);
+
+
+    const handleDownloadPDF = (order: PurchaseOrderType, index: number) => {
         const supplier = getSupplier(order.supplierId);
         if(supplier) {
-            generatePurchaseOrderPDF(order, supplier);
+            generatePurchaseOrderPDF(order, supplier, index + 1);
         } else {
              alert("Proveedor no encontrado para esta orden.");
         }
@@ -151,12 +160,12 @@ export default function OperationsOrdersPage() {
                 </CardHeader>
                 <CardContent>
                     <Accordion type="multiple" className="w-full space-y-4">
-                        {purchaseOrders.length > 0 ? purchaseOrders.map(order => (
+                        {sortedPurchaseOrders.length > 0 ? sortedPurchaseOrders.map((order, index) => (
                             <AccordionItem value={order.id} key={order.id} className="border rounded-lg bg-card">
                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full p-4">
                                     <AccordionTrigger className="w-full p-0 hover:no-underline text-left flex-grow">
                                         <div>
-                                            <h3 className="font-semibold text-base">{order.id}</h3>
+                                            <h3 className="font-semibold text-base">N° {String(index + 1).padStart(3, '0')}</h3>
                                             <p className="text-sm text-muted-foreground">
                                                 Proveedor: <span className="font-medium text-primary">{getSupplierName(order.supplierId)}</span>
                                             </p>
@@ -188,7 +197,7 @@ export default function OperationsOrdersPage() {
                                             </AlertDialogContent>
                                         </AlertDialog>
                                         <Button 
-                                            onClick={(e) => { e.stopPropagation(); handleDownloadPDF(order); }}>
+                                            onClick={(e) => { e.stopPropagation(); handleDownloadPDF(order, index); }}>
                                             <Download className="mr-2 h-4 w-4"/> PDF
                                         </Button>
                                     </div>

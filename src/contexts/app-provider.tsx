@@ -17,6 +17,8 @@ import {
   AttendanceLog,
   WORK_SCHEDULE,
   Unit,
+  Checklist,
+  SafetyInspection,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -121,12 +123,15 @@ interface AppStateContextType {
     status: PurchaseRequestStatus,
     data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "unit" | "notes" | "justification">>
   ) => Promise<void>;
+  deletePurchaseRequest: (id: string) => Promise<void>;
   receivePurchaseRequest: (purchaseRequestId: string, receivedQuantity: number) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
   cancelPurchaseOrder: (orderId: string) => Promise<void>;
   addSupplier: (name: string, categories: string[]) => Promise<void>;
   updateSupplier: (supplierId: string, data: Partial<Omit<Supplier, "id">>) => Promise<void>;
   deleteSupplier: (supplierId: string) => Promise<void>;
+  addChecklist: (checklist: Omit<Checklist, "id" | "createdBy">) => Promise<void>;
+  addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "createdBy">) => Promise<void>;
   batchApprovedRequests: (requestIds: string[], options: { mode: "category" | "supplier" }) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
@@ -829,6 +834,19 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       throw err;
     }
   };
+  
+  const deletePurchaseRequest = async (id: string) => {
+    checkAuthAndRole(['operations', 'admin']);
+    try {
+        const reqRef = doc(db, "purchaseRequests", id);
+        await deleteDoc(reqRef);
+        notify('Solicitud eliminada.', 'success');
+    } catch (error: any) {
+        notify('Error al eliminar la solicitud: ' + error.message, 'destructive');
+        throw error;
+    }
+  }
+
 
   const receivePurchaseRequest = async (purchaseRequestId: string, receivedQuantity: number) => {
     checkAuthAndRole(["admin"]);
@@ -1025,6 +1043,40 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const addChecklist = async (checklist: Omit<Checklist, "id" | "createdBy">) => {
+      checkAuthAndRole(["apr", "admin"]);
+      if (!authUser) throw new Error("Usuario no autenticado.");
+      try {
+        const newDocRef = doc(collection(db, "checklists"));
+        await setDoc(newDocRef, {
+            ...checklist,
+            id: newDocRef.id,
+            createdBy: authUser.id,
+        });
+        notify("Checklist guardado exitosamente.", "success");
+      } catch (err: any) {
+          notify("Error al guardar el checklist: " + err.message, "destructive");
+          throw err;
+      }
+  };
+  
+  const addSafetyInspection = async (inspection: Omit<SafetyInspection, "id" | "createdBy">) => {
+    checkAuthAndRole(["apr", "admin"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+    try {
+      const newDocRef = doc(collection(db, "safetyInspections"));
+      await setDoc(newDocRef, {
+        ...inspection,
+        id: newDocRef.id,
+        createdBy: authUser.id,
+      });
+      notify("Inspección de seguridad guardada exitosamente.", "success");
+    } catch (err: any) {
+      notify("Error al guardar la inspección: " + err.message, "destructive");
+      throw err;
+    }
+  };
+
   const batchApprovedRequests = async (requestIds: string[], options: { mode: "category" | "supplier" }) => {
     checkAuthAndRole(["operations"]);
     try {
@@ -1173,12 +1225,15 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     addUnit,
     addPurchaseRequest,
     updatePurchaseRequestStatus,
+    deletePurchaseRequest,
     receivePurchaseRequest,
     generatePurchaseOrder,
     cancelPurchaseOrder,
     addSupplier,
     updateSupplier,
     deleteSupplier,
+    addChecklist,
+    addSafetyInspection,
     batchApprovedRequests,
     removeRequestFromLot,
     addRequestToLot,

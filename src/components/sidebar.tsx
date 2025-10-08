@@ -26,6 +26,7 @@ import {
   FileBarChart,
   User as UserIcon,
   Ruler,
+  ShieldCheck,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -62,6 +63,8 @@ const aprNavItems = [
   { href: '/dashboard/apr', icon: LayoutDashboard, label: 'Resumen' },
   { href: '/dashboard/apr/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/apr/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
+  { href: '/dashboard/apr/checklist', icon: ShieldCheck, label: 'Checklist de Seguridad' },
+  { href: '/dashboard/apr/safety-inspection', icon: ShieldCheck, label: 'Inspección de Seguridad' },
   { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
 ];
 
