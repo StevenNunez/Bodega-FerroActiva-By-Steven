@@ -87,6 +87,14 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
       });
     }
   };
+  
+    const categoryWatcher = watch('category');
+
+    const filteredSuppliers = React.useMemo(() => {
+        if (!categoryWatcher) return [];
+        return suppliers.filter(s => s.categories.includes(categoryWatcher));
+    }, [suppliers, categoryWatcher]);
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -172,7 +180,7 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
                         name="category"
                         control={control}
                         render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={(value) => { field.onChange(value); setValue('supplierId', null); }} value={field.value}>
                                 <SelectTrigger id="category">
                                     <SelectValue placeholder="Selecciona una categoría" />
                                 </SelectTrigger>
@@ -189,25 +197,27 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
 
                 <div className="space-y-2">
                     <Label htmlFor="supplierId">Proveedor Preferido (Opcional)</Label>
-                        <Controller
-                        name="supplierId"
-                        control={control}
-                        render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value || ''}>
-                                <SelectTrigger id="supplierId">
-                                    <SelectValue placeholder="Selecciona un proveedor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="ninguno">Ninguno</SelectItem>
-                                    {suppliers.map((s: Supplier) => (
-                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
+                    <Controller
+                    name="supplierId"
+                    control={control}
+                    render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value || ''} disabled={!categoryWatcher}>
+                            <SelectTrigger id="supplierId">
+                                <SelectValue placeholder={!categoryWatcher ? "Primero elige una categoría" : (filteredSuppliers.length > 0 ? "Selecciona un proveedor" : "No hay proveedores para esta categoría")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ninguno">Ninguno</SelectItem>
+                                {filteredSuppliers.map((s: Supplier) => (
+                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
                     />
+                    <p className="text-xs text-muted-foreground">Se sugieren proveedores según la categoría del material.</p>
                     {errors.supplierId && <p className="text-xs text-destructive">{errors.supplierId.message}</p>}
                 </div>
+
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
                     <Button type="submit" disabled={isSubmitting}>

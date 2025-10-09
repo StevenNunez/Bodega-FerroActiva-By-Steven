@@ -117,6 +117,7 @@ interface AppStateContextType {
   updateMaterialCategory: (id: string, name: string) => Promise<void>;
   deleteMaterialCategory: (id: string) => Promise<void>;
   addUnit: (name: string) => Promise<void>;
+  deleteUnit: (id: string) => Promise<void>;
   addPurchaseRequest: (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => Promise<void>;
   updatePurchaseRequestStatus: (
     id: string,
@@ -321,7 +322,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addMaterial = async (material: Omit<Material, "id">) => {
+  const addMaterial = async (material: Omit<Material, "id"> & { justification?: string }) => {
     checkAuthAndRole(["admin", "operations"]);
     try {
       const batch = writeBatch(db);
@@ -334,7 +335,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         batch.set(newUnitRef, { name: material.unit, id: newUnitRef.id });
       }
 
-      batch.set(newMaterialRef, { ...material, id: newMaterialRef.id });
+      const { justification, ...materialData } = material;
+      batch.set(newMaterialRef, { ...materialData, id: newMaterialRef.id });
 
       if (material.stock > 0 && authUser) {
         const newPurchaseRequestRef = doc(collection(db, "purchaseRequests"));
@@ -344,7 +346,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
           quantity: material.stock,
           unit: material.unit,
           category: material.category,
-          justification: "Ingreso Manual de Stock Inicial",
+          justification: justification || "Ingreso de stock inicial",
           area: "Bodega Central",
           supervisorId: authUser.id,
           status: "received",
@@ -520,6 +522,27 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         throw err;
     }
   };
+  
+  const deleteUnit = async (id: string) => {
+    checkAuthAndRole(["admin", "operations"]);
+    try {
+        const unitRef = doc(db, "units", id);
+        const unitDoc = await getDoc(unitRef);
+        const unit = unitDoc.data() as Unit;
+        
+        const materialsWithUnit = await getDocs(query(collection(db, "materials"), where("unit", "==", unit.name)));
+        if (!materialsWithUnit.empty) {
+          throw new Error("No se puede eliminar: la unidad está en uso en uno o más materiales.");
+        }
+        
+        await deleteDoc(unitRef);
+        notify("Unidad eliminada exitosamente.", "success");
+    } catch (err: any) {
+        notify("Error al eliminar la unidad: " + err.message, "destructive");
+        throw err;
+    }
+  }
+
 
   const addRequest = async (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => {
     checkAuthAndRole(["supervisor", "worker", "admin", "apr", "operations"]);
@@ -1223,6 +1246,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateMaterialCategory,
     deleteMaterialCategory,
     addUnit,
+    deleteUnit,
     addPurchaseRequest,
     updatePurchaseRequestStatus,
     deletePurchaseRequest,

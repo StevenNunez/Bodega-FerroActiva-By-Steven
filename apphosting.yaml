@@ -15,6 +15,6 @@ buildConfig:
 serveConfig:
   # The directory that contains the app's code and assets.
   # This is a Next.js project, so the default is correct.
-  sourceDir: .
+  sourceDir: src
   # The command that starts the server
   startCommand: npm run start -- -p $PORT

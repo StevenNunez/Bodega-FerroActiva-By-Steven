@@ -115,10 +115,15 @@ export default function AdminMaterialsPage() {
   }, [filteredMaterials, currentPage]);
 
   const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
-
-  const getDate = (date: Date | Timestamp | null | undefined): string => {
-    if (!date) return "Fecha no disponible";
-    const jsDate = date instanceof Timestamp ? date.toDate() : date;
+  
+  const toDate = (date: Date | Timestamp | null | undefined): Date | null => {
+    if (!date) return null;
+    return date instanceof Timestamp ? date.toDate() : date;
+  };
+  
+  const formatDate = (date: Date | Timestamp | null | undefined): string => {
+    const jsDate = toDate(date);
+    if (!jsDate) return "Fecha no disponible";
     return jsDate.toLocaleDateString("es-ES", {
       day: "2-digit",
       month: "2-digit",
@@ -132,9 +137,9 @@ export default function AdminMaterialsPage() {
     return purchaseRequests
       .filter((pr) => pr.status === "received" && pr.receivedAt)
       .sort((a, b) => {
-        const dateA = getDate(b.receivedAt);
-        const dateB = getDate(a.receivedAt);
-        return new Date(dateB).getTime() - new Date(dateA).getTime(); // Orden descendente
+        const dateA = toDate(a.receivedAt)?.getTime() || 0;
+        const dateB = toDate(b.receivedAt)?.getTime() || 0;
+        return dateB - dateA;
       })
       .slice(0, 5);
   }, [purchaseRequests]);
@@ -143,9 +148,9 @@ export default function AdminMaterialsPage() {
     return (requests as CompatibleMaterialRequest[])
       .filter((r) => r.status === "approved")
       .sort((a, b) => {
-        const dateA = getDate(b.createdAt);
-        const dateB = getDate(a.createdAt);
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
+        const dateA = toDate(a.createdAt)?.getTime() || 0;
+        const dateB = toDate(b.createdAt)?.getTime() || 0;
+        return dateB - dateA;
       })
       .slice(0, 5);
   }, [requests]);
@@ -340,7 +345,7 @@ export default function AdminMaterialsPage() {
                   <ul className="space-y-3 pr-4">
                     {recentApprovedRequests.map((req) => {
                       const supervisor = users.find((u) => u.id === req.supervisorId);
-                      const createdAtDate = getDate(req.createdAt);
+                      const createdAtDate = formatDate(req.createdAt);
                       return (
                         <li key={`approved-${req.id}`} className="text-sm p-3 rounded-lg border bg-muted/50">
                             <ul className="list-disc list-inside space-y-1">
@@ -387,7 +392,7 @@ export default function AdminMaterialsPage() {
                   <ul className="space-y-3 pr-4">
                     {recentReceived.map((req) => {
                       const supervisor = users.find((u) => u.id === req.supervisorId);
-                      const receivedAtDate = getDate(req.receivedAt);
+                      const receivedAtDate = formatDate(req.receivedAt);
                       return (
                         <li key={`received-${req.id}`} className="text-sm p-3 rounded-lg border bg-muted/50">
                           <p className="font-semibold max-w-full truncate">

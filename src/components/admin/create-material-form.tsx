@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useAppState } from '@/contexts/app-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, PackagePlus, ChevronsUpDown, Check } from 'lucide-react';
@@ -15,13 +16,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { cn } from '@/lib/utils';
 
-
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   stock: z.coerce.number().min(0, 'El stock no puede ser negativo.'),
   unit: z.string({ required_error: 'La unidad no puede estar vacía.' }).min(1, 'La unidad no puede estar vacía.'),
   category: z.string({ required_error: 'Debes seleccionar una categoría.' }),
   supplierId: z.string().nullable(),
+  justification: z.string().optional(),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -45,12 +46,21 @@ export function CreateMaterialForm() {
       name: "",
       stock: 0,
       supplierId: null,
+      justification: ""
     }
   });
 
-  const categoryWatcher = watch('category');
+  const stockWatcher = watch('stock');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
+    if (data.stock > 0 && !data.justification) {
+        toast({
+            variant: 'destructive',
+            title: 'Justificación Requerida',
+            description: 'Debes añadir una justificación si el stock inicial es mayor a 0.'
+        });
+        return;
+    }
     try {
       await addMaterial({
           ...data,
@@ -61,19 +71,14 @@ export function CreateMaterialForm() {
         description: `${data.name} ha sido añadido y su ingreso ha sido registrado.`,
       });
       reset();
-    } catch (error) {
+    } catch (error: any) {
        toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'No se pudo crear el material.',
+        description: error.message || 'No se pudo crear el material.',
       });
     }
   };
-  
-  const filteredSuppliers = React.useMemo(() => {
-      if (!categoryWatcher) return suppliers;
-      return suppliers.filter(s => s.categories.includes(categoryWatcher));
-  }, [suppliers, categoryWatcher]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -144,6 +149,14 @@ export function CreateMaterialForm() {
                 {errors.unit && <p className="text-xs text-destructive">{errors.unit.message}</p>}
             </div>
        </div>
+        
+        {stockWatcher > 0 && (
+             <div className="space-y-2">
+                <Label htmlFor="justification">Justificación del Ingreso Inicial</Label>
+                <Textarea id="justification" placeholder="Ej: Inventario inicial, sobrante de obra X..." {...register('justification')} />
+                {errors.justification && <p className="text-xs text-destructive">{errors.justification.message}</p>}
+            </div>
+        )}
 
         <div className="space-y-2">
             <Label htmlFor="category">Categoría del Material</Label>
@@ -151,13 +164,19 @@ export function CreateMaterialForm() {
                 name="category"
                 control={control}
                 render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
+                     <Select 
+                        onValueChange={(value) => {
+                            const categoryName = materialCategories.find(c => c.id === value)?.name;
+                            field.onChange(categoryName);
+                        }} 
+                        value={materialCategories.find(c => c.name === field.value)?.id || ''}
+                    >
                         <SelectTrigger id="category">
                             <SelectValue placeholder="Selecciona una categoría" />
                         </SelectTrigger>
                         <SelectContent>
                             {materialCategories.map((cat: MaterialCategory) => (
-                                <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -172,20 +191,19 @@ export function CreateMaterialForm() {
             name="supplierId"
             control={control}
             render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value || ''} disabled={!categoryWatcher}>
+                <Select onValueChange={field.onChange} value={field.value || ''}>
                     <SelectTrigger id="supplierId">
-                        <SelectValue placeholder={!categoryWatcher ? "Primero elige una categoría" : "Selecciona un proveedor"} />
+                        <SelectValue placeholder="Selecciona un proveedor" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="ninguno">Ninguno</SelectItem>
-                        {filteredSuppliers.map((s: Supplier) => (
+                        {suppliers.map((s: Supplier) => (
                             <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
             )}
             />
-            <p className="text-xs text-muted-foreground">Se sugieren proveedores según la categoría del material.</p>
             {errors.supplierId && <p className="text-xs text-destructive">{errors.supplierId.message}</p>}
         </div>
 

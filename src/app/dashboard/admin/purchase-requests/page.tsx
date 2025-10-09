@@ -183,8 +183,9 @@ export default function AdminPurchaseRequestsPage() {
     }
     
     if (searchTerm) {
+        const lowercasedTerm = searchTerm.toLowerCase();
         requests = requests.filter(req => 
-            req.materialName.toLowerCase().includes(searchTerm.toLowerCase())
+            req.materialName.toLowerCase().includes(lowercasedTerm)
         );
     }
     return requests;
