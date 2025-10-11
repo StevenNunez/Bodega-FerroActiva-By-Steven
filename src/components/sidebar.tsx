@@ -42,6 +42,7 @@ const adminNavItems = [
   { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
+  { href: '/dashboard/admin/bulk-import', icon: Upload, label: 'Importación Masiva' },
   { href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' },
   { href: '/dashboard/admin/units', icon: Ruler, label: 'Unidades' },
   { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
@@ -50,7 +51,6 @@ const adminNavItems = [
   { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
   { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
-  { href: '/dashboard/admin/bulk-import', icon: Upload, label: 'Importación Masiva' },
   { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
   { href: '/dashboard/admin/certificate', icon: Medal, label: 'Mi Certificado' },
 ];
