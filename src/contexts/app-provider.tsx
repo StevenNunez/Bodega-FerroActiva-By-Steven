@@ -125,7 +125,7 @@ interface AppStateContextType {
     data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "unit" | "notes" | "justification">>
   ) => Promise<void>;
   deletePurchaseRequest: (id: string) => Promise<void>;
-  receivePurchaseRequest: (purchaseRequestId: string, receivedQuantity: number) => Promise<void>;
+  receivePurchaseRequest: (purchaseRequestId: string, receivedQuantity: number, existingMaterialId?: string) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
   cancelPurchaseOrder: (orderId: string) => Promise<void>;
   addSupplier: (name: string, categories: string[]) => Promise<void>;
@@ -194,6 +194,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     };
 
     setLoading(true);
+    console.log("--- CONECTANDO A FIRESTORE (ESTO DEBE APARECER SOLO UNA VEZ POR RECARGA) ---");
     const collections: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>>; sortField?: string }[] = [
         { name: "users", setter: setUsers, sortField: "name" },
         { name: "tools", setter: setTools, sortField: "name" },
@@ -367,52 +368,76 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateMaterial = async (materialId: string, data: Partial<Omit<Material, "id">>) => {
     checkAuthAndRole(["admin", "operations"]);
     try {
-      const batch = writeBatch(db);
-      const materialRef = doc(db, "materials", materialId);
+        const batch = writeBatch(db);
+        const materialRef = doc(db, "materials", materialId);
 
-      // Check if unit exists, if not, create it
-      if (data.unit) {
-          const unitExists = units.some(u => u.name.toLowerCase() === data.unit!.toLowerCase());
-          if (!unitExists) {
-            const newUnitRef = doc(collection(db, "units"));
-            batch.set(newUnitRef, { name: data.unit, id: newUnitRef.id });
-          }
-      }
+        // Prepare the data, ensuring supplierId is not undefined
+        const updateData = { ...data };
+        if (updateData.supplierId === undefined) {
+            updateData.supplierId = null;
+        } else if (updateData.supplierId === "ninguno") {
+            updateData.supplierId = null;
+        }
+        
+        // Check if unit exists, if not, create it
+        if (updateData.unit) {
+            const unitExists = units.some(u => u.name.toLowerCase() === updateData.unit!.toLowerCase());
+            if (!unitExists) {
+                const newUnitRef = doc(collection(db, "units"));
+                batch.set(newUnitRef, { name: updateData.unit, id: newUnitRef.id });
+            }
+        }
 
-      batch.update(materialRef, {
-        ...data,
-        supplierId: data.supplierId === "ninguno" ? null : data.supplierId,
-      });
+        batch.update(materialRef, updateData);
 
-      await batch.commit();
-      notify("Material actualizado exitosamente.", "success");
+        await batch.commit();
+        notify("Material actualizado exitosamente.", "success");
     } catch (err: any) {
-      notify("Error al actualizar material: " + err.message, "destructive");
-      throw err;
+        console.error("Error updating material:", err); // Log the full error
+        notify("Error al actualizar material: " + err.message, "destructive");
+        throw err;
     }
   };
 
   const deleteMaterial = async (materialId: string) => {
     checkAuthAndRole(["admin"]);
     try {
-      const materialRef = doc(db, "materials", materialId);
-      const requestsQuery = query(collection(db, "requests"), where("items", "array-contains", { materialId }));
-      const requestsSnapshot = await getDocs(requestsQuery);
-       if (!requestsSnapshot.empty) {
-        throw new Error("No se puede eliminar: El material está en uso en una o más solicitudes de material.");
-      }
-      
-      const oldRequestsQuery = query(collection(db, "requests"), where("materialId", "==", materialId));
-      const oldRequestsSnapshot = await getDocs(oldRequestsQuery);
-      if (!oldRequestsSnapshot.empty) {
-        throw new Error("No se puede eliminar: El material está en uso en una o más solicitudes (formato antiguo).");
-      }
-      
-      await deleteDoc(materialRef);
-      notify("Material eliminado exitosamente.", "success");
+        if (!materialId) throw new Error("ID de material requerido.");
+        
+        const materialRef = doc(db, "materials", materialId);
+        
+        // This is a simplified check. A more robust check would require iterating through docs client-side or a more complex query/data model.
+        // For this context, we will check if ANY request contains the materialId in its items array.
+        const allRequests = await getDocs(collection(db, 'requests'));
+        const requestUsingMaterial = allRequests.docs.some(doc => {
+            const items = doc.data().items as { materialId: string, quantity: number }[] | undefined;
+            return items?.some(item => item.materialId === materialId);
+        });
+
+        if (requestUsingMaterial) {
+            throw new Error("No se puede eliminar: El material está en uso en una o más solicitudes de material.");
+        }
+
+        // Check old `materialId` field structure for legacy support
+        const oldRequestsQuery = query(collection(db, "requests"), where("materialId", "==", materialId));
+        const oldRequestsSnapshot = await getDocs(oldRequestsQuery);
+
+        if (!oldRequestsSnapshot.empty) {
+            throw new Error("No se puede eliminar: El material está en uso en una o más solicitudes (formato antiguo).");
+        }
+        
+        const purchaseRequestQuery = query(collection(db, "purchaseRequests"), where("materialName", "==", (await getDoc(materialRef)).data()?.name));
+        const purchaseRequestSnapshot = await getDocs(purchaseRequestQuery);
+        if (!purchaseRequestSnapshot.empty) {
+            throw new Error("No se puede eliminar: El material está referenciado en solicitudes de compra.");
+        }
+
+
+        await deleteDoc(materialRef);
+        notify("Material eliminado exitosamente.", "success");
     } catch (err: any) {
-      notify("Error al eliminar material: " + err.message, "destructive");
-      throw err;
+        notify("Error al eliminar material: " + err.message, "destructive");
+        throw err;
     }
   };
 
@@ -871,7 +896,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   }
 
 
-  const receivePurchaseRequest = async (purchaseRequestId: string, receivedQuantity: number) => {
+ const receivePurchaseRequest = async (purchaseRequestId: string, receivedQuantity: number, existingMaterialId?: string) => {
     checkAuthAndRole(["admin"]);
     try {
         const reqRef = doc(db, "purchaseRequests", purchaseRequestId);
@@ -884,24 +909,24 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
 
         const batch = writeBatch(db);
+        let materialRef;
 
-        // Update stock
-        const materialsQuery = query(collection(db, "materials"), where("name", "==", req.materialName));
-        const materialsSnapshot = await getDocs(materialsQuery);
-
-        if (materialsSnapshot.empty) {
-            const newMaterialRef = doc(collection(db, "materials"));
-            batch.set(newMaterialRef, {
-                id: newMaterialRef.id, name: req.materialName, stock: receivedQuantity,
+        if (existingMaterialId) {
+            // Use existing material
+            materialRef = doc(db, "materials", existingMaterialId);
+            const materialDoc = await getDoc(materialRef);
+            if (!materialDoc.exists()) throw new Error("El material existente seleccionado no fue encontrado.");
+            const existingMaterialData = materialDoc.data() as Material;
+            batch.update(materialRef, { stock: existingMaterialData.stock + receivedQuantity });
+        } else {
+            // Create new material
+            materialRef = doc(collection(db, "materials"));
+            batch.set(materialRef, {
+                id: materialRef.id, name: req.materialName, stock: receivedQuantity,
                 unit: req.unit, category: req.category, supplierId: null,
             });
-        } else {
-            const existingMaterialRef = materialsSnapshot.docs[0].ref;
-            const existingMaterialData = materialsSnapshot.docs[0].data() as Material;
-            batch.update(existingMaterialRef, { stock: existingMaterialData.stock + receivedQuantity });
         }
-
-        // Update original request
+        
         const isPartial = receivedQuantity < req.quantity;
         const isOver = receivedQuantity > req.quantity;
         let finalNotes = req.notes || '';
@@ -920,7 +945,6 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             quantity: receivedQuantity
         });
 
-        // Create a new request for the remaining quantity if it's a partial reception
         if (isPartial) {
             const newReqRef = doc(collection(db, "purchaseRequests"));
             const remainingQuantity = req.quantity - receivedQuantity;
@@ -928,7 +952,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
                 ...req,
                 id: newReqRef.id,
                 quantity: remainingQuantity,
-                status: "approved", // Remains approved to continue flow
+                status: "approved",
                 createdAt: Timestamp.now(),
                 receivedAt: null,
                 notes: `Generado por faltante de OC #${req.id}. Pendiente: ${remainingQuantity}.`,

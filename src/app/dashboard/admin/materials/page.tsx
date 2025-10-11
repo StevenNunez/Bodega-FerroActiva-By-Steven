@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { CreateMaterialForm } from "@/components/admin/create-material-form";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"; // Importar ScrollBar
-import { PackageCheck, PackageOpen, Edit, Trash2 } from "lucide-react";
+import { PackageCheck, PackageOpen, Edit, Trash2, Archive } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { Material, MaterialRequest } from "@/lib/data";
 import { EditMaterialForm } from "@/components/admin/edit-material-form";
@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type CompatibleMaterialRequest = MaterialRequest & {
     materialId?: string;
@@ -43,12 +44,13 @@ type CompatibleMaterialRequest = MaterialRequest & {
 };
 
 export default function AdminMaterialsPage() {
-  const { materials, purchaseRequests, users, requests, suppliers, isLoading, deleteMaterial } = useAppState();
+  const { materials, purchaseRequests, users, requests, suppliers, isLoading, deleteMaterial, updateMaterial } = useAppState();
   const { user: authUser } = useAuth(); // Asumiendo useAuth como en el anterior
   const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all"); // Nuevo: filtro por categoría
+  const [showArchived, setShowArchived] = useState(false);
   const [currentPage, setCurrentPage] = useState(1); // Nuevo: para paginación
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const itemsPerPage = 10; // Configurable
@@ -89,6 +91,27 @@ export default function AdminMaterialsPage() {
     }
   };
 
+  const handleArchiveMaterial = async (material: Material) => {
+    if (material.stock > 0) {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se puede archivar un material con stock.' });
+      return;
+    }
+    try {
+      await updateMaterial(material.id, { archived: true });
+      toast({
+        title: "Material Archivado",
+        description: `El material ${material.name} ha sido archivado.`,
+      });
+    } catch (error) {
+       toast({
+        variant: "destructive",
+        title: "Error al Archivar",
+        description: error instanceof Error ? error.message : "No se pudo archivar el material.",
+      });
+    }
+  };
+
+
   // Obtener categorías únicas para el filtro (de materials)
   const categories = useMemo(() => {
     const uniqueCats = [...new Set(materials.map((m) => m.category))];
@@ -96,7 +119,7 @@ export default function AdminMaterialsPage() {
   }, [materials]);
 
   const filteredMaterials = useMemo(() => {
-    let filtered = materials;
+    let filtered = materials.filter(m => showArchived || !m.archived);
     if (searchTerm) {
       filtered = filtered.filter((material) =>
         material.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -106,7 +129,7 @@ export default function AdminMaterialsPage() {
       filtered = filtered.filter((material) => material.category === categoryFilter);
     }
     return filtered;
-  }, [materials, searchTerm, categoryFilter]);
+  }, [materials, searchTerm, categoryFilter, showArchived]);
 
   // Paginación
   const paginatedMaterials = useMemo(() => {
@@ -146,7 +169,7 @@ export default function AdminMaterialsPage() {
 
   const recentApprovedRequests = useMemo(() => {
     return (requests as CompatibleMaterialRequest[])
-      .filter((r) => r.status === "approved")
+      .filter((r) => r.status === "approved" && r.createdAt)
       .sort((a, b) => {
         const dateA = toDate(a.createdAt)?.getTime() || 0;
         const dateB = toDate(b.createdAt)?.getTime() || 0;
@@ -210,8 +233,12 @@ export default function AdminMaterialsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <div className="flex items-center space-x-2 pt-2 sm:pt-0">
+                    <Checkbox id="showArchived" checked={showArchived} onCheckedChange={(checked) => setShowArchived(checked as boolean)} />
+                    <Label htmlFor="showArchived" className="text-sm font-medium whitespace-nowrap">Mostrar archivados</Label>
+                </div>
               </div>
-              <ScrollArea className="h-96 border rounded-md whitespace-nowrap">
+              <ScrollArea className="h-96 border rounded-md">
                 <div className="min-w-full"> {/* Fuerza ancho para activar scroll horizontal */}
                   <Table className="min-w-[800px]">
                     <TableHeader className="sticky top-0 bg-card">
@@ -227,8 +254,8 @@ export default function AdminMaterialsPage() {
                     <TableBody>
                       {paginatedMaterials.length > 0 ? (
                         paginatedMaterials.map((material) => (
-                          <TableRow key={material.id}>
-                            <TableCell className="font-medium max-w-[250px] truncate">
+                          <TableRow key={material.id} className={material.archived ? "bg-muted/30" : ""}>
+                            <TableCell className="font-medium whitespace-nowrap">
                               {material.name}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">
@@ -255,6 +282,12 @@ export default function AdminMaterialsPage() {
                                     <Edit className="mr-2 h-4 w-4" />
                                     <span>Editar</span>
                                   </DropdownMenuItem>
+                                  {!material.archived && material.stock === 0 && (
+                                    <DropdownMenuItem onClick={() => handleArchiveMaterial(material)}>
+                                        <Archive className="mr-2 h-4 w-4" />
+                                        <span>Archivar</span>
+                                    </DropdownMenuItem>
+                                  )}
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">

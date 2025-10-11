@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { PurchaseRequest, PurchaseRequestStatus } from "@/lib/data";
+import { PurchaseRequest, PurchaseRequestStatus, Material } from "@/lib/data";
 import {
   Check,
   Clock,
@@ -35,6 +35,7 @@ import {
   Edit,
   AlertCircle,
   Search,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import {
@@ -52,28 +53,35 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 interface ReceiveRequestDialogProps {
   request: PurchaseRequest | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (requestId: string, quantity: number) => Promise<void>;
+  onConfirm: (requestId: string, quantity: number, materialId?: string) => Promise<void>;
+  materials: Material[];
 }
 
-function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRequestDialogProps) {
+function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm, materials }: ReceiveRequestDialogProps) {
   const [receivedQuantity, setReceivedQuantity] = useState<number | string>("");
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const { toast } = useToast();
 
   React.useEffect(() => {
     if (request) {
       setReceivedQuantity(request.quantity);
+      setSelectedMaterialId(undefined); // Reset on new request
     } else {
       setReceivedQuantity("");
+      setSelectedMaterialId(undefined);
     }
   }, [request]);
 
@@ -84,17 +92,23 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
       toast({ variant: "destructive", title: "Error", description: "La cantidad debe ser un número positivo." });
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
-      await onConfirm(request.id, quantityNum);
+      await onConfirm(request.id, quantityNum, selectedMaterialId);
     } finally {
-        // La lógica de cierre está ahora en la función principal para asegurar que el estado se actualice
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
+  
+  const unarchivedMaterials = useMemo(() => materials.filter(m => !m.archived), [materials]);
 
   if (!request) return null;
+  
+  const selectedMaterialName = selectedMaterialId
+      ? materials.find(m => m.id === selectedMaterialId)?.name
+      : "Asignar a material existente...";
+
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -107,10 +121,6 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
         </DialogHeader>
         <div className="py-4 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="approved-quantity">Cantidad Aprobada</Label>
-            <Input id="approved-quantity" value={request.quantity} disabled />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="received-quantity">Cantidad Recibida Real</Label>
             <Input
               id="received-quantity"
@@ -119,9 +129,51 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
               onChange={(e) => setReceivedQuantity(e.target.value)}
               placeholder="Ingresa la cantidad que llegó..."
             />
-             <p className="text-xs text-muted-foreground">
-                Puedes ingresar una cantidad mayor o menor a la aprobada.
-             </p>
+            <p className="text-xs text-muted-foreground">
+              Puedes ajustar la cantidad si es diferente a la aprobada ({request.quantity}).
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Asignar a Material Existente (Opcional)</Label>
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between"
+                >
+                  <span className="truncate">{selectedMaterialName}</span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput placeholder="Buscar material..." />
+                  <CommandList>
+                    <CommandEmpty>No se encontraron materiales.</CommandEmpty>
+                    <CommandGroup>
+                      {unarchivedMaterials.map((material) => (
+                        <CommandItem
+                          key={material.id}
+                          value={material.name}
+                          onSelect={() => {
+                            setSelectedMaterialId(material.id);
+                            setPopoverOpen(false);
+                          }}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", selectedMaterialId === material.id ? "opacity-100" : "opacity-0")} />
+                          {material.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              Si este material ya existe (ej. es un duplicado), selecciónalo aquí para sumar el stock en lugar de crear uno nuevo.
+            </p>
           </div>
         </div>
         <DialogFooter>
@@ -136,9 +188,8 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm }: ReceiveRe
   );
 }
 
-
 export default function AdminPurchaseRequestsPage() {
-  const { purchaseRequests, users, receivePurchaseRequest, isLoading } = useAppState();
+  const { purchaseRequests, users, receivePurchaseRequest, isLoading, materials } = useAppState();
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -177,11 +228,9 @@ export default function AdminPurchaseRequestsPage() {
 
   const filteredRequests = useMemo(() => {
     let requests = purchaseRequests;
-
     if (statusFilter !== "all") {
       requests = requests.filter((req) => req.status === statusFilter);
     }
-    
     if (searchTerm) {
         const lowercasedTerm = searchTerm.toLowerCase();
         requests = requests.filter(req => 
@@ -197,9 +246,9 @@ export default function AdminPurchaseRequestsPage() {
   );
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
 
-  const handleReceive = async (id: string, quantity: number) => {
+  const handleReceive = async (id: string, quantity: number, existingMaterialId?: string) => {
     try {
-      await receivePurchaseRequest(id, quantity);
+      await receivePurchaseRequest(id, quantity, existingMaterialId);
       setReceivingRequest(null);
     } catch (error) {
       toast({
@@ -292,6 +341,7 @@ export default function AdminPurchaseRequestsPage() {
         isOpen={!!receivingRequest}
         onClose={() => setReceivingRequest(null)}
         onConfirm={handleReceive}
+        materials={materials}
       />
 
       <PageHeader

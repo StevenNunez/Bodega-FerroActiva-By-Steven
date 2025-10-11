@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { cn } from '@/lib/utils';
+import { Switch } from '../ui/switch';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -22,6 +23,7 @@ const FormSchema = z.object({
   unit: z.string({ required_error: 'La unidad no puede estar vacía.' }).min(1, 'La unidad no puede estar vacía.'),
   category: z.string({ required_error: 'Debes seleccionar una categoría.' }),
   supplierId: z.string().nullable(),
+  archived: z.boolean(),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -53,6 +55,7 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
         unit: material.unit,
         category: material.category,
         supplierId: material.supplierId || null,
+        archived: material.archived || false,
     }
   });
 
@@ -64,6 +67,7 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
             unit: material.unit,
             category: material.category,
             supplierId: material.supplierId || null,
+            archived: material.archived || false,
           });
       }
   }, [material, reset]);
@@ -89,11 +93,6 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
   };
   
     const categoryWatcher = watch('category');
-
-    const filteredSuppliers = React.useMemo(() => {
-        if (!categoryWatcher) return [];
-        return suppliers.filter(s => s.categories.includes(categoryWatcher));
-    }, [suppliers, categoryWatcher]);
 
 
   return (
@@ -176,17 +175,25 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
 
                 <div className="space-y-2">
                     <Label htmlFor="category">Categoría del Material</Label>
-                        <Controller
+                    <Controller
                         name="category"
                         control={control}
                         render={({ field }) => (
-                            <Select onValueChange={(value) => { field.onChange(value); setValue('supplierId', null); }} value={field.value}>
+                            <Select 
+                                onValueChange={(value) => {
+                                    const categoryName = materialCategories.find(c => c.id === value)?.name;
+                                    if(categoryName) {
+                                        field.onChange(categoryName);
+                                    }
+                                }} 
+                                value={materialCategories.find(c => c.name === field.value)?.id || ''}
+                            >
                                 <SelectTrigger id="category">
                                     <SelectValue placeholder="Selecciona una categoría" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {materialCategories.map((cat: MaterialCategory) => (
-                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -201,22 +208,37 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
                     name="supplierId"
                     control={control}
                     render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value || ''} disabled={!categoryWatcher}>
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
                             <SelectTrigger id="supplierId">
-                                <SelectValue placeholder={!categoryWatcher ? "Primero elige una categoría" : (filteredSuppliers.length > 0 ? "Selecciona un proveedor" : "No hay proveedores para esta categoría")} />
+                                <SelectValue placeholder="Selecciona un proveedor de la lista" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="ninguno">Ninguno</SelectItem>
-                                {filteredSuppliers.map((s: Supplier) => (
+                                {suppliers.map((s: Supplier) => (
                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     )}
                     />
-                    <p className="text-xs text-muted-foreground">Se sugieren proveedores según la categoría del material.</p>
                     {errors.supplierId && <p className="text-xs text-destructive">{errors.supplierId.message}</p>}
                 </div>
+
+                 <div className="flex items-center space-x-2 pt-4">
+                    <Controller
+                        name="archived"
+                        control={control}
+                        render={({ field }) => (
+                            <Switch
+                                id="archived"
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                            />
+                        )}
+                    />
+                    <Label htmlFor="archived">Archivado</Label>
+                 </div>
+
 
                 <DialogFooter>
                     <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>

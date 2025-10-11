@@ -40,6 +40,7 @@ export interface Material {
   unit: string;
   category: string;
   supplierId?: string | null; // Preferred supplier
+  archived?: boolean;
 }
 
 export interface MaterialRequest {
