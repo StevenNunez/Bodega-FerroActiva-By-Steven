@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance";
 
 export interface User {
   id: string; // Corresponds to Firebase Auth UID
@@ -135,15 +135,6 @@ export interface PurchaseOrder {
     items: { materialName: string; totalQuantity: number; unit: string; category: string }[];
 }
 
-export interface ChecklistItem {
-  element: string;
-  yes: boolean;
-  no: boolean;
-  na: boolean;
-  responsible: string;
-  date: string;
-}
-
 export interface Checklist {
   id: string;
   work: string;
@@ -154,6 +145,16 @@ export interface Checklist {
   reviewedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
   createdBy: string; // User ID
 }
+
+export interface ChecklistItem {
+  element: string;
+  yes: boolean;
+  no: boolean;
+  na: boolean;
+  responsible: string;
+  date: string;
+}
+
 
 export interface SafetyInspection {
   id: string;
@@ -173,4 +174,15 @@ export interface SafetyInspection {
   finalDescription?: string;
   executorName?: string;
   finalDate?: Date | Timestamp | null;
+}
+
+export interface SupplierPayment {
+  id: string;
+  supplierId: string;
+  invoiceNumber: string;
+  amount: number;
+  dueDate: Date | Timestamp;
+  status: 'pending' | 'paid' | 'overdue';
+  createdAt: Date | Timestamp;
+  purchaseOrderNumber?: string;
 }

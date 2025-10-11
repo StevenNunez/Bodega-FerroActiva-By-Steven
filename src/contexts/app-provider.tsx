@@ -19,6 +19,7 @@ import {
   Unit,
   Checklist,
   SafetyInspection,
+  SupplierPayment,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -93,6 +94,7 @@ interface AppStateContextType {
   attendanceLogs: AttendanceLog[];
   purchaseRequests: PurchaseRequest[];
   suppliers: Supplier[];
+  supplierPayments: SupplierPayment[];
   purchaseOrders: PurchaseOrder[];
   manualLots: string[];
   addTool: (toolName: string) => Promise<void>;
@@ -128,11 +130,13 @@ interface AppStateContextType {
   receivePurchaseRequest: (purchaseRequestId: string, receivedQuantity: number, existingMaterialId?: string) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
   cancelPurchaseOrder: (orderId: string) => Promise<void>;
-  addSupplier: (name: string, categories: string[]) => Promise<void>;
+  addSupplier: (name: string, categories: string[]) => Promise<string>;
   updateSupplier: (supplierId: string, data: Partial<Omit<Supplier, "id">>) => Promise<void>;
   deleteSupplier: (supplierId: string) => Promise<void>;
   addChecklist: (checklist: Omit<Checklist, "id" | "createdBy">) => Promise<void>;
   addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "createdBy">) => Promise<void>;
+  addSupplierPayment: (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => Promise<void>;
+  updateSupplierPaymentStatus: (id: string, status: 'paid') => Promise<void>;
   batchApprovedRequests: (requestIds: string[], options: { mode: "category" | "supplier" }) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
@@ -156,6 +160,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [attendanceLogs, setAttendanceLogs] = React.useState<AttendanceLog[]>([]);
   const [purchaseRequests, setPurchaseRequests] = React.useState<PurchaseRequest[]>([]);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
+  const [supplierPayments, setSupplierPayments] = React.useState<SupplierPayment[]>([]);
   const [purchaseOrders, setPurchaseOrders] = React.useState<PurchaseOrder[]>([]);
   const [manualLots, setManualLots] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -189,6 +194,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       setAttendanceLogs([]);
       setPurchaseRequests([]);
       setSuppliers([]);
+      setSupplierPayments([]);
       setPurchaseOrders([]);
       return;
     };
@@ -206,6 +212,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "toolLogs", setter: setToolLogs, sortField: "checkoutDate" },
         { name: "attendanceLogs", setter: setAttendanceLogs, sortField: "timestamp" },
         { name: "purchaseRequests", setter: setPurchaseRequests, sortField: "createdAt" },
+        { name: "supplierPayments", setter: setSupplierPayments, sortField: "dueDate" },
         { name: "purchaseOrders", setter: setPurchaseOrders, sortField: "createdAt" },
     ];
 
@@ -1048,12 +1055,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addSupplier = async (name: string, categories: string[]) => {
+  const addSupplier = async (name: string, categories: string[]): Promise<string> => {
     checkAuthAndRole(["admin", "operations", "supervisor"]);
     try {
       const newDocRef = doc(collection(db, "suppliers"));
       await setDoc(newDocRef, { id: newDocRef.id, name, categories });
       notify("Proveedor agregado exitosamente.", "success");
+      return newDocRef.id;
     } catch (err: any) {
       notify("Error al agregar proveedor: " + err.message, "destructive");
       throw err;
@@ -1120,6 +1128,35 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       notify("Inspección de seguridad guardada exitosamente.", "success");
     } catch (err: any) {
       notify("Error al guardar la inspección: " + err.message, "destructive");
+      throw err;
+    }
+  };
+  
+   const addSupplierPayment = async (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => {
+    checkAuthAndRole(["admin", "operations", "finance"]);
+    try {
+      const newDocRef = doc(collection(db, "supplierPayments"));
+      await setDoc(newDocRef, {
+        ...payment,
+        id: newDocRef.id,
+        status: "pending",
+        createdAt: Timestamp.now(),
+      });
+      notify("Pago a proveedor registrado.", "success");
+    } catch (err: any) {
+      notify("Error al registrar el pago: " + err.message, "destructive");
+      throw err;
+    }
+  };
+
+  const updateSupplierPaymentStatus = async (id: string, status: 'paid') => {
+    checkAuthAndRole(["admin", "operations", "finance"]);
+    try {
+      const paymentRef = doc(db, "supplierPayments", id);
+      await updateDoc(paymentRef, { status: status });
+      notify("El estado del pago ha sido actualizado.", "success");
+    } catch (err: any) {
+      notify("Error al actualizar el estado del pago: " + err.message, "destructive");
       throw err;
     }
   };
@@ -1246,6 +1283,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     attendanceLogs,
     purchaseRequests,
     suppliers,
+    supplierPayments,
     purchaseOrders,
     manualLots,
     addTool,
@@ -1282,6 +1320,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     deleteSupplier,
     addChecklist,
     addSafetyInspection,
+    addSupplierPayment,
+    updateSupplierPaymentStatus,
     batchApprovedRequests,
     removeRequestFromLot,
     addRequestToLot,

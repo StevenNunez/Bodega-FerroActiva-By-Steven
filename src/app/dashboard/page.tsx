@@ -1,10 +1,9 @@
-
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/app-provider';
-import { Loader2, Warehouse, CalendarCheck, User as UserIcon } from 'lucide-react';
+import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
 import { UserCredentialCard } from '@/components/user-credential-card';
@@ -37,6 +36,7 @@ export default function DashboardHubPage() {
     worker: '/dashboard/worker',
     operations: '/dashboard/operations',
     apr: '/dashboard/apr',
+    finance: '/dashboard/admin/payments'
   };
   
   // Special case for 'guardia' to redirect directly to the attendance module
@@ -55,7 +55,10 @@ export default function DashboardHubPage() {
   const warehousePath = warehouseDashboardPaths[user.role] || '/dashboard';
   const attendancePath = '/dashboard/attendance/registry';
   const profilePath = '/dashboard/profile';
+  const paymentsPath = '/dashboard/admin/payments';
+  
   const canSeeAttendance = ['admin', 'operations'].includes(user.role);
+  const canSeePayments = ['admin', 'operations', 'finance'].includes(user.role);
 
 
   return (
@@ -85,21 +88,23 @@ export default function DashboardHubPage() {
               </Card>
             </Link>
             
-            <Link href={warehousePath} className="group">
-              <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <Warehouse className="h-8 w-8 transition-transform group-hover:scale-110" />
-                  </div>
-                  <div>
-                    <CardTitle>Módulo de Bodega</CardTitle>
-                    <CardDescription className="mt-1">
-                      Gestiona inventario, herramientas, solicitudes y compras.
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
+            {user.role !== 'finance' && (
+              <Link href={warehousePath} className="group">
+                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
+                  <CardHeader className="flex flex-row items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Warehouse className="h-8 w-8 transition-transform group-hover:scale-110" />
+                    </div>
+                    <div>
+                      <CardTitle>Módulo de Bodega</CardTitle>
+                      <CardDescription className="mt-1">
+                        Gestiona inventario, herramientas, solicitudes y compras.
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )}
             
             {canSeeAttendance && (
                 <Link href={attendancePath} className="group">
@@ -112,6 +117,24 @@ export default function DashboardHubPage() {
                         <CardTitle>Módulo de Asistencia</CardTitle>
                         <CardDescription className="mt-1">
                         Control de entrada y salida de personal, y reportes.
+                        </CardDescription>
+                    </div>
+                    </CardHeader>
+                </Card>
+                </Link>
+            )}
+
+            {canSeePayments && (
+                <Link href={paymentsPath} className="group">
+                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
+                    <CardHeader className="flex flex-row items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <DollarSign className="h-8 w-8 transition-transform group-hover:scale-110" />
+                    </div>
+                    <div>
+                        <CardTitle>Módulo de Pagos</CardTitle>
+                        <CardDescription className="mt-1">
+                         Gestiona las facturas y pagos a proveedores.
                         </CardDescription>
                     </div>
                     </CardHeader>
