@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -72,10 +71,10 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
   
   const getRoleDisplayName = (role: UserRole) => {
     switch (role) {
-        case 'admin': return 'Administrador';
+        case 'admin': return 'Jefe de Bodega';
         case 'supervisor': return 'Supervisor';
         case 'worker': return 'Colaborador';
-        case 'operations': return 'Jefe de Operaciones';
+        case 'operations': return 'Administrador de Obra';
         case 'apr': return 'APR';
         case 'guardia': return 'Guardia';
         default: return 'Usuario';
@@ -128,8 +127,8 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                                         <SelectValue placeholder="Selecciona un rol" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="operations">Jefe de Operaciones</SelectItem>
-                                        <SelectItem value="admin">Administrador</SelectItem>
+                                        <SelectItem value="operations">Administrador de Obra</SelectItem>
+                                        <SelectItem value="admin">Jefe de Bodega</SelectItem>
                                         <SelectItem value="supervisor">Supervisor</SelectItem>
                                         <SelectItem value="apr">APR</SelectItem>
                                         <SelectItem value="guardia">Guardia</SelectItem>

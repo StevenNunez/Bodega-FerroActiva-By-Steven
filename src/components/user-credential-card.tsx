@@ -12,10 +12,10 @@ export function UserCredentialCard() {
   
   const getRoleDisplayName = (role: string) => {
     switch (role) {
-      case 'admin': return 'Administrador';
+      case 'admin': return 'Jefe de Bodega';
       case 'supervisor': return 'Supervisor';
       case 'worker': return 'Colaborador';
-      case 'operations': return 'Jefe de Operaciones';
+      case 'operations': return 'Administrador de Obra';
       case 'apr': return 'APR';
       case 'guardia': return 'Guardia';
       default: return 'Usuario';
