@@ -2,41 +2,44 @@
 
 # Dependencies
 /node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
 
-# Next.js build output
+# Build directory
 /.next/
 /out/
-
-# Other build files
 /build
-/dist
 
-# Test results
-/coverage
+# PWA files
+/public/sw.js
+/public/workbox-*.js
+/public/worker-*.js
+/public/sw.js.map
 
-# Local environment variables
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# SWC cache
+/.swc/
 
-# Debug logs
+# Environment variables
+.env
+.env*.local
+.env.development
+.env.production
+.env.test
+
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Editor directories and files
-.vscode
+# Local configuration
 .idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-workspace
 
-# macOS specific files
+# Miscellaneous
 .DS_Store
+*.pem
+
