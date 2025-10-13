@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -68,7 +69,7 @@ export default function DashboardHubPage() {
         description="Selecciona el módulo al que deseas acceder o gestiona tu perfil."
       />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
             
             <UserCredentialCard />
 

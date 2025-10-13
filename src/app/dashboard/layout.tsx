@@ -2,13 +2,24 @@
 "use client";
 
 import * as React from "react";
+import Link from 'next/link';
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth, useAppState } from "@/contexts/app-provider";
 import { Sidebar } from "@/components/sidebar";
-import { Menu, Loader2, Bell, Volume2, VolumeX } from "lucide-react";
+import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { differenceInDays, startOfDay } from 'date-fns';
+import { Timestamp } from "firebase/firestore";
 
 export default function DashboardLayout({
   children,
@@ -16,16 +27,34 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, authLoading } = useAuth();
-  const { requests, purchaseRequests } = useAppState();
+  const { requests, purchaseRequests, supplierPayments, suppliers } = useAppState();
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(false);
 
   // Determine if the current page should have a sidebar.
-  // The main hub page (/dashboard) will not have it.
   const showSidebar = pathname !== "/dashboard";
 
+  // --- Notification Calculations ---
+  const today = startOfDay(new Date());
+
+  const overduePayments = React.useMemo(() => {
+    return supplierPayments.filter(p => {
+      if (p.status === 'paid') return false;
+      const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
+      return differenceInDays(dueDate, today) < 0;
+    });
+  }, [supplierPayments, today]);
+
+  const dueSoonPayments = React.useMemo(() => {
+    return supplierPayments.filter(p => {
+      if (p.status === 'paid') return false;
+      const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
+      const daysLeft = differenceInDays(dueDate, today);
+      return daysLeft >= 0 && daysLeft <= 7;
+    });
+  }, [supplierPayments, today]);
 
   const pendingMaterialRequests = React.useMemo(() => {
     return (requests || []).filter((r) => r.status === "pending").length;
@@ -35,8 +64,19 @@ export default function DashboardLayout({
     return (purchaseRequests || []).filter((pr) => pr.status === "pending").length;
   }, [purchaseRequests]);
 
-  const pendingCount =
-    user?.role === "admin" ? pendingMaterialRequests : user?.role === "operations" ? pendingPurchaseRequests : 0;
+  const totalNotifications = React.useMemo(() => {
+    let count = 0;
+    if (user?.role === 'admin') {
+      count = pendingMaterialRequests + pendingPurchaseRequests + overduePayments.length + dueSoonPayments.length;
+    } else if (user?.role === 'operations') {
+      count = pendingPurchaseRequests + overduePayments.length + dueSoonPayments.length;
+    } else if (user?.role === 'finance') {
+      count = overduePayments.length + dueSoonPayments.length;
+    }
+    return count;
+  }, [user, pendingMaterialRequests, pendingPurchaseRequests, overduePayments, dueSoonPayments]);
+  
+  const supplierMap = React.useMemo(() => new Map(suppliers.map(s => [s.id, s.name])), [suppliers]);
   
   const playNotificationSound = React.useCallback(() => {
     if (isMuted || typeof window === 'undefined') return;
@@ -69,16 +109,23 @@ export default function DashboardLayout({
     const now = audioContext.currentTime;
     playTone(980, now, 0.15);
     playTone(780, now + 0.2, 0.15);
-    playTone(980, now + 0.4, 0.15);
-    playTone(780, now + 0.6, 0.25);
 
   }, [isMuted]);
 
   React.useEffect(() => {
-    if (pendingCount > 0) {
+    if (totalNotifications > 0) {
       playNotificationSound();
     }
-  }, [pendingCount, playNotificationSound]);
+    
+    if ('setAppBadge' in navigator) {
+      if (totalNotifications > 0) {
+        (navigator as any).setAppBadge(totalNotifications);
+      } else {
+        (navigator as any).clearAppBadge();
+      }
+    }
+    
+  }, [totalNotifications, playNotificationSound]);
 
   React.useEffect(() => {
     if (!authLoading && !user) {
@@ -134,23 +181,79 @@ export default function DashboardLayout({
           <div className="flex-1" />
 
           <div className="flex items-center gap-4">
-             {(user?.role === "admin" || user?.role === "operations") && (
-                <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)}>
-                    {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-                    <span className="sr-only">{isMuted ? 'Activar sonido' : 'Silenciar'}</span>
-                </Button>
-             )}
-            {pendingCount > 0 && (
-                <div className="relative flex items-center">
-                <Bell className="h-5 w-5" />
-                <Badge
-                    variant="destructive"
-                    className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full"
-                >
-                    {pendingCount}
-                </Badge>
-                </div>
-            )}
+             <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)}>
+                  {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                  <span className="sr-only">{isMuted ? 'Activar sonido' : 'Silenciar'}</span>
+              </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                 <Button variant="ghost" size="icon" className="relative">
+                    <Bell className="h-5 w-5" />
+                    {totalNotifications > 0 && (
+                       <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded-full p-0">
+                         {totalNotifications}
+                       </Badge>
+                    )}
+                     <span className="sr-only">Abrir notificaciones</span>
+                 </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel>Centro de Notificaciones</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {totalNotifications === 0 ? (
+                    <DropdownMenuItem disabled className="text-muted-foreground">No hay notificaciones nuevas.</DropdownMenuItem>
+                ) : (
+                  <>
+                    {(user.role === 'admin' || user.role === 'operations') && pendingPurchaseRequests > 0 && (
+                      <Link href="/dashboard/operations">
+                        <DropdownMenuItem>
+                          <ShoppingCart className="mr-2 h-4 w-4 text-cyan-500" />
+                          <span>{pendingPurchaseRequests} Solicitud(es) de Compra</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    )}
+                    {user.role === 'admin' && pendingMaterialRequests > 0 && (
+                      <Link href="/dashboard/admin/requests">
+                         <DropdownMenuItem>
+                          <ClipboardList className="mr-2 h-4 w-4 text-purple-500"/>
+                          <span>{pendingMaterialRequests} Solicitud(es) de Material</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    )}
+                    {(user.role === 'admin' || user.role === 'operations' || user.role === 'finance') && overduePayments.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-red-500">Pagos Vencidos</DropdownMenuLabel>
+                        {overduePayments.map(p => (
+                          <Link key={p.id} href="/dashboard/admin/payments">
+                            <DropdownMenuItem className="text-red-500">
+                              <AlertCircle className="mr-2 h-4 w-4"/>
+                              <span>Factura {p.invoiceNumber} ({supplierMap.get(p.supplierId) || 'N/A'}) vencida.</span>
+                            </DropdownMenuItem>
+                          </Link>
+                        ))}
+                      </>
+                    )}
+                     {(user.role === 'admin' || user.role === 'operations' || user.role === 'finance') && dueSoonPayments.length > 0 && (
+                       <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-amber-500">Pagos por Vencer</DropdownMenuLabel>
+                        {dueSoonPayments.map(p => (
+                          <Link key={p.id} href="/dashboard/admin/payments">
+                             <DropdownMenuItem className="text-amber-500">
+                              <AlertCircle className="mr-2 h-4 w-4"/>
+                              <span>Factura {p.invoiceNumber} ({supplierMap.get(p.supplierId) || 'N/A'}) vence en {differenceInDays(p.dueDate as Date, today)} días.</span>
+                            </DropdownMenuItem>
+                          </Link>
+                        ))}
+                       </>
+                    )}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
            </div>
 
         </header>

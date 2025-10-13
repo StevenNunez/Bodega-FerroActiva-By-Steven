@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { useAppState } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateSupplierForm } from "@/components/admin/create-supplier-form";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase, MoreHorizontal, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,8 +52,8 @@ export default function OperationsSuppliersPage() {
                             <CardDescription>Todos los proveedores registrados en el sistema.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ScrollArea className="h-[calc(80vh-10rem)]">
-                                <div className="space-y-4 pr-4">
+                            <ScrollArea className="h-[calc(80vh-10rem)] border rounded-md">
+                                <div className="space-y-4 p-4">
                                     {suppliers.map(supplier => (
                                         <div key={supplier.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 rounded-lg border gap-4">
                                             <div className="flex items-center gap-4 flex-grow">
@@ -86,6 +86,7 @@ export default function OperationsSuppliersPage() {
                                         </div>
                                     ))}
                                 </div>
+                                <ScrollBar orientation="vertical" />
                             </ScrollArea>
                         </CardContent>
                     </Card>

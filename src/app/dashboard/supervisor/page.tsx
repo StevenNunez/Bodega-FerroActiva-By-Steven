@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import type { Material, UserRole } from "@/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -145,24 +145,27 @@ export default function SupervisorPage() {
                   <CardDescription>Visualiza las herramientas que están actualmente en uso por los trabajadores bajo tu supervisión.</CardDescription>
               </CardHeader>
               <CardContent>
-                  <ScrollArea className="h-48">
-                    {checkedOutToolsUnderSupervisor.length > 0 ? (
-                    <div className="space-y-2 p-1">
-                        {checkedOutToolsUnderSupervisor.map(log => {
-                            const tool = tools.find(t => t.id === log.toolId);
-                            const worker = users.find(u => u.id === log.workerId);
-                            return <div key={log.id} className="text-sm p-2 rounded-md bg-muted flex justify-between items-center">
-                                <span><span className="font-semibold">{tool?.name}</span> en posesión de {worker?.name}</span>
-                                <Badge variant="destructive">Ocupado</Badge>
-                            </div>
-                        })}
-                    </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-4">
-                            <PackageSearch className="h-10 w-10 mb-2"/>
-                            <p>Ningún trabajador de tu equipo tiene herramientas asignadas.</p>
+                  <ScrollArea className="h-48 border rounded-md">
+                    <div className="p-2">
+                        {checkedOutToolsUnderSupervisor.length > 0 ? (
+                        <div className="space-y-2">
+                            {checkedOutToolsUnderSupervisor.map(log => {
+                                const tool = tools.find(t => t.id === log.toolId);
+                                const worker = users.find(u => u.id === log.workerId);
+                                return <div key={log.id} className="text-sm p-2 rounded-md bg-muted flex justify-between items-center">
+                                    <span><span className="font-semibold">{tool?.name}</span> en posesión de {worker?.name}</span>
+                                    <Badge variant="destructive">Ocupado</Badge>
+                                </div>
+                            })}
                         </div>
-                    )}
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-4">
+                                <PackageSearch className="h-10 w-10 mb-2"/>
+                                <p>Ningún trabajador de tu equipo tiene herramientas asignadas.</p>
+                            </div>
+                        )}
+                    </div>
+                     <ScrollBar orientation="vertical" />
                   </ScrollArea>
               </CardContent>
           </Card>
@@ -222,6 +225,7 @@ export default function SupervisorPage() {
                         )}
                       </TableBody>
                     </Table>
+                    <ScrollBar orientation="vertical" />
                   </ScrollArea>
                 </div>
               </CardContent>
@@ -289,8 +293,8 @@ export default function SupervisorPage() {
                     {cart.length > 0 && (
                         <div className="space-y-2">
                             <Label>Materiales en la Solicitud</Label>
-                            <ScrollArea className="h-32 w-full rounded-md border p-2">
-                                <div className="space-y-2">
+                            <ScrollArea className="h-32 w-full rounded-md border">
+                                <div className="space-y-2 p-2">
                                 {cart.map(item => (
                                     <div key={item.materialId} className="flex items-center justify-between bg-muted p-2 rounded-md">
                                         <div>
@@ -303,6 +307,7 @@ export default function SupervisorPage() {
                                     </div>
                                 ))}
                                 </div>
+                                 <ScrollBar orientation="vertical" />
                             </ScrollArea>
                         </div>
                     )}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from "react";
@@ -5,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { useAppState } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateUserForm } from "@/components/admin/create-user-form";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import type { User, UserRole } from "@/lib/data";
@@ -127,8 +128,8 @@ export default function AdminUsersPage() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <ScrollArea className="h-[calc(80vh-12rem)]">
-                                <div className="space-y-4 pr-4">
+                            <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
+                                <div className="space-y-4 p-4">
                                     {users.map(user => (
                                         <div key={user.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border gap-4">
                                             <div className="flex items-center gap-4 flex-grow">
@@ -193,6 +194,7 @@ export default function AdminUsersPage() {
                                         </div>
                                     ))}
                                 </div>
+                                <ScrollBar orientation="vertical" />
                             </ScrollArea>
                         </CardContent>
                     </Card>

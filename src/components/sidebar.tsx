@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -35,14 +34,15 @@ import {
 import { useAppState, useAuth } from '@/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { differenceInDays, startOfDay } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
 
 // --- Main Navigation Definitions ---
 const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
-  { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores' },
+  { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores', notificationKey: 'paymentNotifications' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
-  { href: '/dashboard/admin/bulk-import', icon: Upload, label: 'Importación Masiva' },
   { href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' },
   { href: '/dashboard/admin/units', icon: Ruler, label: 'Unidades' },
   { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
@@ -78,7 +78,7 @@ const workerNavItems = [
 
 const operationsNavItems = [
     { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras', notificationKey: 'pendingPurchaseRequests' },
-    { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores' },
+    { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores', notificationKey: 'paymentNotifications' },
     { href: '/dashboard/operations/request', icon: PlusCircle, label: 'Solicitar Materiales' },
     { href: '/dashboard/operations/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
     { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
@@ -89,7 +89,7 @@ const operationsNavItems = [
 ];
 
 const financeNavItems = [
-  { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores' },
+  { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores', notificationKey: 'paymentNotifications' },
 ];
 
 const mainNavItemsByRole = {
@@ -123,14 +123,27 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { requests, purchaseRequests } = useAppState();
+  const { requests, purchaseRequests, supplierPayments } = useAppState();
+  
+  const today = startOfDay(new Date());
+
+  const paymentNotifications = React.useMemo(() => {
+    return supplierPayments.filter(p => {
+        if (p.status === 'paid') return false;
+        const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
+        const daysLeft = differenceInDays(dueDate, today);
+        return daysLeft <= 7; // Overdue or due within 7 days
+    }).length;
+  }, [supplierPayments, today]);
+
 
   const pendingMaterialRequests = React.useMemo(() => requests.filter(r => r.status === 'pending').length, [requests]);
   const pendingPurchaseRequests = React.useMemo(() => purchaseRequests.filter(pr => pr.status === 'pending').length, [purchaseRequests]);
   
   const notificationCounts = {
     pendingMaterialRequests,
-    pendingPurchaseRequests
+    pendingPurchaseRequests,
+    paymentNotifications,
   };
 
   const handleLogout = () => {

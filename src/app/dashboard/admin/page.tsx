@@ -1,3 +1,4 @@
+
 "use client";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -69,8 +70,8 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent>
             {pendingRequests.length > 0 ? (
-                <ScrollArea className="h-72">
-                    <ul className="space-y-4 pr-4">
+                <ScrollArea className="h-72 border rounded-md">
+                    <div className="p-4 space-y-4">
                         {(pendingRequests as CompatibleMaterialRequest[]).map(req => {
                             const supervisor = users.find(u => u.id === req.supervisorId);
                             return (
@@ -95,7 +96,8 @@ export default function AdminPage() {
                                 </li>
                             )
                         })}
-                    </ul>
+                    </div>
+                     <ScrollBar orientation="vertical" />
                 </ScrollArea>
             ) : (
                 <div className="text-sm text-muted-foreground text-center py-8 h-72 flex flex-col items-center justify-center">
@@ -137,22 +139,25 @@ export default function AdminPage() {
                 <CardDescription>Materiales con menos de 30 unidades y con alta rotación.</CardDescription>
             </CardHeader>
             <CardContent>
-                 <ScrollArea className="h-60">
-                    {lowStockCriticalMaterials.length > 0 ? (
-                        <ul className="space-y-3 pr-2">
-                            {lowStockCriticalMaterials.map(mat => (
-                                <li key={mat.id} className="flex justify-between items-center text-sm p-2 rounded-md border border-amber-500/20">
-                                    <span>{mat.name}</span>
-                                    <span className="font-bold text-amber-500">{mat.stock}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                         <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-full p-8">
-                            <PackageSearch className="h-10 w-10 mb-2"/>
-                            <p>No hay materiales críticos con bajo stock.</p>
-                        </div>
-                    )}
+                 <ScrollArea className="h-60 border rounded-md">
+                    <div className="p-2">
+                        {lowStockCriticalMaterials.length > 0 ? (
+                            <ul className="space-y-3">
+                                {lowStockCriticalMaterials.map(mat => (
+                                    <li key={mat.id} className="flex justify-between items-center text-sm p-2 rounded-md border border-amber-500/20">
+                                        <span>{mat.name}</span>
+                                        <span className="font-bold text-amber-500">{mat.stock}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                             <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-full p-8">
+                                <PackageSearch className="h-10 w-10 mb-2"/>
+                                <p>No hay materiales críticos con bajo stock.</p>
+                            </div>
+                        )}
+                    </div>
+                     <ScrollBar orientation="vertical" />
                  </ScrollArea>
             </CardContent>
         </Card>

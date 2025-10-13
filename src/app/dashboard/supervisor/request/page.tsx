@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import type { Material, MaterialRequest } from "@/lib/data";
 
 interface CartItem {
@@ -270,8 +270,8 @@ export default function SupervisorRequestPage() {
                 {cart.length > 0 && (
                     <div className="space-y-2">
                         <Label>Materiales en la Solicitud</Label>
-                        <ScrollArea className="h-40 w-full rounded-md border p-2">
-                            <div className="space-y-2">
+                        <ScrollArea className="h-40 w-full rounded-md border">
+                            <div className="space-y-2 p-2">
                             {cart.map(item => (
                                 <div key={item.materialId} className="flex items-center justify-between bg-muted p-2 rounded-md">
                                     <div>
@@ -284,6 +284,7 @@ export default function SupervisorRequestPage() {
                                 </div>
                             ))}
                             </div>
+                            <ScrollBar orientation="vertical" />
                         </ScrollArea>
                     </div>
                 )}
@@ -344,7 +345,7 @@ export default function SupervisorRequestPage() {
                   Filtra solicitudes por estado
                 </span>
               </div>
-              <div className="relative overflow-x-auto max-w-full">
+              <ScrollArea className="border rounded-md">
                 <div className="min-w-[800px]">
                   <Table>
                     <TableHeader className="sticky top-0 bg-card">
@@ -389,7 +390,9 @@ export default function SupervisorRequestPage() {
                     </TableBody>
                   </Table>
                 </div>
-              </div>
+                 <ScrollBar orientation="horizontal" />
+                 <ScrollBar orientation="vertical" />
+              </ScrollArea>
               {totalPages > 1 && (
                 <div className="flex justify-between items-center mt-4">
                   <Button
@@ -420,5 +423,3 @@ export default function SupervisorRequestPage() {
     </div>
   );
 }
-
-  

@@ -43,7 +43,7 @@ import {
 import { Timestamp } from "firebase/firestore";
 import { EditPurchaseRequestForm } from "@/components/operations/edit-purchase-request-form";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
@@ -169,7 +169,7 @@ const PurchaseRequestTable = memo(
                     </Select>
                   </div>
             </div>
-            <div className="relative w-full overflow-x-auto">
+            <ScrollArea className="border rounded-md">
               <div className="min-w-[1000px]">
                 <Table>
                   <TableHeader className="sticky top-0 bg-card z-10">
@@ -242,7 +242,9 @@ const PurchaseRequestTable = memo(
                   </TableBody>
                 </Table>
               </div>
-            </div>
+              <ScrollBar orientation="horizontal" />
+              <ScrollBar orientation="vertical" />
+            </ScrollArea>
             {totalPages > 1 && (
               <div className="flex justify-between items-center mt-4">
                 <Button
@@ -349,6 +351,7 @@ const StockViewer = memo(
                   )}
                 </TableBody>
               </Table>
+              <ScrollBar orientation="vertical" />
             </ScrollArea>
           </div>
         </CardContent>
@@ -372,10 +375,10 @@ const LowStockCard = memo(({ materials }: { materials: Material[] }) => {
         <CardDescription>Materiales con menos de 100 unidades disponibles. Prioridad de compra.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-60 whitespace-nowrap">
-          <div className="min-w-full p-1">
+        <ScrollArea className="h-60 border rounded-md">
+          <div className="p-1">
             {lowStockMaterials.length > 0 ? (
-              <ul className="space-y-3">
+              <ul className="space-y-3 p-2">
                 {lowStockMaterials.map((mat) => (
                   <li
                     key={mat.id}
@@ -394,6 +397,7 @@ const LowStockCard = memo(({ materials }: { materials: Material[] }) => {
               </div>
             )}
           </div>
+           <ScrollBar orientation="vertical" />
         </ScrollArea>
       </CardContent>
     </Card>
@@ -434,10 +438,10 @@ const MostUsedMaterialsCard = memo(
           <CardDescription>Top 5 materiales más pedidos de la bodega.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-60 whitespace-nowrap">
-            <div className="min-w-full p-1">
+          <ScrollArea className="h-60 border rounded-md">
+            <div className="p-1">
               {mostUsedMaterials.length > 0 ? (
-                <ul className="space-y-3">
+                <ul className="space-y-3 p-2">
                   {mostUsedMaterials.map((item, index) => (
                     <li
                       key={index}
@@ -456,6 +460,7 @@ const MostUsedMaterialsCard = memo(
                 </div>
               )}
             </div>
+            <ScrollBar orientation="vertical" />
           </ScrollArea>
         </CardContent>
       </Card>
@@ -480,8 +485,8 @@ const RecentApprovedRequestsCard = memo(
       return requests
         .filter((r) => r.status === "approved")
         .sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          const dateA = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
           return dateB - dateA;
         })
         .slice(0, 5);
@@ -496,48 +501,51 @@ const RecentApprovedRequestsCard = memo(
           <CardDescription>Las 5 solicitudes de material más recientes que fueron aprobadas.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-60">
-            {recentApprovedRequests.length > 0 ? (
-              <ul className="space-y-3 pr-4">
-                {recentApprovedRequests.map((req) => {
-                  const supervisor = users.find((u) => u.id === req.supervisorId);
-                  return (
-                    <li
-                      key={`approved-${req.id}`}
-                      className="text-sm p-3 rounded-lg border bg-muted/50"
-                      role="listitem"
-                    >
-                      <ul className="list-disc list-inside space-y-1">
-                        {req.items && Array.isArray(req.items) ? (
-                          req.items.map((item) => (
-                            <li key={item.materialId} className="font-semibold">
-                              {materialMap.get(item.materialId || "")?.name || "N/A"}{" "}
-                              <span className="font-normal text-primary">({item.quantity} uds)</span>
+          <ScrollArea className="h-60 border rounded-md">
+            <div className="p-4">
+              {recentApprovedRequests.length > 0 ? (
+                <ul className="space-y-3">
+                  {recentApprovedRequests.map((req) => {
+                    const supervisor = users.find((u) => u.id === req.supervisorId);
+                    return (
+                      <li
+                        key={`approved-${req.id}`}
+                        className="text-sm p-3 rounded-lg border bg-muted/50"
+                        role="listitem"
+                      >
+                        <ul className="list-disc list-inside space-y-1">
+                          {req.items && Array.isArray(req.items) ? (
+                            req.items.map((item) => (
+                              <li key={item.materialId} className="font-semibold">
+                                {materialMap.get(item.materialId || "")?.name || "N/A"}{" "}
+                                <span className="font-normal text-primary">({item.quantity} uds)</span>
+                              </li>
+                            ))
+                          ) : (
+                            <li key={`${req.id}-${req.materialId}`} className="font-semibold">
+                              {materialMap.get(req.materialId || "")?.name || "N/A"}{" "}
+                              <span className="font-normal text-primary">({req.quantity} uds)</span>
                             </li>
-                          ))
-                        ) : (
-                          <li key={`${req.id}-${req.materialId}`} className="font-semibold">
-                            {materialMap.get(req.materialId || "")?.name || "N/A"}{" "}
-                            <span className="font-normal text-primary">({req.quantity} uds)</span>
-                          </li>
-                        )}
-                      </ul>
-                      <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
-                        Para: {req.area} (Solicitado por {supervisor?.name || "N/A"})
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2 font-mono">
-                        Aprobado: {formatDate(req.createdAt)}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
-                <PackageSearch className="h-10 w-10 mb-2" />
-                <p>No hay salidas recientes.</p>
-              </div>
-            )}
+                          )}
+                        </ul>
+                        <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
+                          Para: {req.area} (Solicitado por {supervisor?.name || "N/A"})
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2 font-mono">
+                          Aprobado: {formatDate(req.createdAt)}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
+                  <PackageSearch className="h-10 w-10 mb-2" />
+                  <p>No hay salidas recientes.</p>
+                </div>
+              )}
+            </div>
+             <ScrollBar orientation="vertical" />
           </ScrollArea>
         </CardContent>
       </Card>
@@ -560,8 +568,8 @@ const RecentReceivedCard = memo(
       return purchaseRequests
         .filter((r) => r.status === "received" && r.receivedAt)
         .sort((a, b) => {
-          const dateA = a.receivedAt ? new Date(a.receivedAt).getTime() : 0;
-          const dateB = b.receivedAt ? new Date(b.receivedAt).getTime() : 0;
+          const dateA = a.receivedAt ? new Date(a.receivedAt as any).getTime() : 0;
+          const dateB = b.receivedAt ? new Date(b.receivedAt as any).getTime() : 0;
           return dateB - dateA;
         })
         .slice(0, 5);
@@ -576,36 +584,38 @@ const RecentReceivedCard = memo(
           <CardDescription>Registro de los materiales de compra más recientes marcados como recibidos.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-60">
-            {recentReceived.length > 0 ? (
-              <ul className="space-y-3 pr-4">
-                {recentReceived.map((req) => {
-                  const supervisor = users.find((u) => u.id === req.supervisorId);
-                  return (
-                    <li
-                      key={`received-${req.id}`}
-                      className="text-sm p-3 rounded-lg border bg-muted/50"
-                      role="listitem"
-                    >
-                      <p className="font-semibold max-w-full truncate">
-                        {req.materialName} <span className="font-normal text-primary">({req.quantity} uds)</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
-                        Justificación: <span className="font-medium">"{req.justification || "N/A"}"</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2 font-mono">
-                        Ingreso: {formatDate(req.receivedAt)}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
-                <PackageSearch className="h-10 w-10 mb-2" />
-                <p>No hay ingresos recientes.</p>
-              </div>
-            )}
+          <ScrollArea className="h-60 border rounded-md">
+            <div className="p-4">
+              {recentReceived.length > 0 ? (
+                <ul className="space-y-3">
+                  {recentReceived.map((req) => {
+                    return (
+                      <li
+                        key={`received-${req.id}`}
+                        className="text-sm p-3 rounded-lg border bg-muted/50"
+                        role="listitem"
+                      >
+                        <p className="font-semibold max-w-full truncate">
+                          {req.materialName} <span className="font-normal text-primary">({req.quantity} uds)</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
+                          Justificación: <span className="font-medium">"{req.justification || "N/A"}"</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2 font-mono">
+                          Ingreso: {formatDate(req.receivedAt)}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
+                  <PackageSearch className="h-10 w-10 mb-2" />
+                  <p>No hay ingresos recientes.</p>
+                </div>
+              )}
+            </div>
+             <ScrollBar orientation="vertical" />
           </ScrollArea>
         </CardContent>
       </Card>

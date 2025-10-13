@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import type { Material, MaterialRequest, PurchaseRequest as PurchaseRequestType, PurchaseRequestStatus, UserRole } from "@/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -182,7 +182,7 @@ export default function AprPage() {
                             <TabsTrigger value="compra">Solicitudes de Compra</TabsTrigger>
                         </TabsList>
                         <TabsContent value="bodega">
-                             <ScrollArea className="h-60 mt-4">
+                             <ScrollArea className="h-60 mt-4 border rounded-md">
                                 {myMaterialRequests.length > 0 ? (
                                     <Table>
                                         <TableHeader>
@@ -215,10 +215,11 @@ export default function AprPage() {
                                         <p>No tienes solicitudes de bodega recientes.</p>
                                     </div>
                                 )}
+                                <ScrollBar orientation="vertical" />
                              </ScrollArea>
                         </TabsContent>
                         <TabsContent value="compra">
-                              <ScrollArea className="h-60 mt-4">
+                              <ScrollArea className="h-60 mt-4 border rounded-md">
                                 {myPurchaseRequests.length > 0 ? (
                                     <Table>
                                         <TableHeader>
@@ -245,6 +246,7 @@ export default function AprPage() {
                                         <p>No tienes solicitudes de compra recientes.</p>
                                     </div>
                                 )}
+                                <ScrollBar orientation="vertical" />
                              </ScrollArea>
                         </TabsContent>
                     </Tabs>
@@ -307,6 +309,7 @@ export default function AprPage() {
                         )}
                       </TableBody>
                     </Table>
+                     <ScrollBar orientation="vertical" />
                   </ScrollArea>
                 </div>
               </CardContent>
@@ -374,8 +377,8 @@ export default function AprPage() {
                 {cart.length > 0 && (
                     <div className="space-y-2">
                         <Label>Materiales en la Solicitud</Label>
-                        <ScrollArea className="h-32 w-full rounded-md border p-2">
-                            <div className="space-y-2">
+                        <ScrollArea className="h-32 w-full rounded-md border">
+                            <div className="space-y-2 p-2">
                             {cart.map(item => (
                                 <div key={item.materialId} className="flex items-center justify-between bg-muted p-2 rounded-md">
                                     <div>
@@ -388,6 +391,7 @@ export default function AprPage() {
                                 </div>
                             ))}
                             </div>
+                             <ScrollBar orientation="vertical" />
                         </ScrollArea>
                     </div>
                 )}
