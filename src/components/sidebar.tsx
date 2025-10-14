@@ -184,7 +184,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     
     return { currentNavItems: roleNav, isSubModule: false, moduleTitle: '' };
 
-  }, [pathname, user]);
+  }, [pathname, user?.role]);
   
 
   return (
