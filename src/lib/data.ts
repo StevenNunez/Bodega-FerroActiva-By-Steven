@@ -44,7 +44,7 @@ export interface Material {
 }
 
 export interface MaterialRequest {
-  id: string;
+  id:string;
   items: {
     materialId: string;
     quantity: number;
@@ -135,15 +135,31 @@ export interface PurchaseOrder {
     items: { materialName: string; totalQuantity: number; unit: string; category: string }[];
 }
 
-export interface Checklist {
+export interface ChecklistTemplate {
   id: string;
+  title: string;
+  items: Pick<ChecklistItem, 'element'>[];
+  createdBy: string; // User ID of APR
+  createdAt: Date | Timestamp;
+}
+
+export interface AssignedChecklist {
+  id: string;
+  templateId: string;
+  templateTitle: string;
+  supervisorId: string;
+  assignedBy: string; // User ID of APR
   work: string;
-  date: Date | Timestamp;
+  status: 'assigned' | 'in-progress' | 'completed' | 'rejected' | 'approved';
+  createdAt: Date | Timestamp;
+  completedAt?: Date | Timestamp | null;
+  rejectionNotes?: string;
+  // Denormalized/copied data
   items: ChecklistItem[];
   observations: string;
+  evidencePhotos: string[]; // Array of data URIs
   performedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
   reviewedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
-  createdBy: string; // User ID
 }
 
 export interface ChecklistItem {
@@ -151,8 +167,8 @@ export interface ChecklistItem {
   yes: boolean;
   no: boolean;
   na: boolean;
-  responsible: string;
-  date: string;
+  responsibleUserId: string;
+  completionDate: Date | Timestamp | null;
 }
 
 

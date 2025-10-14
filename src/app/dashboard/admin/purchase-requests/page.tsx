@@ -331,7 +331,7 @@ export default function AdminPurchaseRequestsPage() {
       {editingRequest && (
         <EditPurchaseRequestForm
           request={editingRequest}
-          isOpen={!!editingRequest}
+          isOpen={true}
           onClose={() => setEditingRequest(null)}
         />
       )}
@@ -536,3 +536,5 @@ export default function AdminPurchaseRequestsPage() {
     </div>
   );
 }
+
+    

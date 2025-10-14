@@ -29,6 +29,7 @@ import {
   DollarSign,
   FileUp,
   ArrowLeft,
+  ListChecks,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -57,6 +58,7 @@ const adminNavItems = [
 
 const supervisorNavItems = [
   { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Resumen' },
+  { href: '/dashboard/supervisor/assigned-checklists', icon: ListChecks, label: 'Checklists Asignados'},
   { href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/supervisor/suppliers', icon: Briefcase, label: 'Proveedores' },
@@ -65,10 +67,10 @@ const supervisorNavItems = [
 
 const aprNavItems = [
   { href: '/dashboard/apr', icon: LayoutDashboard, label: 'Resumen' },
+  { href: '/dashboard/apr/templates', icon: FileUp, label: 'Gestión de Plantillas'},
+  { href: '/dashboard/apr/review', icon: ShieldCheck, label: 'Revisar Checklists'},
   { href: '/dashboard/apr/request', icon: PlusCircle, label: 'Solicitar Materiales' },
   { href: '/dashboard/apr/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
-  { href: '/dashboard/apr/checklist', icon: ShieldCheck, label: 'Checklist de Seguridad' },
-  { href: '/dashboard/apr/safety-inspection', icon: ShieldCheck, label: 'Inspección de Seguridad' },
   { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
 ];
 

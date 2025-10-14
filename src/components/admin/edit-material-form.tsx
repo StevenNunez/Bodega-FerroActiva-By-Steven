@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -49,14 +50,6 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
-    defaultValues: {
-        name: material.name,
-        stock: material.stock,
-        unit: material.unit,
-        category: material.category,
-        supplierId: material.supplierId || null,
-        archived: material.archived || false,
-    }
   });
 
   useEffect(() => {
@@ -256,3 +249,5 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
     </Dialog>
   );
 }
+
+    

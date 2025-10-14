@@ -17,7 +17,9 @@ import {
   AttendanceLog,
   WORK_SCHEDULE,
   Unit,
-  Checklist,
+  ChecklistTemplate,
+  AssignedChecklist,
+  ChecklistItem,
   SafetyInspection,
   SupplierPayment,
 } from "@/lib/data";
@@ -97,6 +99,8 @@ interface AppStateContextType {
   supplierPayments: SupplierPayment[];
   purchaseOrders: PurchaseOrder[];
   manualLots: string[];
+  checklistTemplates: ChecklistTemplate[];
+  assignedChecklists: AssignedChecklist[];
   addTool: (toolName: string) => Promise<void>;
   updateTool: (toolId: string, data: Partial<Omit<Tool, "id" | "qrCode">>) => Promise<void>;
   deleteTool: (toolId: string) => Promise<void>;
@@ -133,6 +137,10 @@ interface AppStateContextType {
   addSupplier: (name: string, categories: string[]) => Promise<string>;
   updateSupplier: (supplierId: string, data: Partial<Omit<Supplier, "id">>) => Promise<void>;
   deleteSupplier: (supplierId: string) => Promise<void>;
+  addChecklistTemplate: (template: Omit<ChecklistTemplate, "id" | "createdAt" | "createdBy">) => Promise<void>;
+  assignChecklistToSupervisors: (template: ChecklistTemplate, supervisorIds: string[], work: string) => Promise<void>;
+  completeAssignedChecklist: (checklistData: AssignedChecklist) => Promise<void>;
+  reviewAssignedChecklist: (checklistId: string, status: 'approved' | 'rejected', notes: string, signature: string) => Promise<void>;
   addChecklist: (checklist: Omit<Checklist, "id" | "createdBy">) => Promise<void>;
   addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "createdBy">) => Promise<void>;
   addSupplierPayment: (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => Promise<void>;
@@ -162,6 +170,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [supplierPayments, setSupplierPayments] = React.useState<SupplierPayment[]>([]);
   const [purchaseOrders, setPurchaseOrders] = React.useState<PurchaseOrder[]>([]);
+  const [checklistTemplates, setChecklistTemplates] = React.useState<ChecklistTemplate[]>([]);
+  const [assignedChecklists, setAssignedChecklists] = React.useState<AssignedChecklist[]>([]);
   const [manualLots, setManualLots] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -196,6 +206,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       setSuppliers([]);
       setSupplierPayments([]);
       setPurchaseOrders([]);
+      setChecklistTemplates([]);
+      setAssignedChecklists([]);
       return;
     };
 
@@ -214,6 +226,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "purchaseRequests", setter: setPurchaseRequests, sortField: "createdAt" },
         { name: "supplierPayments", setter: setSupplierPayments, sortField: "dueDate" },
         { name: "purchaseOrders", setter: setPurchaseOrders, sortField: "createdAt" },
+        { name: "checklistTemplates", setter: setChecklistTemplates, sortField: "createdAt" },
+        { name: "assignedChecklists", setter: setAssignedChecklists, sortField: "createdAt" },
     ];
 
     const unsubscribes = collections.map(({ name, setter, sortField }) => {
@@ -1098,6 +1112,100 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+ const addChecklistTemplate = async (template: Omit<ChecklistTemplate, "id" | "createdAt" | "createdBy">) => {
+    checkAuthAndRole(["apr", "admin"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+    try {
+      const newDocRef = doc(collection(db, "checklistTemplates"));
+      await setDoc(newDocRef, {
+        ...template,
+        id: newDocRef.id,
+        createdBy: authUser.id,
+        createdAt: Timestamp.now(),
+      });
+      notify("Plantilla de checklist creada exitosamente.", "success");
+    } catch (err: any) {
+      notify("Error al crear la plantilla: " + err.message, "destructive");
+      throw err;
+    }
+  };
+  
+ const assignChecklistToSupervisors = async (template: ChecklistTemplate, supervisorIds: string[], work: string) => {
+    checkAuthAndRole(["apr", "admin"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+    try {
+        const batch = writeBatch(db);
+        for (const supervisorId of supervisorIds) {
+            const newDocRef = doc(collection(db, "assignedChecklists"));
+            const items = template.items.map(item => ({ 
+                element: item.element, 
+                yes: false, no: false, na: false, 
+                responsibleUserId: '', 
+                completionDate: null 
+            }));
+            const assignedChecklist: AssignedChecklist = {
+                id: newDocRef.id,
+                templateId: template.id,
+                templateTitle: template.title,
+                supervisorId,
+                assignedBy: authUser.id,
+                work,
+                status: 'assigned',
+                createdAt: Timestamp.now(),
+                items: items,
+                observations: '',
+                evidencePhotos: [],
+                performedBy: { name: '', role: '', signature: '', date: null },
+                reviewedBy: { name: '', role: '', signature: '', date: null },
+            };
+            batch.set(newDocRef, assignedChecklist);
+        }
+        await batch.commit();
+        notify(`Checklist asignado a ${supervisorIds.length} supervisor(es).`, "success");
+    } catch (err: any) {
+        notify("Error al asignar el checklist: " + err.message, "destructive");
+        throw err;
+    }
+};
+
+  const completeAssignedChecklist = async (checklistData: AssignedChecklist) => {
+    checkAuthAndRole(["supervisor"]);
+    try {
+      const checklistRef = doc(db, "assignedChecklists", checklistData.id);
+      await updateDoc(checklistRef, {
+        ...checklistData,
+        status: 'completed',
+        completedAt: Timestamp.now(),
+      });
+      notify("Checklist enviado para revisión.", "success");
+    } catch (err: any) {
+        notify("Error al guardar el checklist: " + err.message, "destructive");
+        throw err;
+    }
+  };
+  
+  const reviewAssignedChecklist = async (checklistId: string, status: 'approved' | 'rejected', notes: string, signature: string) => {
+    checkAuthAndRole(["apr", "admin"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+    try {
+      const checklistRef = doc(db, "assignedChecklists", checklistId);
+      await updateDoc(checklistRef, {
+        status,
+        rejectionNotes: status === 'rejected' ? notes : '',
+        reviewedBy: {
+            name: authUser.name,
+            role: authUser.role,
+            signature: signature,
+            date: Timestamp.now()
+        },
+      });
+      notify(`Checklist ${status === 'approved' ? 'aprobado' : 'rechazado'}.`, "success");
+    } catch (err: any) {
+        notify("Error al revisar el checklist: " + err.message, "destructive");
+        throw err;
+    }
+  };
+
   const addChecklist = async (checklist: Omit<Checklist, "id" | "createdBy">) => {
       checkAuthAndRole(["apr", "admin"]);
       if (!authUser) throw new Error("Usuario no autenticado.");
@@ -1286,6 +1394,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     supplierPayments,
     purchaseOrders,
     manualLots,
+    checklistTemplates,
+    assignedChecklists,
     addTool,
     updateTool,
     deleteTool,
@@ -1318,6 +1428,10 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     addSupplier,
     updateSupplier,
     deleteSupplier,
+    addChecklistTemplate,
+    assignChecklistToSupervisors,
+    completeAssignedChecklist,
+    reviewAssignedChecklist,
     addChecklist,
     addSafetyInspection,
     addSupplierPayment,

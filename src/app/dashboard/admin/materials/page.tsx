@@ -201,7 +201,7 @@ export default function AdminMaterialsPage() {
       {editingMaterial && (
         <EditMaterialForm
           material={editingMaterial}
-          isOpen={!!editingMaterial}
+          isOpen={true}
           onClose={() => setEditingMaterial(null)}
         />
       )}
@@ -454,3 +454,5 @@ export default function AdminMaterialsPage() {
     </div>
   );
 }
+
+    
