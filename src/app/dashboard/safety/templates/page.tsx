@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -37,7 +38,7 @@ export default function AprTemplatesPage() {
   const { toast } = useToast();
 
   const [title, setTitle] = useState("");
-  const [items, setItems] = useState<Pick<ChecklistItem, 'element'>[]>([{ element: "" }]);
+  const [items, setItems] = useState<Pick<ChecklistItem, 'element'>>([{ element: "" }]);
   const [assigningTemplate, setAssigningTemplate] = useState<ChecklistTemplate | null>(null);
   const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
   const [workArea, setWorkArea] = useState("");
@@ -47,6 +48,8 @@ export default function AprTemplatesPage() {
   const supervisors = useMemo(() => {
     return users.filter(u => u.role === 'supervisor');
   }, [users]);
+  
+  const canManageTemplates = authUser?.role === 'apr' || authUser?.role === 'admin';
 
   const handleItemChange = (index: number, value: string) => {
     const newItems = [...items];
@@ -112,59 +115,61 @@ export default function AprTemplatesPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><FileUp /> Crear Nueva Plantilla</CardTitle>
-            <CardDescription>
-              Define los ítems que contendrá el checklist. Estos serán los puntos que los supervisores deberán verificar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-                <Label htmlFor="template-title">Título de la Plantilla</Label>
-                <Input 
-                    id="template-title" 
-                    placeholder="Ej: Inspección Semanal de Andamios"
-                    value={title}
-                    onChange={e => setTitle(e.target.value)}
-                />
-            </div>
+        {canManageTemplates && (
+            <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><FileUp /> Crear Nueva Plantilla</CardTitle>
+                <CardDescription>
+                Define los ítems que contendrá el checklist. Estos serán los puntos que los supervisores deberán verificar.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label htmlFor="template-title">Título de la Plantilla</Label>
+                    <Input 
+                        id="template-title" 
+                        placeholder="Ej: Inspección Semanal de Andamios"
+                        value={title}
+                        onChange={e => setTitle(e.target.value)}
+                    />
+                </div>
 
-            <div className="space-y-4">
-                <Label>Ítems del Checklist</Label>
-                <ScrollArea className="h-60 border rounded-md p-4">
-                    {items.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 mb-2">
-                        <Input
-                        placeholder={`Ítem de verificación #${index + 1}`}
-                        value={item.element}
-                        onChange={(e) => handleItemChange(index, e.target.value)}
-                        />
-                        <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveItem(index)}
-                        disabled={items.length <= 1}
-                        className="text-destructive"
-                        >
-                        <Trash2 className="h-4 w-4" />
-                        </Button>
-                    </div>
-                    ))}
-                </ScrollArea>
-                <Button variant="outline" onClick={handleAddItem} className="w-full">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem
+                <div className="space-y-4">
+                    <Label>Ítems del Checklist</Label>
+                    <ScrollArea className="h-60 border rounded-md p-4">
+                        {items.map((item, index) => (
+                        <div key={index} className="flex items-center gap-2 mb-2">
+                            <Input
+                            placeholder={`Ítem de verificación #${index + 1}`}
+                            value={item.element}
+                            onChange={(e) => handleItemChange(index, e.target.value)}
+                            />
+                            <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveItem(index)}
+                            disabled={items.length <= 1}
+                            className="text-destructive"
+                            >
+                            <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        ))}
+                    </ScrollArea>
+                    <Button variant="outline" onClick={handleAddItem} className="w-full">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem
+                    </Button>
+                </div>
+                
+                <Button onClick={handleSaveTemplate} disabled={isSubmitting || !title.trim()} className="w-full">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4" />}
+                    Guardar Plantilla
                 </Button>
-            </div>
-            
-            <Button onClick={handleSaveTemplate} disabled={isSubmitting || !title.trim()} className="w-full">
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4" />}
-                Guardar Plantilla
-            </Button>
-          </CardContent>
-        </Card>
+            </CardContent>
+            </Card>
+        )}
         
-        <Card>
+        <Card className={!canManageTemplates ? 'lg:col-span-2' : ''}>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><ListChecks /> Plantillas y Asignación</CardTitle>
                 <CardDescription>Visualiza las plantillas guardadas y asígnalas a los supervisores para que las completen.</CardDescription>
@@ -181,7 +186,7 @@ export default function AprTemplatesPage() {
                             {checklistTemplates.map(template => (
                                 <div key={template.id} className="p-4 border rounded-lg flex justify-between items-center">
                                     <h4 className="font-semibold">{template.title || 'Plantilla sin título'}</h4>
-                                    <Button onClick={() => setAssigningTemplate(template)}>Asignar</Button>
+                                    {canManageTemplates && <Button onClick={() => setAssigningTemplate(template)}>Asignar</Button>}
                                 </div>
                             ))}
                         </div>

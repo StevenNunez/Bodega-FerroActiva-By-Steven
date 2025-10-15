@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
+import { cn } from "@/lib/utils";
 
 // Helper para formatear fechas
 const formatDate = (date: Date | Timestamp | undefined) => {
@@ -65,18 +66,20 @@ export default function SupervisorAssignedChecklistsPage() {
                         {myAssignedChecklists.length > 0 ? (
                             <div className="space-y-3 p-4">
                                 {myAssignedChecklists.map(checklist => (
-                                    <Link key={checklist.id} href={`/dashboard/supervisor/assigned-checklists/${checklist.id}`} passHref>
-                                        <a className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-muted/50 transition-colors cursor-pointer block">
-                                            <div className="flex-grow">
-                                                <h4 className="font-semibold">{checklist.templateTitle}</h4>
-                                                <p className="text-sm text-muted-foreground">Obra/Proyecto: <span className="font-medium">{checklist.work}</span></p>
-                                                <p className="text-xs text-muted-foreground mt-1">Asignado el: {formatDate(checklist.createdAt)}</p>
-                                            </div>
-                                            <div className="flex items-center gap-4 flex-shrink-0">
-                                                {getStatusBadge(checklist.status)}
-                                                <ArrowRight className="h-5 w-5 text-muted-foreground"/>
-                                            </div>
-                                        </a>
+                                    <Link 
+                                        key={checklist.id} 
+                                        href={`/dashboard/safety/assigned-checklists/${checklist.id}`}
+                                        className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-muted/50 transition-colors cursor-pointer block"
+                                    >
+                                        <div className="flex-grow">
+                                            <h4 className="font-semibold">{checklist.templateTitle}</h4>
+                                            <p className="text-sm text-muted-foreground">Obra/Proyecto: <span className="font-medium">{checklist.work}</span></p>
+                                            <p className="text-xs text-muted-foreground mt-1">Asignado el: {formatDate(checklist.createdAt)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-4 flex-shrink-0">
+                                            {getStatusBadge(checklist.status)}
+                                            <ArrowRight className="h-5 w-5 text-muted-foreground"/>
+                                        </div>
                                     </Link>
                                 ))}
                             </div>

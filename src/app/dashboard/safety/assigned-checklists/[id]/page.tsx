@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
@@ -48,41 +49,48 @@ export default function AssignedChecklistPage() {
 
     const [checklistData, setChecklistData] = useState<AssignedChecklist | null>(checklist);
 
-     useEffect(() => {
-        if (checklist) {
-            setChecklistData(checklist);
-        }
+    useEffect(() => {
+        setChecklistData(checklist);
     }, [checklist]);
+
 
     const handleItemChange = (itemIndex: number, field: keyof ChecklistItemType | 'responsibleUserId' | 'completionDate', value: any) => {
         if (!checklistData) return;
-        const newItems = [...checklistData.items];
-        const currentItem = { ...newItems[itemIndex] };
-
-        if (field === 'yes' || field === 'no' || field === 'na') {
-            currentItem.yes = field === 'yes' ? value : false;
-            currentItem.no = field === 'no' ? value : false;
-            currentItem.na = field === 'na' ? value : false;
-        } else {
-             (currentItem as any)[field] = value;
-        }
         
-        newItems[itemIndex] = currentItem;
-        setChecklistData({ ...checklistData, items: newItems });
+        setChecklistData(prevData => {
+            if (!prevData) return null;
+            const newItems = [...prevData.items];
+            const currentItem = { ...newItems[itemIndex] };
+
+            if (field === 'yes' || field === 'no' || field === 'na') {
+                currentItem.yes = field === 'yes' ? value : false;
+                currentItem.no = field === 'no' ? value : false;
+                currentItem.na = field === 'na' ? value : false;
+            } else {
+                (currentItem as any)[field] = value;
+            }
+            
+            newItems[itemIndex] = currentItem;
+            return { ...prevData, items: newItems };
+        });
     };
 
     const handleSignatureEnd = () => {
-        if (!checklistData || !signaturePadRef.current) return;
+        if (!signaturePadRef.current) return;
         const signature = signaturePadRef.current.getTrimmedCanvas().toDataURL('image/png');
-        setChecklistData({
-            ...checklistData,
-            performedBy: {
-                name: user?.name || 'Desconocido',
-                role: 'Supervisor',
-                signature: signature,
-                date: Timestamp.now(),
-            }
-        })
+        setChecklistData(prevData => {
+            if (!prevData) return null;
+            return {
+                ...prevData,
+                performedBy: {
+                    ...prevData.performedBy,
+                    name: user?.name || 'Desconocido',
+                    role: 'Supervisor',
+                    signature: signature,
+                    date: Timestamp.now(),
+                }
+            };
+        });
     }
 
     const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,10 +98,13 @@ export default function AssignedChecklistPage() {
             const file = event.target.files[0];
             const reader = new FileReader();
             reader.onload = (e) => {
-                if (typeof e.target?.result === 'string' && checklistData) {
-                    setChecklistData({
-                        ...checklistData,
-                        evidencePhotos: [...checklistData.evidencePhotos, e.target.result]
+                if (typeof e.target?.result === 'string') {
+                    setChecklistData(prevData => {
+                        if (!prevData) return null;
+                        return {
+                            ...prevData,
+                            evidencePhotos: [...(prevData.evidencePhotos || []), e.target.result as string]
+                        };
                     });
                 }
             };
@@ -102,7 +113,7 @@ export default function AssignedChecklistPage() {
     };
 
     const removePhoto = (index: number) => {
-        if (!checklistData) return;
+        if (!checklistData || !checklistData.evidencePhotos) return;
         const newPhotos = checklistData.evidencePhotos.filter((_, i) => i !== index);
         setChecklistData({ ...checklistData, evidencePhotos: newPhotos });
     };
@@ -119,7 +130,7 @@ export default function AssignedChecklistPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'La firma de conformidad es obligatoria.' });
             return;
         }
-        if (checklistData.evidencePhotos.length === 0) {
+        if (!checklistData.evidencePhotos || checklistData.evidencePhotos.length === 0) {
             toast({ variant: 'destructive', title: 'Error', description: 'Debes adjuntar al menos una foto de evidencia.' });
             return;
         }
@@ -127,7 +138,7 @@ export default function AssignedChecklistPage() {
         try {
             await completeAssignedChecklist(checklistData);
             toast({ title: "Checklist Enviado", description: "El formulario ha sido guardado y enviado para su revisión." });
-            router.push('/dashboard/supervisor/assigned-checklists');
+            router.push('/dashboard/safety/assigned-checklists');
         } catch (error: any) {
             toast({ variant: "destructive", title: "Error al Guardar", description: error.message || "No se pudo guardar el formulario." });
         }
@@ -250,7 +261,7 @@ export default function AssignedChecklistPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        {checklistData.evidencePhotos.map((photo, index) => (
+                        {checklistData.evidencePhotos && checklistData.evidencePhotos.map((photo, index) => (
                             <div key={index} className="relative group aspect-square">
                                 <Image src={photo} alt={`Evidencia ${index + 1}`} layout="fill" className="object-cover rounded-md" />
                                 <Button

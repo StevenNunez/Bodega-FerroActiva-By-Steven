@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/app-provider';
-import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign } from 'lucide-react';
+import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, ShieldCheck } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
 import { UserCredentialCard } from '@/components/user-credential-card';
@@ -57,9 +57,11 @@ export default function DashboardHubPage() {
   const attendancePath = '/dashboard/attendance/registry';
   const profilePath = '/dashboard/profile';
   const paymentsPath = '/dashboard/admin/payments';
+  const safetyPath = '/dashboard/safety';
   
   const canSeeAttendance = ['admin', 'operations'].includes(user.role);
   const canSeePayments = ['admin', 'operations', 'finance'].includes(user.role);
+  const canSeeSafety = ['admin', 'apr', 'supervisor'].includes(user.role);
 
 
   return (
@@ -105,6 +107,24 @@ export default function DashboardHubPage() {
                   </CardHeader>
                 </Card>
               </Link>
+            )}
+            
+            {canSeeSafety && (
+                <Link href={safetyPath} className="group">
+                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
+                    <CardHeader className="flex flex-row items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <ShieldCheck className="h-8 w-8 transition-transform group-hover:scale-110" />
+                    </div>
+                    <div>
+                        <CardTitle>Módulo de Prevención de Riesgos</CardTitle>
+                        <CardDescription className="mt-1">
+                        Gestión de checklists, plantillas y revisiones de seguridad.
+                        </CardDescription>
+                    </div>
+                    </CardHeader>
+                </Card>
+                </Link>
             )}
             
             {canSeeAttendance && (

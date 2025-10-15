@@ -80,7 +80,7 @@ export default function AprReviewPage() {
         try {
             await reviewAssignedChecklist(checklistId, status, rejectionNotes, aprSignature);
             toast({ title: `Checklist ${status === 'approved' ? 'aprobado' : 'rechazado'}`, description: 'El estado ha sido guardado.' });
-            router.push('/dashboard/apr/review');
+            router.push('/dashboard/safety/review');
         } catch(error: any) {
             toast({ variant: 'destructive', title: 'Error al Revisar', description: error.message || 'No se pudo completar la acción.' });
         } finally {
