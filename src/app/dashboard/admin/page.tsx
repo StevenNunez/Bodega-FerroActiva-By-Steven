@@ -14,14 +14,13 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { ToolCheckoutCard } from "@/components/admin/tool-checkout-card";
 import type { MaterialRequest } from "@/lib/data";
-import { Input } from "@/components/ui/input";
 
 type CompatibleMaterialRequest = MaterialRequest & {
     materialId?: string;
     quantity?: number;
 };
 export default function AdminPage() {
-  const { requests, tools, toolLogs, users, materials, approveRequest } = useAppState();
+  const { requests, users, materials, approveRequest, tools } = useAppState();
   const { toast } = useToast();  
   const materialMap = React.useMemo(() => new Map(materials.map(m => [m.id, m])), [materials]);
   const pendingRequests = requests.filter(r => r.status === 'pending');
