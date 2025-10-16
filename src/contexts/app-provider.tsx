@@ -22,6 +22,7 @@ import {
   ChecklistItem,
   SafetyInspection,
   SupplierPayment,
+  Checklist,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -101,6 +102,7 @@ interface AppStateContextType {
   manualLots: string[];
   checklistTemplates: ChecklistTemplate[];
   assignedChecklists: AssignedChecklist[];
+  safetyInspections: SafetyInspection[];
   addTool: (toolName: string) => Promise<void>;
   updateTool: (toolId: string, data: Partial<Omit<Tool, "id" | "qrCode">>) => Promise<void>;
   deleteTool: (toolId: string) => Promise<void>;
@@ -143,7 +145,8 @@ interface AppStateContextType {
   completeAssignedChecklist: (checklistData: AssignedChecklist) => Promise<void>;
   reviewAssignedChecklist: (checklistId: string, status: 'approved' | 'rejected', notes: string, signature: string) => Promise<void>;
   addChecklist: (checklist: Omit<Checklist, "id" | "createdBy">) => Promise<void>;
-  addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "createdBy">) => Promise<void>;
+  addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "status" | "createdAt" | "createdBy">) => Promise<void>;
+  completeSafetyInspection: (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => Promise<void>;
   addSupplierPayment: (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => Promise<void>;
   updateSupplierPaymentStatus: (id: string, status: 'paid') => Promise<void>;
   batchApprovedRequests: (requestIds: string[], options: { mode: "category" | "supplier" }) => Promise<void>;
@@ -173,6 +176,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [purchaseOrders, setPurchaseOrders] = React.useState<PurchaseOrder[]>([]);
   const [checklistTemplates, setChecklistTemplates] = React.useState<ChecklistTemplate[]>([]);
   const [assignedChecklists, setAssignedChecklists] = React.useState<AssignedChecklist[]>([]);
+  const [safetyInspections, setSafetyInspections] = React.useState<SafetyInspection[]>([]);
   const [manualLots, setManualLots] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -209,6 +213,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       setPurchaseOrders([]);
       setChecklistTemplates([]);
       setAssignedChecklists([]);
+      setSafetyInspections([]);
       return;
     };
 
@@ -229,6 +234,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "purchaseOrders", setter: setPurchaseOrders, sortField: "createdAt" },
         { name: "checklistTemplates", setter: setChecklistTemplates, sortField: "createdAt" },
         { name: "assignedChecklists", setter: setAssignedChecklists, sortField: "createdAt" },
+        { name: "safetyInspections", setter: setSafetyInspections, sortField: "createdAt" },
     ];
 
     const unsubscribes = collections.map(({ name, setter, sortField }) => {
@@ -1190,7 +1196,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const completeAssignedChecklist = async (checklistData: AssignedChecklist) => {
-    checkAuthAndRole(["supervisor"]);
+    checkAuthAndRole(["supervisor", "admin", "operations", "apr"]);
     try {
       const checklistRef = doc(db, "assignedChecklists", checklistData.id);
       await updateDoc(checklistRef, {
@@ -1244,8 +1250,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
   };
   
-  const addSafetyInspection = async (inspection: Omit<SafetyInspection, "id" | "createdBy">) => {
-    checkAuthAndRole(["apr", "admin"]);
+  const addSafetyInspection = async (inspection: Omit<SafetyInspection, "id" | "status" | "createdAt" | "createdBy">) => {
+    checkAuthAndRole(["apr", "admin", "operations"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
       const newDocRef = doc(collection(db, "safetyInspections"));
@@ -1253,11 +1259,30 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         ...inspection,
         id: newDocRef.id,
         createdBy: authUser.id,
+        createdAt: Timestamp.now(),
+        status: 'open',
+        assignedAt: Timestamp.now(),
       });
-      notify("Inspección de seguridad guardada exitosamente.", "success");
+      notify("Inspección de seguridad guardada y asignada exitosamente.", "success");
     } catch (err: any) {
       notify("Error al guardar la inspección: " + err.message, "destructive");
       throw err;
+    }
+  };
+  
+  const completeSafetyInspection = async (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => {
+    checkAuthAndRole(["supervisor", "admin", "operations", "apr"]);
+    try {
+        const inspectionRef = doc(db, "safetyInspections", inspectionId);
+        await updateDoc(inspectionRef, {
+            ...completionData,
+            status: 'completed',
+            completedAt: Timestamp.now(),
+        });
+        notify("Inspección completada y enviada para verificación final.", "success");
+    } catch (err: any) {
+        notify("Error al completar la inspección: " + err.message, "destructive");
+        throw err;
     }
   };
   
@@ -1418,6 +1443,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     manualLots,
     checklistTemplates,
     assignedChecklists,
+    safetyInspections,
     addTool,
     updateTool,
     deleteTool,
@@ -1457,6 +1483,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     reviewAssignedChecklist,
     addChecklist,
     addSafetyInspection,
+    completeSafetyInspection,
     addSupplierPayment,
     updateSupplierPaymentStatus,
     batchApprovedRequests,

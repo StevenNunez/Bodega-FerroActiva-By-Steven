@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useMemo } from "react";
@@ -18,21 +17,21 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
     return jsDate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export default function AprReviewPage() {
-    const { assignedChecklists, users, loading } = useAppState();
+export default function ReviewInspectionsPage() {
+    const { safetyInspections, users, loading } = useAppState();
     
     const userMap = useMemo(() => new Map(users.map(u => [u.id, u.name])), [users]);
 
-    const checklistsToReview = useMemo(() => {
-        if (!assignedChecklists) return [];
-        return assignedChecklists
-            .filter(c => c.status === 'completed' || c.status === 'approved' || c.status === 'rejected')
+    const inspectionsToReview = useMemo(() => {
+        if (!safetyInspections) return [];
+        return safetyInspections
+            .filter(i => i.status === 'completed' || i.status === 'approved' || i.status === 'rejected')
             .sort((a, b) => {
                 const dateA = (a.completedAt || a.createdAt) as Timestamp;
                 const dateB = (b.completedAt || b.createdAt) as Timestamp;
                 return dateB.toMillis() - dateA.toMillis();
             });
-    }, [assignedChecklists]);
+    }, [safetyInspections]);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -42,6 +41,15 @@ export default function AprReviewPage() {
             default: return <Badge variant="outline">{status}</Badge>;
         }
     };
+    
+    const getRiskBadge = (level: string) => {
+        switch (level) {
+            case 'leve': return <Badge variant="secondary">Leve</Badge>;
+            case 'grave': return <Badge variant="destructive">Grave</Badge>;
+            case 'fatal': return <Badge variant="destructive" className="bg-black text-white">Fatal</Badge>;
+            default: return null;
+        }
+    }
 
     if (loading) {
         return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -50,32 +58,33 @@ export default function AprReviewPage() {
     return (
         <div className="flex flex-col gap-8">
             <PageHeader
-                title="Revisión de Checklists"
-                description="Aquí puedes ver, aprobar o rechazar los checklists completados por los supervisores."
+                title="Revisión de Inspecciones de Seguridad"
+                description="Aprueba o rechaza las soluciones implementadas por los supervisores."
             />
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Bandeja de Entrada de Revisiones</CardTitle>
+                    <CardTitle>Bandeja de Revisiones de Inspecciones</CardTitle>
                     <CardDescription>
-                        Los checklists completados por los supervisores aparecerán aquí para tu revisión y aprobación final.
+                        Las inspecciones completadas por los supervisores aparecerán aquí para tu aprobación final.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
-                        {checklistsToReview.length > 0 ? (
+                        {inspectionsToReview.length > 0 ? (
                             <div className="space-y-3 p-4">
-                                {checklistsToReview.map(checklist => (
-                                    <Link key={checklist.id} href={`/dashboard/safety/review/${checklist.id}`} passHref>
+                                {inspectionsToReview.map(inspection => (
+                                    <Link key={inspection.id} href={`/dashboard/safety/review-inspections/${inspection.id}`} passHref>
                                         <div className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-muted/50 transition-colors cursor-pointer">
                                             <div className="flex-grow">
-                                                <h4 className="font-semibold">{checklist.templateTitle}</h4>
-                                                <p className="text-sm text-muted-foreground">Obra: <span className="font-medium">{checklist.work}</span></p>
-                                                <p className="text-sm text-muted-foreground">Completado por: <span className="font-medium">{userMap.get(checklist.supervisorId) || 'Desconocido'}</span></p>
-                                                <p className="text-xs text-muted-foreground mt-1">Enviado el: {formatDate(checklist.completedAt)}</p>
+                                                <p className="font-semibold text-primary">{inspection.description}</p>
+                                                <p className="text-sm text-muted-foreground">Obra: <span className="font-medium">{inspection.work}</span></p>
+                                                <p className="text-sm text-muted-foreground">Cerrado por: <span className="font-medium">{inspection.completionExecutor || 'Desconocido'}</span></p>
+                                                <p className="text-xs text-muted-foreground mt-1">Fecha de Cierre: {formatDate(inspection.completedAt)}</p>
                                             </div>
                                             <div className="flex items-center gap-4 flex-shrink-0">
-                                                {getStatusBadge(checklist.status)}
+                                                {getRiskBadge(inspection.riskLevel)}
+                                                {getStatusBadge(inspection.status)}
                                                 <ArrowRight className="h-5 w-5 text-muted-foreground"/>
                                             </div>
                                         </div>
@@ -85,8 +94,8 @@ export default function AprReviewPage() {
                         ) : (
                              <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-full p-12">
                                 <Inbox className="h-16 w-16 mb-4"/>
-                                <h3 className="text-xl font-semibold">Bandeja de Entrada Vacía</h3>
-                                <p className="mt-2">No hay checklists pendientes de revisión en este momento.</p>
+                                <h3 className="text-xl font-semibold">Bandeja Vacía</h3>
+                                <p className="mt-2">No hay inspecciones pendientes de revisión en este momento.</p>
                             </div>
                         )}
                     </ScrollArea>
@@ -95,3 +104,4 @@ export default function AprReviewPage() {
         </div>
     );
 }
+

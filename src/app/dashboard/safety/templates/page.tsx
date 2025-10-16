@@ -45,8 +45,9 @@ export default function AprTemplatesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
 
-  const supervisors = useMemo(() => {
-    return users.filter(u => u.role === 'supervisor');
+  const assignableUsers = useMemo(() => {
+    const rolesToAssign = ['supervisor', 'apr', 'admin', 'operations'];
+    return users.filter(u => rolesToAssign.includes(u.role));
   }, [users]);
   
   const canManageTemplates = authUser?.role === 'apr' || authUser?.role === 'admin';
@@ -89,13 +90,13 @@ export default function AprTemplatesPage() {
   
   const handleAssign = async () => {
       if (!assigningTemplate || selectedSupervisorIds.length === 0 || !workArea.trim()) {
-          toast({ variant: 'destructive', title: 'Error', description: 'Selecciona una plantilla, al menos un supervisor y especifica la obra.' });
+          toast({ variant: 'destructive', title: 'Error', description: 'Selecciona una plantilla, al menos un usuario y especifica la obra.' });
           return;
       }
       setIsAssigning(true);
       try {
         await assignChecklistToSupervisors(assigningTemplate, selectedSupervisorIds, workArea);
-        toast({ title: 'Asignación Completa', description: `La plantilla "${assigningTemplate.title}" ha sido asignada a ${selectedSupervisorIds.length} supervisor(es) para la obra ${workArea}.` });
+        toast({ title: 'Asignación Completa', description: `La plantilla "${assigningTemplate.title}" ha sido asignada a ${selectedSupervisorIds.length} usuario(s) para la obra ${workArea}.` });
         setAssigningTemplate(null);
         setSelectedSupervisorIds([]);
         setWorkArea("");
@@ -178,7 +179,7 @@ export default function AprTemplatesPage() {
                  {(!checklistTemplates || checklistTemplates.length === 0) ? (
                     <div className="text-center text-muted-foreground p-8 border-2 border-dashed rounded-lg">
                         <p>Aún no has creado ninguna plantilla.</p>
-                        <p className="text-sm">Usa el formulario de la izquierda para empezar.</p>
+                        {canManageTemplates && <p className="text-sm">Usa el formulario de la izquierda para empezar.</p>}
                     </div>
                  ) : (
                     <ScrollArea className="h-[calc(80vh-12rem)]">
@@ -202,7 +203,7 @@ export default function AprTemplatesPage() {
                 <AlertDialogHeader>
                     <AlertDialogTitle>Asignar Plantilla "{assigningTemplate?.title}"</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Selecciona los supervisores que deben completar este checklist y especifica la obra o área.
+                        Selecciona los usuarios que deben completar este checklist y especifica la obra o área.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="py-4 space-y-4">
@@ -215,10 +216,10 @@ export default function AprTemplatesPage() {
                             onChange={(e) => setWorkArea(e.target.value)}
                         />
                    </div>
-                   <Label>Supervisores Disponibles</Label>
+                   <Label>Usuarios Asignables</Label>
                    <ScrollArea className="h-40 border rounded-md">
                        <div className="p-4 space-y-2">
-                            {supervisors.map(sup => (
+                            {assignableUsers.map(sup => (
                                <div key={sup.id} className="flex items-center space-x-2">
                                  <Checkbox 
                                     id={`sup-${sup.id}`}
@@ -231,7 +232,7 @@ export default function AprTemplatesPage() {
                                         );
                                     }}
                                  />
-                                 <Label htmlFor={`sup-${sup.id}`}>{sup.name}</Label>
+                                 <Label htmlFor={`sup-${sup.id}`}>{sup.name} <span className="text-xs text-muted-foreground">({sup.role})</span></Label>
                                </div>
                             ))}
                        </div>

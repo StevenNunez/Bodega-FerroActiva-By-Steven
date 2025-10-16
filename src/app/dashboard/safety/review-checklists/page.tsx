@@ -66,7 +66,7 @@ export default function AprReviewPage() {
                         {checklistsToReview.length > 0 ? (
                             <div className="space-y-3 p-4">
                                 {checklistsToReview.map(checklist => (
-                                    <Link key={checklist.id} href={`/dashboard/safety/review/${checklist.id}`} passHref>
+                                    <Link key={checklist.id} href={`/dashboard/safety/review-checklists/${checklist.id}`} passHref>
                                         <div className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-muted/50 transition-colors cursor-pointer">
                                             <div className="flex-grow">
                                                 <h4 className="font-semibold">{checklist.templateTitle}</h4>

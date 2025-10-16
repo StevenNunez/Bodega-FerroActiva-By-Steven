@@ -26,10 +26,11 @@ import {
   User as UserIcon,
   Ruler,
   ShieldCheck,
-  DollarSign,
   FileUp,
   ArrowLeft,
   ListChecks,
+  DollarSign,
+  ShieldAlert,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -117,12 +118,19 @@ const safetyNavItems = (role: string) => {
     const items = [
         { href: '/dashboard/safety', icon: LayoutDashboard, label: 'Resumen' }
     ];
-    if (role === 'apr') {
-        items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas'});
-        items.push({ href: '/dashboard/safety/review', icon: ShieldCheck, label: 'Revisar Checklists'});
+    
+    if (['apr', 'admin', 'operations'].includes(role)) {
+        items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Inspección de Seguridad'});
     }
-    if (['admin', 'supervisor', 'operations'].includes(role)) {
-         items.push({ href: '/dashboard/safety/assigned-checklists', icon: ListChecks, label: 'Mis Checklists Asignados' });
+
+    if (role === 'apr' || role === 'admin') {
+        items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas'});
+        items.push({ href: '/dashboard/safety/review-checklists', icon: ShieldCheck, label: 'Revisar Checklists'});
+        items.push({ href: '/dashboard/safety/review-inspections', icon: ShieldCheck, label: 'Revisar Inspecciones' });
+    }
+    if (['admin', 'supervisor', 'operations', 'apr'].includes(role)) {
+         items.push({ href: '/dashboard/safety/assigned-checklists', icon: ListChecks, label: 'Mis Checklists' });
+         items.push({ href: '/dashboard/safety/assigned-inspections', icon: ShieldCheck, label: 'Mis Inspecciones' });
     }
     return items;
 };

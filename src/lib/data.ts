@@ -174,22 +174,38 @@ export interface ChecklistItem {
 
 export interface SafetyInspection {
   id: string;
-  createdBy: string;
+  createdBy: string; // User ID of APR, Admin, etc.
   work: string;
-  date: Date | Timestamp;
   location?: string;
   inspectorName: string;
   inspectorRole?: string;
   description: string;
-  importance: "low" | "medium" | "high";
+  riskLevel: 'leve' | 'grave' | 'fatal';
+  actionPlan: string;
   evidencePhotos: string[];
-  correctiveMeasures?: string;
-  responsible?: string;
-  complianceDate?: Date | Timestamp | null;
-  finalPhoto?: string;
-  finalDescription?: string;
-  executorName?: string;
-  finalDate?: Date | Timestamp | null;
+  createdAt: Date | Timestamp;
+
+  // Assignment part
+  assignedTo: string; // Supervisor User ID
+  assignedAt?: Date | Timestamp;
+  deadline?: Date | Timestamp | null;
+
+  // Completion part
+  status: 'open' | 'in-progress' | 'completed' | 'approved' | 'rejected';
+  completionNotes?: string;
+  completionExecutor?: string;
+  completionPhotos?: string[];
+  completedAt?: Date | Timestamp | null;
+  completionSignature?: string;
+
+  // Review part
+  reviewedBy?: {
+    id: string;
+    name: string;
+    signature: string;
+    date: Date | Timestamp;
+  };
+  rejectionNotes?: string; // If APR rejects the completion
 }
 
 export interface SupplierPayment {
@@ -201,4 +217,15 @@ export interface SupplierPayment {
   status: 'pending' | 'paid' | 'overdue';
   createdAt: Date | Timestamp;
   purchaseOrderNumber?: string;
+}
+
+// This is a client-side only type, not stored in DB
+export interface Checklist {
+    id: string;
+    title: string;
+    items: {
+        element: string;
+        checked: boolean;
+    }[];
+    createdBy: string;
 }
