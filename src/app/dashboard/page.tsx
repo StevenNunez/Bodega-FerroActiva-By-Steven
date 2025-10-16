@@ -1,168 +1,253 @@
 
-'use client';
-import * as React from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useAuth } from '@/contexts/app-provider';
-import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, ShieldCheck } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { PageHeader } from '@/components/page-header';
-import { UserCredentialCard } from '@/components/user-credential-card';
 
-export default function DashboardHubPage() {
-  const { user, authLoading } = useAuth();
-  const router = useRouter();
+"use client";
 
-  React.useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace('/login');
+import React, { useState, useMemo } from "react";
+import { PageHeader } from "@/components/page-header";
+import { useAppState, useAuth } from "@/contexts/app-provider";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, PlusCircle, Trash2, FileUp, ListChecks } from "lucide-react";
+import { ChecklistTemplate, ChecklistItem, User } from "@/lib/data";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+
+
+export default function AprTemplatesPage() {
+  const { users, checklistTemplates, addChecklistTemplate, assignChecklistToSupervisors } = useAppState();
+  const { user: authUser } = useAuth();
+  const { toast } = useToast();
+
+  const [title, setTitle] = useState("");
+  const [items, setItems] = useState<Pick<ChecklistItem, 'element'>>([{ element: "" }]);
+  const [assigningTemplate, setAssigningTemplate] = useState<ChecklistTemplate | null>(null);
+  const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
+  const [workArea, setWorkArea] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  const assignableUsers = useMemo(() => {
+    const rolesToAssign = ['supervisor', 'apr', 'admin', 'operations'];
+    return users.filter(u => rolesToAssign.includes(u.role));
+  }, [users]);
+  
+  const canManageTemplates = authUser?.role === 'apr' || authUser?.role === 'admin';
+
+  const handleItemChange = (index: number, value: string) => {
+    const newItems = [...items];
+    newItems[index].element = value;
+    setItems(newItems);
+  };
+
+  const handleAddItem = () => {
+    setItems([...items, { element: "" }]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (items.length > 1) {
+      const newItems = items.filter((_, i) => i !== index);
+      setItems(newItems);
     }
-  }, [user, authLoading, router]);
+  };
 
-  if (authLoading || !user) {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Cargando portal...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Define role-specific warehouse dashboard paths
-  const warehouseDashboardPaths: { [key: string]: string } = {
-    admin: '/dashboard/admin',
-    supervisor: '/dashboard/supervisor',
-    worker: '/dashboard/worker',
-    operations: '/dashboard/operations',
-    apr: '/dashboard/apr',
-    finance: '/dashboard/admin/payments'
+  const handleSaveTemplate = async () => {
+    if (!title.trim() || items.some(item => !item.element.trim())) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Por favor, completa el título y todos los ítems antes de guardar.' });
+        return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+        await addChecklistTemplate({ title, items });
+        toast({ title: 'Plantilla Guardada', description: `La plantilla "${title}" ha sido creada.` });
+        setTitle('');
+        setItems([{ element: '' }]);
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo guardar la plantilla.' });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
-  // Special case for 'guardia' to redirect directly to the attendance module
-  if (user.role === 'guardia') {
-      router.replace('/dashboard/attendance/registry');
-      return (
-        <div className="flex h-full w-full items-center justify-center">
-            <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">Redirigiendo...</p>
-            </div>
-        </div>
-      );
+  const handleAssign = async () => {
+      if (!assigningTemplate || selectedSupervisorIds.length === 0 || !workArea.trim()) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Selecciona una plantilla, al menos un usuario y especifica la obra.' });
+          return;
+      }
+      setIsAssigning(true);
+      try {
+        await assignChecklistToSupervisors(assigningTemplate, selectedSupervisorIds, workArea);
+        toast({ title: 'Asignación Completa', description: `La plantilla "${assigningTemplate.title}" ha sido asignada a ${selectedSupervisorIds.length} usuario(s) para la obra ${workArea}.` });
+        setAssigningTemplate(null);
+        setSelectedSupervisorIds([]);
+        setWorkArea("");
+      } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error de Asignación', description: error.message || 'No se pudo completar la asignación.' });
+      } finally {
+        setIsAssigning(false);
+      }
   }
-
-  const warehousePath = warehouseDashboardPaths[user.role] || '/dashboard';
-  const attendancePath = '/dashboard/attendance/registry';
-  const profilePath = '/dashboard/profile';
-  const paymentsPath = '/dashboard/admin/payments';
-  const safetyPath = '/dashboard/safety';
-  
-  const canSeeAttendance = ['admin', 'operations'].includes(user.role);
-  const canSeePayments = ['admin', 'operations', 'finance'].includes(user.role);
-  const canSeeSafety = ['admin', 'apr', 'supervisor', 'operations'].includes(user.role);
 
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title={`Bienvenido, ${user.name}`}
-        description="Selecciona el módulo al que deseas acceder o gestiona tu perfil."
+        title="Gestión de Plantillas de Checklist"
+        description="Crea, visualiza y asigna plantillas de checklist a los supervisores."
       />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-            
-            <UserCredentialCard />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {canManageTemplates && (
+            <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><FileUp /> Crear Nueva Plantilla</CardTitle>
+                <CardDescription>
+                Define los ítems que contendrá el checklist. Estos serán los puntos que los supervisores deberán verificar.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <div className="space-y-2">
+                    <Label htmlFor="template-title">Título de la Plantilla</Label>
+                    <Input 
+                        id="template-title" 
+                        placeholder="Ej: Inspección Semanal de Andamios"
+                        value={title}
+                        onChange={e => setTitle(e.target.value)}
+                    />
+                </div>
 
-            <Link href={profilePath} className="group">
-              <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <UserIcon className="h-8 w-8 transition-transform group-hover:scale-110" />
-                  </div>
-                  <div>
-                    <CardTitle>Módulo de Perfil</CardTitle>
-                    <CardDescription className="mt-1">
-                      Consulta tu información personal y de planilla.
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
-            
-            {user.role !== 'finance' && (
-              <Link href={warehousePath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                  <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Warehouse className="h-8 w-8 transition-transform group-hover:scale-110" />
+                <div className="space-y-4">
+                    <Label>Ítems del Checklist</Label>
+                    <ScrollArea className="h-60 border rounded-md p-4">
+                        {items.map((item, index) => (
+                        <div key={index} className="flex items-center gap-2 mb-2">
+                            <Input
+                            placeholder={`Ítem de verificación #${index + 1}`}
+                            value={item.element}
+                            onChange={(e) => handleItemChange(index, e.target.value)}
+                            />
+                            <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveItem(index)}
+                            disabled={items.length <= 1}
+                            className="text-destructive"
+                            >
+                            <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        ))}
+                    </ScrollArea>
+                    <Button variant="outline" onClick={handleAddItem} className="w-full">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Añadir Ítem
+                    </Button>
+                </div>
+                
+                <Button onClick={handleSaveTemplate} disabled={isSubmitting || !title.trim()} className="w-full">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <PlusCircle className="mr-2 h-4 w-4" />}
+                    Guardar Plantilla
+                </Button>
+            </CardContent>
+            </Card>
+        )}
+        
+        <Card className={!canManageTemplates ? 'lg:col-span-2' : ''}>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><ListChecks /> Plantillas y Asignación</CardTitle>
+                <CardDescription>Visualiza las plantillas guardadas y asígnalas a los supervisores para que las completen.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 {(!checklistTemplates || checklistTemplates.length === 0) ? (
+                    <div className="text-center text-muted-foreground p-8 border-2 border-dashed rounded-lg">
+                        <p>Aún no has creado ninguna plantilla.</p>
+                        {canManageTemplates && <p className="text-sm">Usa el formulario de la izquierda para empezar.</p>}
                     </div>
-                    <div>
-                      <CardTitle>Módulo de Bodega</CardTitle>
-                      <CardDescription className="mt-1">
-                        Gestiona inventario, herramientas, solicitudes y compras.
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                </Card>
-              </Link>
-            )}
-            
-            {canSeeSafety && (
-                <Link href={safetyPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <ShieldCheck className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Módulo de Prevención de Riesgos</CardTitle>
-                        <CardDescription className="mt-1">
-                        Gestión de checklists, plantillas y revisiones de seguridad.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
-            
-            {canSeeAttendance && (
-                <Link href={attendancePath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <CalendarCheck className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Módulo de Asistencia</CardTitle>
-                        <CardDescription className="mt-1">
-                        Control de entrada y salida de personal, y reportes.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
+                 ) : (
+                    <ScrollArea className="h-[calc(80vh-12rem)]">
+                        <div className="space-y-4 pr-4">
+                            {checklistTemplates.map(template => (
+                                <div key={template.id} className="p-4 border rounded-lg flex justify-between items-center">
+                                    <h4 className="font-semibold">{template.title || 'Plantilla sin título'}</h4>
+                                    {canManageTemplates && <Button onClick={() => setAssigningTemplate(template)}>Asignar</Button>}
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                 )}
+            </CardContent>
+        </Card>
 
-            {canSeePayments && (
-                <Link href={paymentsPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <DollarSign className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Módulo de Pagos</CardTitle>
-                        <CardDescription className="mt-1">
-                         Gestiona las facturas y pagos a proveedores.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
       </div>
+      
+       <AlertDialog open={!!assigningTemplate} onOpenChange={(isOpen) => { if (!isOpen) { setAssigningTemplate(null); setWorkArea(""); setSelectedSupervisorIds([]); } }}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Asignar Plantilla "{assigningTemplate?.title}"</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Selecciona los usuarios que deben completar este checklist y especifica la obra o área.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="py-4 space-y-4">
+                   <div className="space-y-2">
+                       <Label htmlFor="work-area">Obra / Área de Trabajo</Label>
+                       <Input 
+                            id="work-area" 
+                            placeholder="Ej: Obra File 721, Bodega Central"
+                            value={workArea}
+                            onChange={(e) => setWorkArea(e.target.value)}
+                        />
+                   </div>
+                   <Label>Usuarios Asignables</Label>
+                   <ScrollArea className="h-40 border rounded-md">
+                       <div className="p-4 space-y-2">
+                            {assignableUsers.map(sup => (
+                               <div key={sup.id} className="flex items-center space-x-2">
+                                 <Checkbox 
+                                    id={`sup-${sup.id}`}
+                                    checked={selectedSupervisorIds.includes(sup.id)}
+                                    onCheckedChange={(checked) => {
+                                        setSelectedSupervisorIds(prev => 
+                                            checked
+                                                ? [...prev, sup.id]
+                                                : prev.filter(id => id !== sup.id)
+                                        );
+                                    }}
+                                 />
+                                 <Label htmlFor={`sup-${sup.id}`}>{sup.name} <span className="text-xs text-muted-foreground">({sup.role})</span></Label>
+                               </div>
+                            ))}
+                       </div>
+                   </ScrollArea>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleAssign} disabled={isAssigning || !workArea.trim() || selectedSupervisorIds.length === 0}>
+                        {isAssigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        Asignar
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
     </div>
   );
 }
