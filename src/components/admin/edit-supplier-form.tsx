@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
@@ -18,6 +19,11 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   categories: z.array(z.string()).nonempty('Debes seleccionar al menos una categoría.'),
+  rut: z.string().optional(),
+  bank: z.string().optional(),
+  accountType: z.string().optional(),
+  accountNumber: z.string().optional(),
+  email: z.string().email('Correo no válido').optional().or(z.literal('')),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -42,18 +48,20 @@ export function EditSupplierForm({ supplier, isOpen, onClose }: EditSupplierForm
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
-    defaultValues: {
-        name: supplier.name,
-        categories: supplier.categories,
-    }
   });
 
   useEffect(() => {
     if(supplier) {
-        reset({
+        const defaultValues = {
             name: supplier.name,
             categories: supplier.categories,
-        });
+            rut: supplier.rut || '',
+            bank: supplier.bank || '',
+            accountType: supplier.accountType || '',
+            accountNumber: supplier.accountNumber || '',
+            email: supplier.email || '',
+        };
+        reset(defaultValues);
         setSelectedCategories(supplier.categories);
     }
   }, [supplier, reset]);
@@ -85,22 +93,46 @@ export function EditSupplierForm({ supplier, isOpen, onClose }: EditSupplierForm
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-xl">
             <DialogHeader>
                 <DialogTitle>Editar Proveedor</DialogTitle>
                 <DialogDescription>
-                    Modifica el nombre y las categorías del proveedor.
+                    Modifica los datos del proveedor.
                 </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto px-6">
                 <div className="space-y-2">
                     <Label htmlFor="supplier-name">Nombre del Proveedor</Label>
                     <Input id="supplier-name" {...register('name')} />
                     {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
                 </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="rut">RUT (Opcional)</Label>
+                    <Input id="rut" placeholder="Ej: 76.123.456-7" {...register('rut')} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="email">Correo de Cobranza (Opcional)</Label>
+                    <Input id="email" type="email" placeholder="Ej: cobranza@proveedor.cl" {...register('email')} />
+                    {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="bank">Banco (Opcional)</Label>
+                        <Input id="bank" {...register('bank')} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="accountType">Tipo de Cuenta (Opcional)</Label>
+                        <Input id="accountType" placeholder="Corriente, Vista..." {...register('accountType')} />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="accountNumber">Nº de Cuenta (Opcional)</Label>
+                    <Input id="accountNumber" {...register('accountNumber')} />
+                </div>
                 
                  <div className="space-y-2">
-                    <Label htmlFor="categories">Categorías que Maneja</Label>
+                    <Label>Categorías que Maneja</Label>
                      <div className="space-y-2">
                         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
                             <PopoverTrigger asChild>
@@ -111,20 +143,9 @@ export function EditSupplierForm({ supplier, isOpen, onClose }: EditSupplierForm
                                                 <Badge key={cat} variant="secondary" className="pl-2 pr-1 py-1 text-sm rounded-md">
                                                     {cat}
                                                     <div 
-                                                        role="button"
-                                                        tabIndex={0}
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            handleCategoryToggle(cat);
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                           if (e.key === 'Enter' || e.key === ' ') {
-                                                              e.preventDefault();
-                                                              e.stopPropagation();
-                                                              handleCategoryToggle(cat);
-                                                           }
-                                                        }}
+                                                        role="button" tabIndex={0}
+                                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCategoryToggle(cat); }}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleCategoryToggle(cat); }}}
                                                         className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 hover:bg-black/10 dark:hover:bg-white/20 p-0.5"
                                                     >
                                                         <X className="h-3 w-3" />
@@ -132,9 +153,7 @@ export function EditSupplierForm({ supplier, isOpen, onClose }: EditSupplierForm
                                                     </div>
                                                 </Badge>
                                             ))
-                                        ) : (
-                                           "Seleccionar categorías..."
-                                        )}
+                                        ) : ("Seleccionar categorías...")}
                                     </div>
                                 </Button>
                             </PopoverTrigger>
@@ -145,14 +164,7 @@ export function EditSupplierForm({ supplier, isOpen, onClose }: EditSupplierForm
                                         <CommandEmpty>No se encontró la categoría.</CommandEmpty>
                                         <CommandGroup>
                                             {materialCategories.map((cat: MaterialCategory) => (
-                                                <CommandItem
-                                                    key={cat.id}
-                                                    value={cat.name}
-                                                    onSelect={() => {
-                                                        handleCategoryToggle(cat.name)
-                                                    }}
-                                                    className="flex items-center justify-between"
-                                                >
+                                                <CommandItem key={cat.id} value={cat.name} onSelect={() => handleCategoryToggle(cat.name)} className="flex items-center justify-between">
                                                     <span>{cat.name}</span>
                                                     {selectedCategories.includes(cat.name) && <Check className="h-4 w-4 text-primary"/>}
                                                 </CommandItem>

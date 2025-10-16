@@ -137,7 +137,7 @@ interface AppStateContextType {
   receivePurchaseRequest: (purchaseRequestId: string, receivedQuantity: number, existingMaterialId?: string) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<void>;
   cancelPurchaseOrder: (orderId: string) => Promise<void>;
-  addSupplier: (name: string, categories: string[]) => Promise<string>;
+  addSupplier: (data: Partial<Omit<Supplier, 'id'>>) => Promise<string>;
   updateSupplier: (supplierId: string, data: Partial<Omit<Supplier, "id">>) => Promise<void>;
   deleteSupplier: (supplierId: string) => Promise<void>;
   addChecklistTemplate: (template: Omit<ChecklistTemplate, "id" | "createdAt" | "createdBy">) => Promise<void>;
@@ -148,7 +148,7 @@ interface AppStateContextType {
   addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "status" | "createdAt" | "createdBy">) => Promise<void>;
   completeSafetyInspection: (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => Promise<void>;
   addSupplierPayment: (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => Promise<void>;
-  updateSupplierPaymentStatus: (id: string, status: 'paid') => Promise<void>;
+  updateSupplierPaymentStatus: (id: string, status: 'paid', details: { paymentDate: Date; paymentMethod: string }) => Promise<void>;
   batchApprovedRequests: (requestIds: string[], options: { mode: "category" | "supplier" }) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
@@ -1096,11 +1096,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addSupplier = async (name: string, categories: string[]): Promise<string> => {
+  const addSupplier = async (data: Partial<Omit<Supplier, 'id'>>) => {
     checkAuthAndRole(["admin", "operations", "supervisor"]);
     try {
       const newDocRef = doc(collection(db, "suppliers"));
-      await setDoc(newDocRef, { id: newDocRef.id, name, categories });
+      await setDoc(newDocRef, { ...data, id: newDocRef.id });
       notify("Proveedor agregado exitosamente.", "success");
       return newDocRef.id;
     } catch (err: any) {
@@ -1303,11 +1303,15 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateSupplierPaymentStatus = async (id: string, status: 'paid') => {
+  const updateSupplierPaymentStatus = async (id: string, status: 'paid', details: { paymentDate: Date; paymentMethod: string }) => {
     checkAuthAndRole(["admin", "operations", "finance"]);
     try {
       const paymentRef = doc(db, "supplierPayments", id);
-      await updateDoc(paymentRef, { status: status });
+      await updateDoc(paymentRef, { 
+        status: status,
+        paymentDate: Timestamp.fromDate(details.paymentDate),
+        paymentMethod: details.paymentMethod,
+       });
       notify("El estado del pago ha sido actualizado.", "success");
     } catch (err: any) {
       notify("Error al actualizar el estado del pago: " + err.message, "destructive");

@@ -1,4 +1,3 @@
-
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -37,7 +36,6 @@ export default function DashboardHubPage() {
     worker: '/dashboard/worker',
     operations: '/dashboard/operations',
     apr: '/dashboard/apr',
-    finance: '/dashboard/admin/payments'
   };
   
   // Special case for 'guardia' to redirect directly to the attendance module
@@ -53,10 +51,10 @@ export default function DashboardHubPage() {
       );
   }
 
-  const warehousePath = warehouseDashboardPaths[user.role] || '/dashboard';
+  const warehousePath = warehouseDashboardPaths[user.role];
   const attendancePath = '/dashboard/attendance/registry';
   const profilePath = '/dashboard/profile';
-  const paymentsPath = '/dashboard/admin/payments';
+  const paymentsPath = '/dashboard/payments';
   const safetyPath = '/dashboard/safety';
   
   const canSeeAttendance = ['admin', 'operations'].includes(user.role);
@@ -91,7 +89,7 @@ export default function DashboardHubPage() {
               </Card>
             </Link>
             
-            {user.role !== 'finance' && (
+            {warehousePath && (
               <Link href={warehousePath} className="group">
                 <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
                   <CardHeader className="flex flex-row items-center gap-4">

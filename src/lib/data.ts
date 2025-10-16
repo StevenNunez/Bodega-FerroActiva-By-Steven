@@ -1,3 +1,5 @@
+
+
 import { Timestamp } from "firebase/firestore";
 
 export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance";
@@ -122,8 +124,11 @@ export interface Supplier {
     id: string;
     name: string;
     categories: string[];
-    address?: string;
-    contact?: string;
+    rut?: string;
+    bank?: string;
+    accountType?: string;
+    accountNumber?: string;
+    email?: string;
 }
 
 export interface PurchaseOrder {
@@ -214,10 +219,14 @@ export interface SupplierPayment {
   invoiceNumber: string;
   amount: number;
   dueDate: Date | Timestamp;
-  status: 'pending' | 'paid' | 'overdue';
+  status: 'pending' | 'paid';
   createdAt: Date | Timestamp;
   purchaseOrderNumber?: string;
+  work?: string; // Obra
+  paymentDate?: Date | Timestamp;
+  paymentMethod?: string;
 }
+
 
 // This is a client-side only type, not stored in DB
 export interface Checklist {

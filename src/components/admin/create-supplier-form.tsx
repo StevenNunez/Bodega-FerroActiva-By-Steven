@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
@@ -17,6 +18,11 @@ import { MaterialCategory } from '@/lib/data';
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   categories: z.array(z.string()).nonempty('Debes seleccionar al menos una categoría.'),
+  rut: z.string().optional(),
+  bank: z.string().optional(),
+  accountType: z.string().optional(),
+  accountNumber: z.string().optional(),
+  email: z.string().email('Correo no válido').optional().or(z.literal('')),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -51,7 +57,7 @@ export function CreateSupplierForm() {
   
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
-      await addSupplier(data.name, data.categories);
+      await addSupplier(data);
       toast({
         title: 'Proveedor Creado',
         description: `${data.name} ha sido añadido al sistema.`,
@@ -74,6 +80,29 @@ export function CreateSupplierForm() {
         <Input id="name" placeholder="Ej: Ferretería El Clavo" {...register('name')} />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
+       <div className="space-y-2">
+        <Label htmlFor="rut">RUT (Opcional)</Label>
+        <Input id="rut" placeholder="Ej: 76.123.456-7" {...register('rut')} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="email">Correo de Cobranza (Opcional)</Label>
+        <Input id="email" type="email" placeholder="Ej: cobranza@proveedor.cl" {...register('email')} />
+         {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+      </div>
+       <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="bank">Banco (Opcional)</Label>
+            <Input id="bank" {...register('bank')} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="accountType">Tipo de Cuenta (Opcional)</Label>
+            <Input id="accountType" placeholder="Corriente, Vista..." {...register('accountType')} />
+          </div>
+       </div>
+       <div className="space-y-2">
+            <Label htmlFor="accountNumber">Nº de Cuenta (Opcional)</Label>
+            <Input id="accountNumber" {...register('accountNumber')} />
+        </div>
       
       <div className="space-y-2">
         <Label htmlFor="categories">Categorías que Maneja</Label>

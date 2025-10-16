@@ -42,7 +42,6 @@ import { Timestamp } from 'firebase/firestore';
 // --- Main Navigation Definitions ---
 const adminNavItems = [
   { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
-  { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores', notificationKey: 'paymentNotifications' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
   { href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' },
@@ -78,7 +77,6 @@ const workerNavItems = [
 
 const operationsNavItems = [
     { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras', notificationKey: 'pendingPurchaseRequests' },
-    { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores', notificationKey: 'paymentNotifications' },
     { href: '/dashboard/operations/request', icon: PlusCircle, label: 'Solicitar Materiales' },
     { href: '/dashboard/operations/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
     { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
@@ -89,7 +87,7 @@ const operationsNavItems = [
 ];
 
 const financeNavItems = [
-  { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores', notificationKey: 'paymentNotifications' },
+  // This role only sees the Payments module from the main hub
 ];
 
 const mainNavItemsByRole = {
@@ -103,15 +101,17 @@ const mainNavItemsByRole = {
 };
 
 // --- Sub-Module Navigation Definitions ---
-const paymentsNavItems = [
-    { href: '/dashboard/admin/payments', icon: DollarSign, label: 'Pagos a Proveedores' },
-];
-
 const attendanceNavItems = [
     { href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' },
     { href: '/dashboard/attendance/report', icon: BookOpen, label: 'Reporte Semanal' },
     { href: '/dashboard/attendance/monthly-report', icon: FileBarChart, label: 'Reporte Mensual' },
     { href: '/dashboard/attendance/overtime', icon: Clock, label: 'Horas Extras' },
+];
+
+const paymentsNavItems = [
+    { href: '/dashboard/payments', icon: LayoutDashboard, label: 'Resumen de Pagos', notificationKey: 'paymentNotifications' },
+    { href: '/dashboard/payments/pago-facturas', icon: DollarSign, label: 'Pago Facturas' },
+    { href: '/dashboard/payments/suppliers', icon: Briefcase, label: 'Proveedores' },
 ];
 
 const safetyNavItems = (role: string) => {
@@ -196,14 +196,14 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
 
     const roleNav = mainNavItemsByRole[user.role] || [];
     
-    if (pathname.startsWith('/dashboard/admin/payments')) {
-        return { currentNavItems: paymentsNavItems, isSubModule: true, moduleTitle: 'Módulo de Pagos' };
-    }
     if (pathname.startsWith('/dashboard/attendance')) {
         return { currentNavItems: attendanceNavItems, isSubModule: true, moduleTitle: 'Módulo de Asistencia' };
     }
     if (pathname.startsWith('/dashboard/safety')) {
         return { currentNavItems: safetyNavItems(user.role), isSubModule: true, moduleTitle: 'Prevención de Riesgos' };
+    }
+     if (pathname.startsWith('/dashboard/payments')) {
+        return { currentNavItems: paymentsNavItems, isSubModule: true, moduleTitle: 'Módulo de Pagos' };
     }
     
     return { currentNavItems: roleNav, isSubModule: false, moduleTitle: '' };
