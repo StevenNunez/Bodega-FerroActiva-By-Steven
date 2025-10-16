@@ -112,6 +112,7 @@ interface AppStateContextType {
   approveRequest: (requestId: string) => Promise<void>;
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
   returnTool: (logId: string, condition: "ok" | "damaged", notes?: string) => Promise<void>;
+  findActiveLogForTool: (toolId: string) => Promise<ToolLog | null>;
   handleAttendanceScan: (userId: string) => Promise<void>;
   addManualAttendance: (userId: string, forDate: Date, time: string, type: 'in' | 'out') => Promise<void>;
   updateAttendanceLog: (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => Promise<void>;
@@ -676,6 +677,26 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
   
+  const findActiveLogForTool = async (toolId: string): Promise<ToolLog | null> => {
+    try {
+      const q = query(
+        collection(db, 'toolLogs'),
+        where('toolId', '==', toolId),
+        where('returnDate', '==', null)
+      );
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        return null;
+      }
+      // Assuming only one active log per tool is possible
+      const docData = querySnapshot.docs[0].data();
+      return convertTimestamps({ ...docData, id: querySnapshot.docs[0].id }) as ToolLog;
+    } catch (error) {
+      console.error("Error finding active log:", error);
+      return null;
+    }
+  };
+
   const handleAttendanceScan = async (userId: string) => {
     checkAuthAndRole(["admin", "guardia", "operations", "supervisor", "apr"]);
     try {
@@ -1341,7 +1362,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const createLot = async (lotName: string) => {
     checkAuthAndRole(["operations"]);
     try {
-      const newLotId = `manual-${lotName.replace(/\s/g, "-").toLowerCase()}-${nanoid(4)}`;
+      const newLotId = `manual-${lotName.replace(/\s/g, "-").toLowerCase()}-${nanoid(4)
+        }`;
       if (manualLots.includes(newLotId) || purchaseRequests.some((pr) => pr.lotId === newLotId)) {
         throw new Error("Ya existe un lote con este nombre.");
       }
@@ -1407,6 +1429,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     approveRequest,
     checkoutTool,
     returnTool,
+    findActiveLogForTool,
     handleAttendanceScan,
     addManualAttendance,
     updateAttendanceLog,
@@ -1546,3 +1569,5 @@ function useAuth() {
 }
 
 export { AppProviders, useAppState, useAuth };
+
+    

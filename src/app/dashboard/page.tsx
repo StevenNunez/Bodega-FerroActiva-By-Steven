@@ -61,7 +61,7 @@ export default function DashboardHubPage() {
   
   const canSeeAttendance = ['admin', 'operations'].includes(user.role);
   const canSeePayments = ['admin', 'operations', 'finance'].includes(user.role);
-  const canSeeSafety = ['admin', 'apr', 'supervisor'].includes(user.role);
+  const canSeeSafety = ['admin', 'apr', 'supervisor', 'operations'].includes(user.role);
 
 
   return (

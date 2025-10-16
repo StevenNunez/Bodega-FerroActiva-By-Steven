@@ -18,6 +18,7 @@ export function UserCredentialCard() {
       case 'operations': return 'Administrador de Obra';
       case 'apr': return 'APR';
       case 'guardia': return 'Guardia';
+      case 'finance': return 'Jefe de Adm. y Finanzas';
       default: return 'Usuario';
     }
   }

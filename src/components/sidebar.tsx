@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -118,11 +117,11 @@ const safetyNavItems = (role: string) => {
     const items = [
         { href: '/dashboard/safety', icon: LayoutDashboard, label: 'Resumen' }
     ];
-    if (role === 'apr' || role === 'admin') {
+    if (role === 'apr') {
         items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas'});
         items.push({ href: '/dashboard/safety/review', icon: ShieldCheck, label: 'Revisar Checklists'});
     }
-    if (role === 'supervisor') {
+    if (['admin', 'supervisor', 'operations'].includes(role)) {
          items.push({ href: '/dashboard/safety/assigned-checklists', icon: ListChecks, label: 'Mis Checklists Asignados' });
     }
     return items;

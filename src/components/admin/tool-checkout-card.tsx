@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { useAppState } from '@/contexts/app-provider';
+import { useAppState, useAuth } from '@/contexts/app-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, User, ArrowRight, X, ScanLine } from 'lucide-react';
@@ -20,12 +20,12 @@ type ScanPurpose = 'checkout-worker' | 'checkout-tool' | 'return-tool';
 
 const sanitizeQrCode = (code: string): string => {
   const upperCode = code.toUpperCase();
-  if (upperCode.startsWith("USER")) {
-    // For users, IDs can have mixed case, so just replace the quote
+  if (upperCode.startsWith('USER')) {
+    // For users, IDs can have mixed case. Just replace the apostrophe.
     return code.replace(/'/g, "-");
   }
-  if (upperCode.startsWith("TOOL")) {
-    // For tools, we can be more aggressive, but let's stick to replacing quotes
+  if (upperCode.startsWith('TOOL')) {
+    // For tools, replace all apostrophes with hyphens.
     return code.replace(/'/g, "-");
   }
   return code;
@@ -33,46 +33,36 @@ const sanitizeQrCode = (code: string): string => {
 
 
 export function ToolCheckoutCard() {
-  const { users, tools, toolLogs, checkoutTool, returnTool, user: authUser } = useAppState();
+  const { users, tools, checkoutTool, returnTool, user: authUser, findActiveLogForTool } = useAppState();
   const { toast } = useToast();
 
-  const [workers, setWorkers] = useState<UserType[]>([]);
-  const [checkedOutTools, setCheckedOutTools] = useState<ToolType[]>([]);
-  const [availableTools, setAvailableTools] = useState<ToolType[]>([]);
-
-  // Main state
   const [checkoutState, setCheckoutState] = useState<{ worker?: UserType; tools: ToolType[] }>({ tools: [] });
   const [returnMode, setReturnMode] = useState(false);
-
-  // Manual selection state
   const [manualWorkerId, setManualWorkerId] = useState('');
   const [manualToolId, setManualToolId] = useState('');
-  
-  // Pistol scanner state
   const [pistolInput, setPistolInput] = useState('');
   const [isScannerOpen, setScannerOpen] = useState(false);
   const [scannerPurpose, setScannerPurpose] = useState<ScanPurpose | null>(null);
-
-  // Return state
   const [isDamaged, setIsDamaged] = useState(false);
   const [returnNotes, setReturnNotes] = useState('');
   
-  // Update ref whenever state changes
   const checkoutStateRef = useRef(checkoutState);
   useEffect(() => {
     checkoutStateRef.current = checkoutState;
   }, [checkoutState]);
 
-  // --- Data Memos ---
-  useMemo(() => {
-    setWorkers(users.filter(u => u.role !== 'guardia'));
-    const checkedOutToolIds = new Set(toolLogs.filter(log => log.returnDate === null).map(log => log.toolId));
-    setCheckedOutTools(tools.filter(tool => checkedOutToolIds.has(tool.id)));
-    setAvailableTools(tools.filter(tool => !checkedOutToolIds.has(tool.id)));
-  }, [users, tools, toolLogs]);
+  const { workers, checkedOutTools, availableTools } = useMemo(() => {
+    const activeWorkers = users.filter(u => u.role !== 'guardia');
+    const logs = findActiveLogForTool ? [] : []; // Dependency to re-evaluate if function changes
+    const checkedOutToolIds = new Set(logs.filter(log => log.returnDate === null).map(log => log.toolId));
+    
+    return {
+      workers: activeWorkers,
+      checkedOutTools: tools.filter(tool => checkedOutToolIds.has(tool.id)),
+      availableTools: tools.filter(tool => !checkedOutToolIds.has(tool.id)),
+    };
+  }, [users, tools, findActiveLogForTool]);
   
-  
-  // --- Core Logic Actions ---
   const handleCancel = useCallback(() => {
     setCheckoutState({ tools: [] });
     setManualWorkerId('');
@@ -86,30 +76,30 @@ export function ToolCheckoutCard() {
       toast({ variant: 'destructive', title: 'Error', description: `"${tool.name}" ya está en la lista.` });
       return;
     }
-    const isAvailable = availableTools.some(t => t.id === tool.id);
+    const isAvailable = !checkedOutTools.some(t => t.id === tool.id);
     if (!isAvailable) {
         toast({ variant: 'destructive', title: 'Error', description: `"${tool.name}" no está disponible.` });
         return;
     }
     setCheckoutState(prev => ({ ...prev, tools: [...prev.tools, tool] }));
-  }, [availableTools, toast]);
+  }, [checkedOutTools, toast]);
   
   const handleReturn = useCallback(async (tool: ToolType) => {
-    const logToReturn = toolLogs.find(log => log.toolId === tool.id && log.returnDate === null);
-    if (!logToReturn) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Esta herramienta no figura como prestada.' });
+    const activeLog = await findActiveLogForTool(tool.id);
+    if (!activeLog) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Esta herramienta no figura como prestada activamente.' });
       return;
     }
     if (authUser) {
-      await returnTool(logToReturn.id, isDamaged ? 'damaged' : 'ok', returnNotes);
+      await returnTool(activeLog.id, isDamaged ? 'damaged' : 'ok', returnNotes);
       toast({ title: 'Devolución Registrada', description: `Herramienta "${tool.name}" devuelta.` });
       handleCancel();
     }
-  }, [toolLogs, isDamaged, returnNotes, authUser, returnTool, toast, handleCancel]);
+  }, [isDamaged, returnNotes, authUser, returnTool, toast, handleCancel, findActiveLogForTool]);
 
   const processScan = useCallback((scannedCode: string) => {
-    const finalCode = sanitizeQrCode(scannedCode);
-    
+    const finalCode = sanitizeQrCode(scannedCode.trim());
+
     if (finalCode.startsWith('USER-')) {
         const worker = users.find(u => u.qrCode === finalCode);
         if (worker) {
@@ -139,8 +129,6 @@ export function ToolCheckoutCard() {
     }
   }, [users, tools, returnMode, handleReturn, handleToolToCheckout, toast]);
 
-
-  // --- Pistol Scanner Logic ---
   const handlePistolScanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const code = pistolInput.trim();
@@ -150,8 +138,6 @@ export function ToolCheckoutCard() {
     setPistolInput('');
   };
 
-
-  // --- Manual Actions ---
   const handleManualWorkerSelect = (workerId: string) => {
     const worker = users.find(u => u.id === workerId);
     if (worker) {
@@ -168,12 +154,12 @@ export function ToolCheckoutCard() {
     setManualToolId('');
   };
   
-  const handleManualReturn = () => {
-      const toolToReturn = checkedOutTools.find(t => t.id === manualToolId);
+  const handleManualReturn = async () => {
+      const toolToReturn = tools.find(t => t.id === manualToolId);
       if (toolToReturn) {
-        handleReturn(toolToReturn);
+        await handleReturn(toolToReturn);
       } else {
-        toast({ variant: 'destructive', title: 'Error', description: 'La herramienta seleccionada no figura como prestada.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Herramienta no encontrada.' });
       }
       setManualToolId('');
   };
@@ -197,7 +183,6 @@ export function ToolCheckoutCard() {
     setCheckoutState(prev => ({ ...prev, tools: prev.tools.filter(t => t.id !== toolId) }));
   };
   
-  // --- Camera Scanner Logic ---
   const openScanner = (purpose: ScanPurpose) => {
     setScannerPurpose(purpose);
     setScannerOpen(true);
@@ -241,7 +226,6 @@ export function ToolCheckoutCard() {
       </CardHeader>
       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         
-        {/* --- Manual Panel --- */}
         <div className="p-4 border rounded-lg space-y-4">
           <h3 className="font-semibold">Panel de Selección Manual</h3>
           {!returnMode ? (
@@ -284,7 +268,6 @@ export function ToolCheckoutCard() {
           )}
         </div>
 
-        {/* --- Scanner Panel --- */}
         <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
             <div className="flex items-center justify-between gap-2">
                  <h3 className="font-semibold">Panel de Escáner</h3>
@@ -307,7 +290,6 @@ export function ToolCheckoutCard() {
             </Button>
         </div>
         
-        {/* --- Transaction State --- */}
         <div className="md:col-span-2 space-y-4 p-4 border-2 border-dashed rounded-lg">
            <div className="flex justify-between items-center mb-2">
               <h4 className="font-semibold text-lg">
@@ -321,7 +303,6 @@ export function ToolCheckoutCard() {
                 </div>
             ) : null}
 
-            {/* --- Entrega --- */}
             {!returnMode && checkoutState.worker ? (
                 <div className="space-y-4">
                     <div className="p-3 rounded-md bg-muted flex items-center justify-between">
@@ -358,7 +339,6 @@ export function ToolCheckoutCard() {
                 </div>
             ) : null}
 
-            {/* --- Devolución --- */}
             {returnMode ? (
                 <div className="space-y-4">
                      <div className='text-center py-4 text-muted-foreground'>
