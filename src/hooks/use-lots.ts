@@ -20,17 +20,22 @@ export function useLots() {
   const { purchaseRequests, suppliers, manualLots } = useAppState();
 
   const approvedRequests = useMemo(
-    () => purchaseRequests.filter((pr) => pr.status === "approved"),
+    () => purchaseRequests.filter((pr) => pr.status === "approved" && !pr.lotId),
     [purchaseRequests]
   );
 
   const batchedLots: IntelligentLot[] = useMemo(() => {
-    const lotsMap = new Map<string, IntelligentLot>();
+    const lotsMap = new Map<string, {
+        lotId: string;
+        category: string;
+        requests: PurchaseRequest[];
+        type: LotType;
+    }>();
 
-    // A lot is active if its requests are batched OR ordered (but not yet received)
-    const activeLotRequests = purchaseRequests.filter(pr => pr.lotId && (pr.status === 'batched' || pr.status === 'ordered'));
+    // 1. Group ALL purchase requests that have a lotId.
+    const allRequestsWithLot = purchaseRequests.filter(pr => pr.lotId);
 
-    activeLotRequests.forEach((req) => {
+    allRequestsWithLot.forEach((req) => {
       if (!req.lotId) return;
 
       if (!lotsMap.has(req.lotId)) {
@@ -46,42 +51,55 @@ export function useLots() {
           categoryName = req.category;
         } else if (req.lotId.startsWith("manual-")) {
           type = "manual";
-          categoryName = req.lotId.substring(7, req.lotId.lastIndexOf('-')).replace(/-/g, " ");
+          const nameMatch = req.lotId.match(/^manual-(.*)-[a-zA-Z0-9]{4}$/);
+          categoryName = nameMatch ? nameMatch[1].replace(/-/g, " ") : "Lote Manual";
         }
-
+        
         lotsMap.set(req.lotId, {
           lotId: req.lotId,
           category: categoryName,
           requests: [],
-          totalQuantity: 0,
           type,
         });
       }
-
-      const lot = lotsMap.get(req.lotId)!;
-      lot.requests.push(req);
-      lot.totalQuantity += req.quantity;
+      lotsMap.get(req.lotId)!.requests.push(req);
     });
-    
-    // Now, ensure all manually created lots exist, even if empty, as long as they don't have associated received items
+
+    // Add empty manual lots for assignment
     manualLots.forEach(lotId => {
-        if (!lotsMap.has(lotId)) {
-            const hasReceivedItems = purchaseRequests.some(pr => pr.lotId === lotId && pr.status === 'received');
-            if (!hasReceivedItems) {
-                const categoryName = lotId.substring(7, lotId.lastIndexOf('-')).replace(/-/g, " ");
-                lotsMap.set(lotId, {
-                    lotId: lotId,
-                    category: categoryName,
-                    requests: [],
-                    totalQuantity: 0,
-                    type: 'manual',
-                });
-            }
-        }
+      if (!lotsMap.has(lotId)) {
+        const nameMatch = lotId.match(/^manual-(.*)-[a-zA-Z0-9]{4}$/);
+        const categoryName = nameMatch ? nameMatch[1].replace(/-/g, " ") : "Lote Manual";
+        lotsMap.set(lotId, {
+          lotId: lotId,
+          category: categoryName,
+          requests: [],
+          type: 'manual',
+        });
+      }
     });
 
-    return Array.from(lotsMap.values())
-      .sort((a, b) => a.category.localeCompare(b.category));
+    // 2. Filter the map to keep only "active" lots.
+    const activeLots: IntelligentLot[] = [];
+    lotsMap.forEach((lotData) => {
+      // An active lot must have at least one request still in 'batched' state.
+      const hasActiveItems = lotData.requests.some(req => req.status === 'batched');
+      const isEmptyManualLot = lotData.type === 'manual' && lotData.requests.length === 0;
+
+      if (hasActiveItems || isEmptyManualLot) {
+        // Only show requests that are actually in the 'batched' state inside the lot view.
+        const activeRequestsInLot = lotData.requests.filter(req => req.status === 'batched');
+        const totalQuantity = activeRequestsInLot.reduce((sum, req) => sum + req.quantity, 0);
+
+        activeLots.push({
+            ...lotData,
+            requests: activeRequestsInLot,
+            totalQuantity,
+        });
+      }
+    });
+
+    return activeLots.sort((a, b) => a.category.localeCompare(b.category));
       
   }, [purchaseRequests, suppliers, manualLots]);
 

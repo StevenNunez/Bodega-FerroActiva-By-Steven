@@ -153,11 +153,11 @@ const ActiveLotsCard = memo(
   ({
     batchedLots,
     handleRemove,
-    handleArchiveRequest,
+    handleDeleteLot,
   }: {
     batchedLots: Lot[];
     handleRemove: (requestId: string) => Promise<void>;
-    handleArchiveRequest: (requestId: string) => Promise<void>;
+    handleDeleteLot: (lotId: string) => Promise<void>;
   }) => (
     <Card className="transition-all duration-300">
       <CardHeader>
@@ -178,6 +178,28 @@ const ActiveLotsCard = memo(
                         {lot.requests.length} solicitudes, {lot.totalQuantity.toLocaleString()} unidades en total.
                         </p>
                     </div>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10">
+                                <Trash2 className="h-4 w-4"/>
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Procesar y Eliminar Lote?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Esta acción es para limpiar lotes atascados. Marcará todas las solicitudes internas como procesadas ('ordered') y las quitará de la vista activa.
+                                <strong className="block mt-2">No afectará el stock.</strong> Úsalo para lotes que ya fueron recibidos pero que siguen apareciendo aquí.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteLot(lot.lotId)}>
+                                    Sí, procesar y eliminar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                  </div>
                 {lot.requests.length > 0 ? (
                   <div className="space-y-2">
@@ -193,14 +215,15 @@ const ActiveLotsCard = memo(
                           </p>
                           <p className="text-xs text-muted-foreground">Para: {req.area}</p>
                         </div>
-                         <div className="flex items-center gap-1">
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-green-500 hover:text-green-600" onClick={() => handleArchiveRequest(req.id)} aria-label={`Archivar solicitud para ${req.materialName}`}>
-                                <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleRemove(req.id)} aria-label={`Quitar solicitud ${req.materialName} del lote`} >
-                                <PackageMinus className="h-4 w-4" />
-                            </Button>
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleRemove(req.id)}
+                          aria-label={`Quitar solicitud ${req.materialName} del lote`}
+                        >
+                          <PackageMinus className="mr-2 h-4 w-4" /> Quitar
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -226,7 +249,7 @@ const ActiveLotsCard = memo(
 // Componente principal
 export default function OperationsLotsPage() {
   const { approvedRequests, batchedLots } = useLots();
-  const { removeRequestFromLot, addRequestToLot, updatePurchaseRequestStatus } = useAppState();
+  const { removeRequestFromLot, addRequestToLot, deleteLot } = useAppState();
   const { toast } = useToast();
   const [isLoadingAction, setIsLoadingAction] = useState<string | null>(null);
 
@@ -276,16 +299,23 @@ export default function OperationsLotsPage() {
     },
     [addRequestToLot, toast]
   );
-  
-  const handleArchiveRequest = useCallback(async (requestId: string) => {
-      try {
-        await updatePurchaseRequestStatus(requestId, "ordered", { notes: "Archivada manualmente desde panel de lotes." });
-        toast({ title: 'Solicitud Archivada', description: 'La solicitud se ha limpiado de la lista de pendientes sin afectar el stock.' });
-      } catch (error: any) {
-        toast({ variant: "destructive", title: "Error al archivar", description: error.message || "No se pudo archivar la solicitud." });
-      }
-  }, [updatePurchaseRequestStatus, toast]);
 
+  const handleDeleteLot = useCallback(
+      async (lotId: string) => {
+        try {
+            await deleteLot(lotId);
+            toast({ title: 'Lote Limpiado', description: 'El lote y sus solicitudes internas han sido archivados.' });
+        } catch (e: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Error al limpiar el lote',
+                description: e.message || 'No se pudo completar la operación.',
+            });
+        }
+      },
+      [deleteLot, toast]
+  );
+  
   return (
     <div className="flex flex-col gap-8 p-6 bg-background min-h-screen">
       <PageHeader
@@ -300,15 +330,9 @@ export default function OperationsLotsPage() {
         />
         <div className="space-y-8">
           <CreateLotCard />
-          <ActiveLotsCard
-            batchedLots={batchedLots}
-            handleRemove={handleRemove}
-            handleArchiveRequest={handleArchiveRequest}
-          />
+          <ActiveLotsCard batchedLots={batchedLots} handleRemove={handleRemove} handleDeleteLot={handleDeleteLot}/>
         </div>
       </div>
     </div>
   );
 }
-
-    

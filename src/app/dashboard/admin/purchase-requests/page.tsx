@@ -406,7 +406,7 @@ export default function AdminPurchaseRequestsPage() {
             </div>
 
             <div className="relative w-full overflow-x-auto">
-              <div className="min-w-[1000px]">
+              <div className="min-w-[1200px]">
                 <Table>
                   <TableHeader className="sticky top-0 bg-card">
                     <TableRow>
@@ -420,6 +420,9 @@ export default function AdminPurchaseRequestsPage() {
                       </TableHead>
                       <TableHead className="min-w-[150px]">
                         Fecha Solicitud
+                      </TableHead>
+                       <TableHead className="min-w-[150px]">
+                        Fecha Recepción
                       </TableHead>
                       <TableHead className="min-w-[150px]">Estado</TableHead>
                       <TableHead className="min-w-[180px] text-right">
@@ -455,6 +458,9 @@ export default function AdminPurchaseRequestsPage() {
                             </TableCell>
                             <TableCell className="min-w-[150px]">
                               {formatDate(req.createdAt)}
+                            </TableCell>
+                             <TableCell className="min-w-[150px]">
+                              {formatDate(req.receivedAt)}
                             </TableCell>
                             <TableCell className="min-w-[150px]">
                               {getStatusBadge(req.status)}
@@ -498,7 +504,7 @@ export default function AdminPurchaseRequestsPage() {
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center">
+                        <TableCell colSpan={8} className="h-24 text-center">
                           No hay solicitudes de compra para los filtros seleccionados.
                         </TableCell>
                       </TableRow>
