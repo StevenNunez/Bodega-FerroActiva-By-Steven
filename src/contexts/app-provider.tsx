@@ -149,6 +149,7 @@ interface AppStateContextType {
   completeSafetyInspection: (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => Promise<void>;
   addSupplierPayment: (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => Promise<void>;
   updateSupplierPaymentStatus: (id: string, status: 'paid', details: { paymentDate: Date; paymentMethod: string }) => Promise<void>;
+  updateSupplierPayment: (id: string, data: Partial<Pick<SupplierPayment, 'work' | 'purchaseOrderNumber'>>) => Promise<void>;
   batchApprovedRequests: (requestIds: string[], options: { mode: "category" | "supplier" }) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
@@ -1319,6 +1320,18 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateSupplierPayment = async (id: string, data: Partial<Pick<SupplierPayment, 'work' | 'purchaseOrderNumber'>>) => {
+      checkAuthAndRole(["admin", "operations", "finance"]);
+      try {
+        const paymentRef = doc(db, "supplierPayments", id);
+        await updateDoc(paymentRef, data);
+        notify("Factura actualizada.", "success");
+      } catch (err: any) {
+        notify("Error al actualizar la factura: " + err.message, "destructive");
+        throw err;
+      }
+  };
+
   const batchApprovedRequests = async (requestIds: string[], options: { mode: "category" | "supplier" }) => {
     checkAuthAndRole(["operations"]);
     try {
@@ -1490,6 +1503,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     completeSafetyInspection,
     addSupplierPayment,
     updateSupplierPaymentStatus,
+    updateSupplierPayment,
     batchApprovedRequests,
     removeRequestFromLot,
     addRequestToLot,

@@ -40,6 +40,7 @@ import {
   XCircle,
   FilePlus,
   Clock,
+  Edit,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { format, differenceInDays, startOfDay } from "date-fns";
@@ -47,6 +48,8 @@ import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { SupplierPayment, Supplier } from "@/lib/data";
 import { MarkAsPaidDialog } from "@/components/admin/mark-as-paid-dialog";
+import { EditPaymentForm } from "@/components/admin/edit-payment-form";
+
 
 type PaymentStatus = "pending" | "paid" | "overdue";
 
@@ -238,6 +241,7 @@ export default function PaymentManagementPage() {
   const [ocFilter, setOcFilter] = useState("");
   const [workFilter, setWorkFilter] = useState("all");
   const [payingPayment, setPayingPayment] = useState<SupplierPayment | null>(null);
+  const [editingPayment, setEditingPayment] = useState<SupplierPayment | null>(null);
   
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(value);
@@ -292,14 +296,8 @@ export default function PaymentManagementPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Gestión de Facturas"
-        description="Registra nuevas facturas de proveedores y gestiona el estado de pago de cada una."
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1">
-            <Card>
+      <div className="grid grid-cols-1 gap-8">
+        <Card>
             <CardHeader>
                 <CardTitle>Registrar Nueva Factura</CardTitle>
                 <CardDescription>Añade una nueva factura para seguimiento.</CardDescription>
@@ -310,11 +308,9 @@ export default function PaymentManagementPage() {
                 addPayment={addSupplierPayment}
                 />
             </CardContent>
-            </Card>
-        </div>
+        </Card>
 
-        <div className="lg:col-span-2">
-            <Card>
+        <Card>
             <CardHeader>
                 <CardTitle>Listado de Facturas</CardTitle>
                 <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -378,12 +374,15 @@ export default function PaymentManagementPage() {
                                     <div className="text-xs text-muted-foreground">Pagado: {format(p.paymentDate as Date, "dd-MM-yy")} ({p.paymentMethod})</div>
                                 )}
                             </TableCell>
-                            <TableCell className="text-right">
-                            {p.status !== "paid" && (
-                                <Button size="sm" onClick={() => setPayingPayment(p)}>
-                                Marcar como Pagada
+                            <TableCell className="text-right flex justify-end gap-2">
+                                <Button size="sm" variant="outline" onClick={() => setEditingPayment(p)}>
+                                    <Edit className="h-4 w-4" />
                                 </Button>
-                            )}
+                                {p.status !== "paid" && (
+                                    <Button size="sm" onClick={() => setPayingPayment(p)}>
+                                        Marcar como Pagada
+                                    </Button>
+                                )}
                             </TableCell>
                         </TableRow>
                         ))
@@ -397,7 +396,6 @@ export default function PaymentManagementPage() {
                 </div>
             </CardContent>
             </Card>
-        </div>
       </div>
 
      <MarkAsPaidDialog
@@ -406,6 +404,14 @@ export default function PaymentManagementPage() {
         payment={payingPayment}
         onConfirm={handleMarkAsPaid}
       />
+      
+      {editingPayment && (
+        <EditPaymentForm
+            isOpen={!!editingPayment}
+            onClose={() => setEditingPayment(null)}
+            payment={editingPayment}
+        />
+      )}
     </div>
   );
 }
