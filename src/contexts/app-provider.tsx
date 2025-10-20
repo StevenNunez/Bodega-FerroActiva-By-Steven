@@ -687,21 +687,22 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   
   const findActiveLogForTool = async (toolId: string): Promise<ToolLog | null> => {
     try {
-      const q = query(
-        collection(db, 'toolLogs'),
-        where('toolId', '==', toolId),
-        where('returnDate', '==', null)
-      );
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
-        return null;
-      }
-      // Assuming only one active log per tool is possible
-      const docData = querySnapshot.docs[0].data();
-      return convertTimestamps({ ...docData, id: querySnapshot.docs[0].id }) as ToolLog;
+        const q = query(
+            collection(db, 'toolLogs'),
+            where('toolId', '==', toolId),
+            where('returnDate', '==', null)
+        );
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+            return null;
+        }
+        // Assuming only one active log per tool is possible
+        const docData = querySnapshot.docs[0].data();
+        return convertTimestamps({ ...docData, id: querySnapshot.docs[0].id }) as ToolLog;
     } catch (error) {
-      console.error("Error finding active log:", error);
-      return null;
+        console.error("Error finding active log for tool:", error);
+        notify("Error al buscar la herramienta prestada: " + (error as Error).message, "destructive");
+        return null;
     }
   };
 
@@ -1464,7 +1465,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         notify("Error al procesar el lote: " + err.message, "destructive");
         throw err;
     }
-};
+  };
 
   const contextValue = {
     user: authUser,

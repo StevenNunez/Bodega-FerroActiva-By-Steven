@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -40,7 +41,9 @@ export function ToolCheckoutCard() {
   const [returnNotes, setReturnNotes] = useState('');
 
   const checkoutStateRef = useRef(checkoutState);
-  useEffect(() => { checkoutStateRef.current = checkoutState; }, [checkoutState]);
+  useEffect(() => {
+    checkoutStateRef.current = checkoutState;
+  }, [checkoutState]);
 
   const { workers, checkedOutTools, availableTools } = useMemo(() => {
     const activeWorkers = users.filter(u => u.role !== 'guardia');
@@ -71,183 +74,225 @@ export function ToolCheckoutCard() {
   }, [toast]);
 
   const handleReturn = useCallback(async (tool: ToolType) => {
+    // Verificar si la herramienta está en checkedOutTools
+    const isToolCheckedOut = checkedOutTools.some(t => t.id === tool.id);
+    if (!isToolCheckedOut) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: `La herramienta "${tool.name}" no está registrada como prestada en el sistema.`,
+      });
+      return;
+    }
+
     const activeLog = await findActiveLogForTool(tool.id);
     if (!activeLog) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Esta herramienta no figura como prestada activamente.' });
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: `No se encontró un registro activo para "${tool.name}". Verifica que la herramienta esté prestada.`,
+      });
       return;
     }
+
     if (authUser) {
-      await returnTool(activeLog.id, isDamaged ? 'damaged' : 'ok', returnNotes);
-      toast({ title: 'Devolución Registrada', description: `Herramienta "${tool.name}" devuelta.` });
-      handleCancel();
+      try {
+        await returnTool(activeLog.id, isDamaged ? 'damaged' : 'ok', returnNotes);
+        toast({
+          title: 'Devolución Registrada',
+          description: `Herramienta "${tool.name}" devuelta exitosamente.`,
+        });
+        handleCancel();
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: `Error al registrar la devolución: ${(error as Error).message}`,
+        });
+      }
     }
-  }, [isDamaged, returnNotes, authUser, returnTool, toast, handleCancel, findActiveLogForTool]);
+  }, [isDamaged, returnNotes, authUser, returnTool, toast, handleCancel, findActiveLogForTool, checkedOutTools]);
 
   // --- Nueva función de parseo y búsqueda robusta para herramientas/usuarios
-  const findToolFromScanned = useCallback((finalCode: string) : ToolType | null => {
-    if (!finalCode) return null;
-    // 1) intento match exacto por qrCode
-    const exact = tools.find(t => t.qrCode === finalCode);
-    if (exact) return exact;
+  const findToolFromScanned = useCallback(
+    (finalCode: string): ToolType | null => {
+      if (!finalCode) return null;
+      console.log('DEBUG - findToolFromScanned:', finalCode);
 
-    // 2) split por comillas simples si existen
-    const parts = finalCode.split("'");
-    // casos:
-    // a) TOOL'NAME'ID  -> parts e.g. ['TOOL', 'NAME', 'ID']
-    // b) 'NAME'ID       -> parts e.g. ['', 'NAME', 'ID']
-    // c) NAME'ID        -> parts e.g. ['NAME', 'ID']
-    // d) ID only or NAME only
+      // 1) Intento match exacto por qrCode
+      const exact = tools.find(t => t.qrCode === finalCode);
+      if (exact) return exact;
 
-    // normalize helpers
-    const up = (s?: string) => s ? s.trim().toUpperCase() : '';
+      // 2) Split por comillas simples si existen
+      const parts = finalCode.split("'");
+      const up = (s?: string) => (s ? s.trim().toUpperCase() : '');
 
-    if (parts.length >= 3) {
-      // try using parts[2] as id, parts[1] as name
-      const possibleId = parts[2].trim();
-      const possibleName = parts[1].trim();
-      const byId = tools.find(t => t.id === possibleId || up(t.id) === up(possibleId));
-      if (byId) return byId;
-      const byName = tools.find(t => up(t.name) === up(possibleName) || (t.name && up(t.name).includes(up(possibleName))));
+      if (parts.length >= 3) {
+        // try using parts[2] as id, parts[1] as name
+        const possibleId = parts[2].trim();
+        const possibleName = parts[1].trim();
+        const byId = tools.find(t => t.id === possibleId || up(t.id) === up(possibleId));
+        if (byId) return byId;
+        const byName = tools.find(
+          t => up(t.name) === up(possibleName) || (t.name && up(t.name).includes(up(possibleName)))
+        );
+        if (byName) return byName;
+      }
+
+      if (parts.length === 2) {
+        // e.g. NAME'ID => parts[0]=NAME, parts[1]=ID
+        const possibleName = parts[0].trim();
+        const possibleId = parts[1].trim();
+        const byId = tools.find(t => t.id === possibleId || up(t.id) === up(possibleId));
+        if (byId) return byId;
+        const byName = tools.find(
+          t => up(t.name) === up(possibleName) || (t.name && up(t.name).includes(up(possibleName)))
+        );
+        if (byName) return byName;
+      }
+
+      // if no quotes or nothing matched, try heuristics:
+      // - last token after non-alnum split might be id-like
+      const tokens = finalCode.split(/[^A-Za-z0-9_-]+/).filter(Boolean);
+      for (let i = tokens.length - 1; i >= 0; i--) {
+        const tok = tokens[i];
+        const byId = tools.find(t => t.id === tok || up(t.id) === up(tok));
+        if (byId) return byId;
+      }
+
+      // try name match (first token)
+      for (const tok of tokens) {
+        const byName = tools.find(t => t.name && up(t.name).includes(up(tok)));
+        if (byName) return byName;
+      }
+
+      // as last resort try partial match anywhere in qrCode/id/name
+      const upperFinal = finalCode.toUpperCase();
+      const fallback = tools.find(
+        t =>
+          (t.qrCode && t.qrCode.toUpperCase().includes(upperFinal)) ||
+          (t.id && t.id.toUpperCase().includes(upperFinal)) ||
+          (t.name && t.name.toUpperCase().includes(upperFinal))
+      );
+      if (fallback) return fallback;
+
+      return null;
+    },
+    [tools]
+  );
+
+  const findUserFromScanned = useCallback(
+    (finalCode: string) => {
+      if (!finalCode) return null;
+      // try exact match by qrCode or id
+      const exact = users.find(u => u.qrCode === finalCode || u.id === finalCode);
+      if (exact) return exact;
+
+      // split by '
+      const parts = finalCode.split("'");
+      if (parts.length >= 2) {
+        const candidateId = parts[1] || parts[0];
+        const byId = users.find(u => u.id === candidateId || (u.qrCode && u.qrCode.includes(candidateId)));
+        if (byId) return byId;
+      }
+
+      // fallback by tokens
+      const tokens = finalCode.split(/[^A-Za-z0-9_-]+/).filter(Boolean);
+      for (const tok of tokens) {
+        const byId = users.find(u => u.id === tok);
+        if (byId) return byId;
+      }
+
+      // last resort: partial name match
+      const up = finalCode.toUpperCase();
+      const byName = users.find(u => u.name && u.name.toUpperCase().includes(up));
       if (byName) return byName;
-    }
 
-    if (parts.length === 2) {
-      // e.g. NAME'ID  => parts[0]=NAME, parts[1]=ID
-      const possibleName = parts[0].trim();
-      const possibleId = parts[1].trim();
-      const byId = tools.find(t => t.id === possibleId || up(t.id) === up(possibleId));
-      if (byId) return byId;
-      const byName = tools.find(t => up(t.name) === up(possibleName) || (t.name && up(t.name).includes(up(possibleName))));
-      if (byName) return byName;
-    }
+      return null;
+    },
+    [users]
+  );
 
-    // if no quotes or nothing matched, try heuristics:
-    // - last token after non-alnum split might be id-like
-    const tokens = finalCode.split(/[^A-Za-z0-9_-]+/).filter(Boolean);
-    // try token that looks like short id (alphanumeric, mixed case)
-    for (let i = tokens.length - 1; i >= 0; i--) {
-      const tok = tokens[i];
-      const byId = tools.find(t => t.id === tok || up(t.id) === up(tok));
-      if (byId) return byId;
-    }
-
-    // try name match (first token)
-    for (const tok of tokens) {
-      const byName = tools.find(t => (t.name && up(t.name).includes(up(tok))));
-      if (byName) return byName;
-    }
-
-    // as last resort try partial match anywhere in qrCode/id/name
-    const upperFinal = finalCode.toUpperCase();
-    const fallback = tools.find(t => (t.qrCode && t.qrCode.toUpperCase().includes(upperFinal)) || (t.id && t.id.toUpperCase().includes(upperFinal)) || (t.name && t.name.toUpperCase().includes(upperFinal)));
-    if (fallback) return fallback;
-
-    return null;
-  }, [tools]);
-
-  const findUserFromScanned = useCallback((finalCode: string) => {
-    if (!finalCode) return null;
-    // try exact match by qrCode or id
-    const exact = users.find(u => u.qrCode === finalCode || u.id === finalCode);
-    if (exact) return exact;
-
-    // split by '
-    const parts = finalCode.split("'");
-    if (parts.length >= 2) {
-      const candidateId = parts[1] || parts[0];
-      const byId = users.find(u => u.id === candidateId || (u.qrCode && u.qrCode.includes(candidateId)));
-      if (byId) return byId;
-    }
-
-    // fallback by tokens
-    const tokens = finalCode.split(/[^A-Za-z0-9_-]+/).filter(Boolean);
-    for (const tok of tokens) {
-      const byId = users.find(u => u.id === tok);
-      if (byId) return byId;
-    }
-
-    // last resort: partial name match
-    const up = finalCode.toUpperCase();
-    const byName = users.find(u => u.name && u.name.toUpperCase().includes(up));
-    if (byName) return byName;
-
-    return null;
-  }, [users]);
-
-  const processScan = useCallback((scannedCode: string) => {
-    const finalCode = sanitizeQrCode(scannedCode);
-    console.log('DEBUG - scanned code:', scannedCode, '-> sanitized:', finalCode);
-
-    if (!finalCode) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Entrada vacía.' });
-      return;
-    }
-
-    const upper = finalCode.toUpperCase();
-
-    // 1) Intentar reconocer usuario
-    if (upper.startsWith('USER') || upper.includes('USER')) {
-      const user = findUserFromScanned(finalCode);
-      if (user) {
-        setCheckoutState({ worker: user, tools: [] });
-        toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${user.name}.` });
-        return;
-      }
-      // si decía USER pero no se encontró, avisar
-      const maybeId = (finalCode.split("'")[1] || finalCode.split('-')[1] || finalCode);
-      toast({ variant: 'destructive', title: 'Error', description: `Usuario no encontrado: ${maybeId}` });
-      return;
-    }
-
-    // 2) Intentar reconocer herramienta (formatos con TOOL, con o sin prefijo, o sin prefijo)
-    // si incluye TOOL o solo parece contener nombre/id de herramienta, entramos
-    if (upper.startsWith('TOOL') || upper.includes('TOOL') || finalCode.includes("'") || finalCode.length > 2) {
-      const tool = findToolFromScanned(finalCode);
-      if (!tool) {
-        toast({ variant: 'destructive', title: 'Error', description: `Herramienta no encontrada: ${finalCode}` });
+  const processScan = useCallback(
+    (scannedCode: string) => {
+      const finalCode = sanitizeQrCode(scannedCode);
+      console.log('DEBUG - scanned code:', scannedCode, '-> sanitized:', finalCode);
+      if (!finalCode) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Entrada vacía.' });
         return;
       }
 
-      // si estamos en modo devolución
-      if (returnMode) {
-        handleReturn(tool);
+      const upper = finalCode.toUpperCase();
+
+      // 1) Intentar reconocer usuario
+      if (upper.startsWith('USER') || upper.includes('USER')) {
+        const user = findUserFromScanned(finalCode);
+        if (user) {
+          setCheckoutState({ worker: user, tools: [] });
+          toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${user.name}.` });
+          return;
+        }
+        // si decía USER pero no se encontró, avisar
+        const maybeId = finalCode.split("'")[1] || finalCode.split('-')[1] || finalCode;
+        toast({ variant: 'destructive', title: 'Error', description: `Usuario no encontrado: ${maybeId}` });
         return;
       }
 
-      // modo entrega: necesitamos trabajador seleccionado
-      if (!checkoutStateRef.current.worker) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Escanea primero el QR de un trabajador.' });
+      // 2) Intentar reconocer herramienta
+      if (upper.startsWith('TOOL') || upper.includes('TOOL') || finalCode.includes("'") || finalCode.length > 2) {
+        const tool = findToolFromScanned(finalCode);
+        if (!tool) {
+          toast({ variant: 'destructive', title: 'Error', description: `Herramienta no encontrada: ${finalCode}` });
+          return;
+        }
+
+        if (returnMode) {
+          handleReturn(tool);
+          return;
+        }
+
+        if (!checkoutStateRef.current.worker) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Escanea primero el QR de un trabajador.',
+          });
+          return;
+        }
+        handleToolToCheckout(tool);
         return;
       }
 
-      handleToolToCheckout(tool);
-      return;
-    }
-
-    // 3) fallback: intentar encontrar usuario o herramienta por tokens
-    const maybeUser = findUserFromScanned(finalCode);
-    if (maybeUser) {
-      setCheckoutState({ worker: maybeUser, tools: [] });
-      toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${maybeUser.name}.` });
-      return;
-    }
-    const maybeTool = findToolFromScanned(finalCode);
-    if (maybeTool) {
-      if (returnMode) {
-        handleReturn(maybeTool);
+      // 3) Fallback: intentar encontrar usuario o herramienta por tokens
+      const maybeUser = findUserFromScanned(finalCode);
+      if (maybeUser) {
+        setCheckoutState({ worker: maybeUser, tools: [] });
+        toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${maybeUser.name}.` });
         return;
       }
-      if (!checkoutStateRef.current.worker) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Escanea primero el QR de un trabajador.' });
+
+      const maybeTool = findToolFromScanned(finalCode);
+      if (maybeTool) {
+        if (returnMode) {
+          handleReturn(maybeTool);
+          return;
+        }
+        if (!checkoutStateRef.current.worker) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Escanea primero el QR de un trabajador.',
+          });
+          return;
+        }
+        handleToolToCheckout(maybeTool);
         return;
       }
-      handleToolToCheckout(maybeTool);
-      return;
-    }
 
-    // si nada
-    toast({ variant: 'destructive', title: 'Error', description: 'Entrada no reconocida. Verifica el formato del QR.' });
-  }, [toast, findToolFromScanned, findUserFromScanned, returnMode, handleReturn, handleToolToCheckout]);
+      toast({ variant: 'destructive', title: 'Error', description: 'Entrada no reconocida. Verifica el formato del QR.' });
+    },
+    [toast, findToolFromScanned, findUserFromScanned, returnMode, handleReturn, handleToolToCheckout]
+  );
 
   const handlePistolScanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -335,7 +380,6 @@ export function ToolCheckoutCard() {
           description={scannerDescriptions[scannerPurpose]}
         />
       )}
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -345,12 +389,10 @@ export function ToolCheckoutCard() {
             Usa los paneles de abajo para registrar movimientos de herramientas de forma manual o con escáner.
           </CardDescription>
         </CardHeader>
-
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           {/* Panel manual */}
           <div className="p-4 border rounded-lg space-y-4">
             <h3 className="font-semibold">Panel de Selección Manual</h3>
-
             {!returnMode ? (
               <>
                 <div className="space-y-2">
@@ -358,21 +400,30 @@ export function ToolCheckoutCard() {
                   <Select value={manualWorkerId} onValueChange={handleManualWorkerSelect}>
                     <SelectTrigger><SelectValue placeholder="Elige un trabajador..." /></SelectTrigger>
                     <SelectContent>
-                      {workers.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                      {workers.map(w => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
                   <Label>2. Agrega Herramienta</Label>
                   <div className="flex gap-2">
                     <Select value={manualToolId} onValueChange={setManualToolId} disabled={!checkoutState.worker}>
                       <SelectTrigger><SelectValue placeholder="Elige una herramienta..." /></SelectTrigger>
                       <SelectContent>
-                        {availableTools.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                        {availableTools.map(t => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name} {t.qrCode ? `(${t.qrCode})` : ''}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    <Button onClick={handleManualToolSelect} disabled={!manualToolId || !checkoutState.worker}>Añadir</Button>
+                    <Button onClick={handleManualToolSelect} disabled={!manualToolId || !checkoutState.worker}>
+                      Añadir
+                    </Button>
                   </div>
                 </div>
               </>
@@ -383,55 +434,66 @@ export function ToolCheckoutCard() {
                   <Select value={manualToolId} onValueChange={setManualToolId}>
                     <SelectTrigger><SelectValue placeholder="Elige una herramienta..." /></SelectTrigger>
                     <SelectContent>
-                      {checkedOutTools.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                      {checkedOutTools.map(t => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} {t.qrCode ? `(${t.qrCode})` : ''}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  <Button onClick={handleManualReturn} disabled={!manualToolId}>Devolver</Button>
+                  <Button onClick={handleManualReturn} disabled={!manualToolId}>
+                    Devolver
+                  </Button>
                 </div>
               </div>
             )}
           </div>
-
           {/* Panel escáner */}
           <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h3 className="font-semibold">Panel de Escáner</h3>
-              <Button variant="outline" size="sm" onClick={() => { setReturnMode(!returnMode); handleCancel(); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setReturnMode(!returnMode);
+                  handleCancel();
+                }}
+              >
                 Cambiar a modo {returnMode ? 'Entrega' : 'Devolución'}
               </Button>
             </div>
-
             <form onSubmit={handlePistolScanSubmit}>
               <Label htmlFor="pistol-input">Entrada de Escáner de Pistola</Label>
               <Input
                 id="pistol-input"
-                placeholder={returnMode ? "Escanear herramienta a devolver..." : "Escanear trabajador o herramienta..."}
+                placeholder={returnMode ? 'Escanear herramienta a devolver...' : 'Escanear trabajador o herramienta...'}
                 value={pistolInput}
-                onChange={(e) => setPistolInput(e.target.value)}
+                onChange={e => setPistolInput(e.target.value)}
                 autoComplete="off"
               />
             </form>
-
-            <Button variant="outline" className="w-full" onClick={() => openScanner(returnMode ? 'return-tool' : (checkoutState.worker ? 'checkout-tool' : 'checkout-worker'))}>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => openScanner(returnMode ? 'return-tool' : checkoutState.worker ? 'checkout-tool' : 'checkout-worker')}
+            >
               <ScanLine className="mr-2 h-4 w-4" /> Usar Cámara del Dispositivo
             </Button>
           </div>
-
           {/* Estado actual */}
           <div className="md:col-span-2 space-y-4 p-4 border-2 border-dashed rounded-lg">
             <div className="flex justify-between items-center mb-2">
               <h4 className="font-semibold text-lg">
-                {returnMode ? "Proceso de Devolución Actual" : "Proceso de Entrega Actual"}
+                {returnMode ? 'Proceso de Devolución Actual' : 'Proceso de Entrega Actual'}
               </h4>
             </div>
-
             {!returnMode && !checkoutState.worker && (
-              <div className='text-center py-8 text-muted-foreground'>
+              <div className="text-center py-8 text-muted-foreground">
                 <User className="mx-auto h-8 w-8 mb-2" />
                 <p>Selecciona o escanea un trabajador para empezar la entrega.</p>
               </div>
             )}
-
             {!returnMode && checkoutState.worker && (
               <div className="space-y-4">
                 <div className="p-3 rounded-md bg-muted flex items-center justify-between">
@@ -439,21 +501,35 @@ export function ToolCheckoutCard() {
                     <p className="text-sm text-muted-foreground">Entregando a:</p>
                     <p className="font-semibold">{checkoutState.worker.name}</p>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => { handleCancel(); setManualWorkerId(''); }}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      handleCancel();
+                      setManualWorkerId('');
+                    }}
+                  >
                     <X className="h-4 w-4" />
                     <span className="sr-only">Cancelar Entrega</span>
                   </Button>
                 </div>
-
                 {checkoutState.tools.length > 0 && (
                   <div className="space-y-2">
                     <h5 className="font-medium text-sm">Herramientas en Carrito ({checkoutState.tools.length}):</h5>
                     <ScrollArea className="h-32">
                       <ul className="space-y-1 pr-4">
                         {checkoutState.tools.map(tool => (
-                          <li key={`cart-${tool.id}`} className="flex items-center justify-between text-sm bg-secondary p-2 rounded-md">
+                          <li
+                            key={`cart-${tool.id}`}
+                            className="flex items-center justify-between text-sm bg-secondary p-2 rounded-md"
+                          >
                             <span>{tool.name}</span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeToolFromCart(tool.id)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => removeToolFromCart(tool.id)}
+                            >
                               <X className="h-4 w-4" />
                             </Button>
                           </li>
@@ -462,25 +538,34 @@ export function ToolCheckoutCard() {
                     </ScrollArea>
                   </div>
                 )}
-                <Button className="w-full" onClick={handleConfirmCheckout} disabled={checkoutState.tools.length === 0}>
+                <Button
+                  className="w-full"
+                  onClick={handleConfirmCheckout}
+                  disabled={checkoutState.tools.length === 0}
+                >
                   <ArrowRight className="mr-2 h-4 w-4" /> Confirmar Entrega ({checkoutState.tools.length})
                 </Button>
               </div>
             )}
-
             {returnMode && (
               <div className="space-y-4">
-                <div className='text-center py-4 text-muted-foreground'>
+                <div className="text-center py-4 text-muted-foreground">
                   <p>Selecciona o escanea una herramienta para registrar su devolución.</p>
                 </div>
                 <div className="flex items-center space-x-2 pt-4 border-t">
-                  <Checkbox id="damaged" checked={isDamaged} onCheckedChange={(checked) => setIsDamaged(checked as boolean)} />
-                  <Label htmlFor="damaged" className="text-destructive font-medium">Devuelta con daños</Label>
+                  <Checkbox
+                    id="damaged"
+                    checked={isDamaged}
+                    onCheckedChange={checked => setIsDamaged(checked as boolean)}
+                  />
+                  <Label htmlFor="damaged" className="text-destructive font-medium">
+                    Devuelta con daños
+                  </Label>
                 </div>
                 <Textarea
                   placeholder="Describe el daño o problema..."
                   value={returnNotes}
-                  onChange={(e) => setReturnNotes(e.target.value)}
+                  onChange={e => setReturnNotes(e.target.value)}
                   disabled={!isDamaged}
                 />
               </div>
