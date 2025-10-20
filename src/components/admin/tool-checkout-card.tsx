@@ -19,16 +19,30 @@ const QrScannerDialog = dynamic(() => import('@/components/qr-scanner-dialog').t
 type ScanPurpose = 'checkout-worker' | 'checkout-tool' | 'return-tool';
 
 const sanitizeQrCode = (code: string): string => {
-  const upperCode = code.toUpperCase();
-  if (upperCode.startsWith('USER')) {
-    // For users, IDs can have mixed case. Just replace the apostrophe.
-    return code.replace(/'/g, "-");
+  if (!code) return "";
+  const upperCode = code.trim().toUpperCase();
+
+  if (upperCode.startsWith('USER-')) {
+    // User IDs might have mixed case and other symbols from Firebase, only replace ' if needed
+     return code.trim().replace(/'/g, "-");
   }
-  if (upperCode.startsWith('TOOL')) {
-    // For tools, replace all apostrophes with hyphens.
-    return code.replace(/'/g, "-");
+
+  if (upperCode.startsWith('TOOL-')) {
+    // Replicate the exact normalization logic from addTool in app-provider
+    const parts = code.trim().split('-');
+    if (parts.length > 2) {
+      const namePart = parts.slice(1, -1).join('-');
+      const idPart = parts[parts.length - 1];
+      const normalizedName = namePart
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+      return `TOOL-${normalizedName}-${idPart}`;
+    }
   }
-  return code;
+  
+  return code.trim();
 };
 
 
