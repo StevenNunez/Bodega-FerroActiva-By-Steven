@@ -18,7 +18,7 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
     return jsDate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export default function AprReviewPage() {
+export default function AprReviewChecklistsPage() {
     const { assignedChecklists, users, loading } = useAppState();
     
     const userMap = useMemo(() => new Map(users.map(u => [u.id, u.name])), [users]);
@@ -28,9 +28,9 @@ export default function AprReviewPage() {
         return assignedChecklists
             .filter(c => c.status === 'completed' || c.status === 'approved' || c.status === 'rejected')
             .sort((a, b) => {
-                const dateA = (a.completedAt || a.createdAt) as Timestamp;
-                const dateB = (b.completedAt || b.createdAt) as Timestamp;
-                return dateB.toMillis() - dateA.toMillis();
+                const dateA = (a.completedAt || a.createdAt) as Date;
+                const dateB = (b.completedAt || b.createdAt) as Date;
+                return dateB.getTime() - dateA.getTime();
             });
     }, [assignedChecklists]);
 

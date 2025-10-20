@@ -147,6 +147,7 @@ interface AppStateContextType {
   addChecklist: (checklist: Omit<Checklist, "id" | "createdBy">) => Promise<void>;
   addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "status" | "createdAt" | "createdBy">) => Promise<void>;
   completeSafetyInspection: (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => Promise<void>;
+  reviewSafetyInspection: (inspectionId: string, status: 'approved' | 'rejected', notes: string, signature: string) => Promise<void>;
   addSupplierPayment: (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => Promise<void>;
   updateSupplierPaymentStatus: (id: string, status: 'paid', details: { paymentDate: Date; paymentMethod: string }) => Promise<void>;
   updateSupplierPayment: (id: string, data: Partial<Pick<SupplierPayment, 'work' | 'purchaseOrderNumber'>>) => Promise<void>;
@@ -465,8 +466,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         await deleteDoc(materialRef);
         notify("Material eliminado exitosamente.", "success");
     } catch (err: any) {
-        notify("Error al eliminar material: " + err.message, "destructive");
-        throw err;
+      notify("Error al eliminar material: " + err.message, "destructive");
+      throw err;
     }
   };
 
@@ -1061,8 +1062,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         await batch.commit();
         notify("Orden de compra generada exitosamente.", "success");
     } catch (err: any) {
-        notify("Error al generar orden de compra: " + err.message, "destructive");
-        throw err;
+      notify("Error al generar orden de compra: " + err.message, "destructive");
+      throw err;
     }
 };
 
@@ -1141,7 +1142,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
  const addChecklistTemplate = async (template: Omit<ChecklistTemplate, "id" | "createdAt" | "createdBy">) => {
-    checkAuthAndRole(["apr", "admin"]);
+    checkAuthAndRole(["apr", "admin", "operations"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
       const newDocRef = doc(collection(db, "checklistTemplates"));
@@ -1159,7 +1160,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
  const assignChecklistToSupervisors = async (template: ChecklistTemplate, supervisorIds: string[], work: string) => {
-    checkAuthAndRole(["apr", "admin"]);
+    checkAuthAndRole(["apr", "admin", "operations"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
         const batch = writeBatch(db);
@@ -1189,7 +1190,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             batch.set(newDocRef, assignedChecklist);
         }
         await batch.commit();
-        notify(`Checklist asignado a ${supervisorIds.length} supervisor(es).`, "success");
+        notify(`Checklist asignado a ${supervisorIds.length} usuario(s).`, "success");
     } catch (err: any) {
         notify("Error al asignar el checklist: " + err.message, "destructive");
         throw err;
@@ -1283,6 +1284,28 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         notify("Inspección completada y enviada para verificación final.", "success");
     } catch (err: any) {
         notify("Error al completar la inspección: " + err.message, "destructive");
+        throw err;
+    }
+  };
+  
+  const reviewSafetyInspection = async (inspectionId: string, status: 'approved' | 'rejected', notes: string, signature: string) => {
+    checkAuthAndRole(["apr", "admin"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+    try {
+      const inspectionRef = doc(db, "safetyInspections", inspectionId);
+      await updateDoc(inspectionRef, {
+        status,
+        rejectionNotes: status === 'rejected' ? notes : '',
+        reviewedBy: {
+            id: authUser.id,
+            name: authUser.name,
+            signature: signature,
+            date: Timestamp.now()
+        },
+      });
+      notify(`Inspección ${status === 'approved' ? 'aprobada' : 'rechazada'}.`, "success");
+    } catch (err: any) {
+        notify("Error al revisar la inspección: " + err.message, "destructive");
         throw err;
     }
   };
@@ -1501,6 +1524,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     addChecklist,
     addSafetyInspection,
     completeSafetyInspection,
+    reviewSafetyInspection,
     addSupplierPayment,
     updateSupplierPaymentStatus,
     updateSupplierPayment,
@@ -1614,5 +1638,3 @@ function useAuth() {
 }
 
 export { AppProviders, useAppState, useAuth };
-
-    

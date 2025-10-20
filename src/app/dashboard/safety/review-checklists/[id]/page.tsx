@@ -29,7 +29,7 @@ const formatDate = (date: Date | Timestamp | undefined | null, includeTime = fal
     return format(jsDate, formatString, { locale: es });
 };
 
-export default function AprReviewPage() {
+export default function AprReviewChecklistPage() {
     const params = useParams();
     const router = useRouter();
     const { assignedChecklists, users, loading, reviewAssignedChecklist } = useAppState();

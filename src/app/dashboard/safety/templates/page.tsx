@@ -50,7 +50,7 @@ export default function AprTemplatesPage() {
     return users.filter(u => rolesToAssign.includes(u.role));
   }, [users]);
   
-  const canManageTemplates = authUser?.role === 'apr' || authUser?.role === 'admin';
+  const canManageTemplates = authUser?.role === 'apr' || authUser?.role === 'admin' || authUser?.role === 'operations';
 
   const handleItemChange = (index: number, value: string) => {
     const newItems = [...items];

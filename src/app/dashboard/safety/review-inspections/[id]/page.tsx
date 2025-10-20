@@ -19,7 +19,7 @@ import SignaturePad from "@/components/signature-pad";
 import { useToast } from "@/hooks/use-toast";
 import type { SafetyInspection } from "@/lib/data";
 import { Badge } from "@/components/ui/badge";
-// import { generateChecklistPDF } from "@/lib/checklist-pdf-generator";
+import { generateInspectionPDF } from "@/lib/inspection-pdf-generator";
 
 
 const formatDate = (date: Date | Timestamp | undefined | null, includeTime = false) => {
@@ -32,7 +32,7 @@ const formatDate = (date: Date | Timestamp | undefined | null, includeTime = fal
 export default function ReviewInspectionPage() {
     const params = useParams();
     const router = useRouter();
-    const { safetyInspections, users, loading, reviewAssignedChecklist } = useAppState();
+    const { safetyInspections, users, loading, reviewSafetyInspection } = useAppState();
     const { user } = useAuth();
     const { toast } = useToast();
     
@@ -79,18 +79,29 @@ export default function ReviewInspectionPage() {
         }
 
         setIsSubmitting(true);
-        // This function needs to be created in the provider to handle inspections specifically
-        // For now, it will fail, but the UI is ready.
-        // await reviewSafetyInspection(inspectionId, status, rejectionNotes, aprSignature);
-        toast({ title: `Acción no implementada`, description: 'La lógica para aprobar/rechazar inspecciones debe crearse.' });
-        setIsSubmitting(false);
-
+        try {
+            await reviewSafetyInspection(inspectionId, status, rejectionNotes, aprSignature);
+            toast({ title: `Inspección ${status === 'approved' ? 'aprobada' : 'rechazada'}`, description: 'El estado ha sido guardado.' });
+            router.push('/dashboard/safety/review-inspections');
+        } catch(error: any) {
+             toast({ variant: 'destructive', title: 'Error al Revisar', description: error.message || 'No se pudo completar la acción.' });
+        } finally {
+            setIsSubmitting(false);
+        }
     }
     
-     const handleDownloadPDF = async () => {
+    const handleDownloadPDF = async () => {
         if (!inspection) return;
-        toast({ title: 'Función no disponible', description: 'La generación de PDF para inspecciones aún no está implementada.' });
-        // await generateInspectionPDF(inspection, users, supervisor, aprUser);
+        if (!supervisor || !aprUser) {
+            toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se puede generar el PDF sin la información completa del supervisor y el inspector.' });
+            return;
+        }
+        try {
+            toast({ title: 'Generando PDF...', description: 'Esto puede tardar un momento.' });
+            await generateInspectionPDF(inspection, supervisor, aprUser);
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error al generar PDF', description: error.message });
+        }
     };
 
 
@@ -235,4 +246,3 @@ export default function ReviewInspectionPage() {
         </div>
     );
 }
-

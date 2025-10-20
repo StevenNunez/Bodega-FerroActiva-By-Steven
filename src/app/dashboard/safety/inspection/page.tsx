@@ -44,7 +44,9 @@ export default function SafetyInspectionPage() {
   const [evidencePhotos, setEvidencePhotos] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const supervisors = useMemo(() => users.filter(u => u.role === 'supervisor'), [users]);
+  const assignableUsers = useMemo(() => {
+    return users.filter(u => ['supervisor', 'operations'].includes(u.role));
+  }, [users]);
   
   const {
     register,
@@ -239,9 +241,9 @@ export default function SafetyInspectionPage() {
                             control={control}
                             render={({ field }) => (
                                 <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger><SelectValue placeholder="Selecciona un supervisor..." /></SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder="Selecciona un responsable..." /></SelectTrigger>
                                     <SelectContent>
-                                        {supervisors.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                        {assignableUsers.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.role === 'operations' ? 'Adm. Obra' : 'Supervisor'})</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             )}
@@ -283,5 +285,3 @@ export default function SafetyInspectionPage() {
     </form>
   );
 }
-
-    
