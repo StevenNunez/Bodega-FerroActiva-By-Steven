@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -7,7 +6,7 @@ import { useAppState } from '@/contexts/app-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, User, ArrowRight, X, ScanLine } from 'lucide-react';
-import type { User as UserType, Tool as ToolType } from '@/lib/data';
+import type { User as UserType, Tool as ToolType, ToolLog } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
@@ -15,6 +14,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '../ui/input';
+import { query, collection, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const QrScannerDialog = dynamic(() => import('@/components/qr-scanner-dialog').then(mod => mod.QrScannerDialog), { ssr: false });
 type ScanPurpose = 'checkout-worker' | 'checkout-tool' | 'return-tool';
@@ -74,7 +75,6 @@ export function ToolCheckoutCard() {
   }, [toast]);
 
   const handleReturn = useCallback(async (tool: ToolType) => {
-    // Verificar si la herramienta está en checkedOutTools
     const isToolCheckedOut = checkedOutTools.some(t => t.id === tool.id);
     if (!isToolCheckedOut) {
       toast({
@@ -113,73 +113,50 @@ export function ToolCheckoutCard() {
     }
   }, [isDamaged, returnNotes, authUser, returnTool, toast, handleCancel, findActiveLogForTool, checkedOutTools]);
 
-  // --- Nueva función de parseo y búsqueda robusta para herramientas/usuarios
-  const findToolFromScanned = useCallback(
-    (finalCode: string): ToolType | null => {
-      if (!finalCode) return null;
-      console.log('DEBUG - findToolFromScanned:', finalCode);
+ const findToolFromScanned = useCallback(
+  (rawCode: string): ToolType | null => {
+    if (!rawCode) return null;
 
-      // 1) Intento match exacto por qrCode
-      const exact = tools.find(t => t.qrCode === finalCode);
-      if (exact) return exact;
+    const code = sanitizeQrCode(rawCode);
+    const up = (s?: string) => s ? s.trim().toUpperCase() : '';
+    
+    // Normalizador inteligente que reemplaza cualquier no alfanumérico con un guion
+    const normalize = (s: string) => up(s).replace(/[^A-Z0-9]/g, '-');
+    const normalizedCode = normalize(code);
 
-      // 2) Split por comillas simples si existen
-      const parts = finalCode.split("'");
-      const up = (s?: string) => (s ? s.trim().toUpperCase() : '');
-
-      if (parts.length >= 3) {
-        // try using parts[2] as id, parts[1] as name
-        const possibleId = parts[2].trim();
-        const possibleName = parts[1].trim();
-        const byId = tools.find(t => t.id === possibleId || up(t.id) === up(possibleId));
-        if (byId) return byId;
-        const byName = tools.find(
-          t => up(t.name) === up(possibleName) || (t.name && up(t.name).includes(up(possibleName)))
-        );
-        if (byName) return byName;
+    // 1. Coincidencia exacta del código normalizado
+    for (const t of tools) {
+      if (normalize(t.qrCode) === normalizedCode) {
+        return t;
       }
-
-      if (parts.length === 2) {
-        // e.g. NAME'ID => parts[0]=NAME, parts[1]=ID
-        const possibleName = parts[0].trim();
-        const possibleId = parts[1].trim();
-        const byId = tools.find(t => t.id === possibleId || up(t.id) === up(possibleId));
-        if (byId) return byId;
-        const byName = tools.find(
-          t => up(t.name) === up(possibleName) || (t.name && up(t.name).includes(up(possibleName)))
-        );
-        if (byName) return byName;
+    }
+    
+    // 2. Coincidencia exacta del ID (a menudo el final del código)
+    for (const t of tools) {
+      if (up(t.id) === up(code)) {
+        return t;
       }
-
-      // if no quotes or nothing matched, try heuristics:
-      // - last token after non-alnum split might be id-like
-      const tokens = finalCode.split(/[^A-Za-z0-9_-]+/).filter(Boolean);
-      for (let i = tokens.length - 1; i >= 0; i--) {
-        const tok = tokens[i];
-        const byId = tools.find(t => t.id === tok || up(t.id) === up(tok));
-        if (byId) return byId;
+    }
+    
+    // 3. Fallback: Si el código contiene el ID de la herramienta
+    // Esto es útil si el escáner añade prefijos/sufijos
+    for (const t of tools) {
+      if (normalizedCode.includes(up(t.id))) {
+        return t;
       }
+    }
 
-      // try name match (first token)
-      for (const tok of tokens) {
-        const byName = tools.find(t => t.name && up(t.name).includes(up(tok)));
-        if (byName) return byName;
-      }
+    // 4. Fallback final: nombre exacto (menos fiable)
+    for (const t of tools) {
+        if(up(t.name) === up(code)) {
+            return t;
+        }
+    }
 
-      // as last resort try partial match anywhere in qrCode/id/name
-      const upperFinal = finalCode.toUpperCase();
-      const fallback = tools.find(
-        t =>
-          (t.qrCode && t.qrCode.toUpperCase().includes(upperFinal)) ||
-          (t.id && t.id.toUpperCase().includes(upperFinal)) ||
-          (t.name && t.name.toUpperCase().includes(upperFinal))
-      );
-      if (fallback) return fallback;
-
-      return null;
-    },
-    [tools]
-  );
+    return null;
+  },
+  [tools]
+);
 
   const findUserFromScanned = useCallback(
     (finalCode: string) => {
@@ -239,13 +216,8 @@ export function ToolCheckoutCard() {
       }
 
       // 2) Intentar reconocer herramienta
-      if (upper.startsWith('TOOL') || upper.includes('TOOL') || finalCode.includes("'") || finalCode.length > 2) {
-        const tool = findToolFromScanned(finalCode);
-        if (!tool) {
-          toast({ variant: 'destructive', title: 'Error', description: `Herramienta no encontrada: ${finalCode}` });
-          return;
-        }
-
+      const tool = findToolFromScanned(finalCode);
+      if (tool) {
         if (returnMode) {
           handleReturn(tool);
           return;
@@ -263,29 +235,11 @@ export function ToolCheckoutCard() {
         return;
       }
 
-      // 3) Fallback: intentar encontrar usuario o herramienta por tokens
+      // 3) Si no es usuario ni herramienta, probar con el usuario de nuevo por si acaso
       const maybeUser = findUserFromScanned(finalCode);
       if (maybeUser) {
         setCheckoutState({ worker: maybeUser, tools: [] });
         toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${maybeUser.name}.` });
-        return;
-      }
-
-      const maybeTool = findToolFromScanned(finalCode);
-      if (maybeTool) {
-        if (returnMode) {
-          handleReturn(maybeTool);
-          return;
-        }
-        if (!checkoutStateRef.current.worker) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Escanea primero el QR de un trabajador.',
-          });
-          return;
-        }
-        handleToolToCheckout(maybeTool);
         return;
       }
 
