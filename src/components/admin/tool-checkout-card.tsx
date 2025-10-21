@@ -67,12 +67,18 @@ export function ToolCheckoutCard() {
   }, []);
 
   const handleToolToCheckout = useCallback((tool: ToolType) => {
+    // Check if the tool is already checked out in general
+    if (!availableTools.some(t => t.id === tool.id)) {
+        toast({ variant: 'destructive', title: 'Herramienta no Disponible', description: `"${tool.name}" ya está en uso.` });
+        return;
+    }
+    // Check if the tool is already in the current checkout cart
     if (checkoutStateRef.current.tools.some(t => t.id === tool.id)) {
-      toast({ variant: 'destructive', title: 'Error', description: `"${tool.name}" ya está en la lista.` });
+      toast({ variant: 'destructive', title: 'Error', description: `"${tool.name}" ya está en la lista de entrega.` });
       return;
     }
     setCheckoutState(prev => ({ ...prev, tools: [...prev.tools, tool] }));
-  }, [toast]);
+  }, [toast, availableTools]);
 
   const handleReturn = useCallback(async (tool: ToolType) => {
     const isToolCheckedOut = checkedOutTools.some(t => t.id === tool.id);
@@ -113,50 +119,40 @@ export function ToolCheckoutCard() {
     }
   }, [isDamaged, returnNotes, authUser, returnTool, toast, handleCancel, findActiveLogForTool, checkedOutTools]);
 
- const findToolFromScanned = useCallback(
-  (rawCode: string): ToolType | null => {
-    if (!rawCode) return null;
+  const findToolFromScanned = useCallback(
+    (rawCode: string): ToolType | null => {
+      if (!rawCode) return null;
 
-    const code = sanitizeQrCode(rawCode);
-    const up = (s?: string) => s ? s.trim().toUpperCase() : '';
-    
-    // Normalizador inteligente que reemplaza cualquier no alfanumérico con un guion
-    const normalize = (s: string) => up(s).replace(/[^A-Z0-9]/g, '-');
-    const normalizedCode = normalize(code);
+      const code = sanitizeQrCode(rawCode);
+      const up = (s?: string) => (s ? s.trim().toUpperCase() : '');
 
-    // 1. Coincidencia exacta del código normalizado
-    for (const t of tools) {
-      if (normalize(t.qrCode) === normalizedCode) {
-        return t;
+      // 1. Coincidencia exacta por QR
+      const byQr = tools.find((t) => up(t.qrCode) === up(code));
+      if (byQr) return byQr;
+
+      // 2. Normalización de códigos
+      const normalize = (s: string) => up(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '-');
+      const normalizedCode = normalize(code);
+      
+      const byNormalizedQr = tools.find(t => normalize(t.qrCode) === normalizedCode);
+      if(byNormalizedQr) return byNormalizedQr;
+
+      // 3. Coincidencia exacta por ID
+      const byId = tools.find((t) => up(t.id) === up(code));
+      if (byId) return byId;
+      
+      // 4. Búsqueda por tokens si falla lo anterior
+      const tokens = code.split(/[^a-zA-Z0-9_-]+/);
+      for(const token of tokens) {
+          const byTokenId = tools.find(t => up(t.id) === up(token));
+          if(byTokenId) return byTokenId;
       }
-    }
-    
-    // 2. Coincidencia exacta del ID (a menudo el final del código)
-    for (const t of tools) {
-      if (up(t.id) === up(code)) {
-        return t;
-      }
-    }
-    
-    // 3. Fallback: Si el código contiene el ID de la herramienta
-    // Esto es útil si el escáner añade prefijos/sufijos
-    for (const t of tools) {
-      if (normalizedCode.includes(up(t.id))) {
-        return t;
-      }
-    }
+      
+      return null;
+    },
+    [tools]
+  );
 
-    // 4. Fallback final: nombre exacto (menos fiable)
-    for (const t of tools) {
-        if(up(t.name) === up(code)) {
-            return t;
-        }
-    }
-
-    return null;
-  },
-  [tools]
-);
 
   const findUserFromScanned = useCallback(
     (finalCode: string) => {
