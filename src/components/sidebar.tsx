@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -31,6 +32,7 @@ import {
   ListChecks,
   DollarSign,
   ShieldAlert,
+  ClipboardPaste,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -121,12 +123,14 @@ const safetyNavItems = (role: string) => {
     
     if (['apr', 'admin', 'operations'].includes(role)) {
         items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Inspección de Seguridad'});
+        items.push({ href: '/dashboard/safety/behavior-observation', icon: ClipboardPaste, label: 'Observación de Conducta' });
     }
 
     if (role === 'apr' || role === 'admin') {
         items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas'});
         items.push({ href: '/dashboard/safety/review-checklists', icon: ShieldCheck, label: 'Revisar Checklists'});
         items.push({ href: '/dashboard/safety/review-inspections', icon: ShieldCheck, label: 'Revisar Inspecciones' });
+        items.push({ href: '/dashboard/safety/review-observations', icon: ShieldCheck, label: 'Revisar Observaciones' });
     }
     if (['admin', 'supervisor', 'operations', 'apr'].includes(role)) {
          items.push({ href: '/dashboard/safety/assigned-checklists', icon: ListChecks, label: 'Mis Checklists' });

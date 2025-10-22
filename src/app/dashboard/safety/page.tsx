@@ -84,7 +84,7 @@ export default function SafetyDashboardPage() {
     const checklistsForReview = useMemo(() => {
         return assignedChecklists
             .filter(c => c.status === 'completed')
-            .sort((a, b) => (b.completedAt as Timestamp).toMillis() - (a.completedAt as Timestamp).toMillis())
+            .sort((a, b) => (b.completedAt as Date).getTime() - (a.completedAt as Date).getTime())
             .slice(0, 5);
     }, [assignedChecklists]);
     
@@ -92,8 +92,8 @@ export default function SafetyDashboardPage() {
          return safetyInspections
             .filter(c => c.status === 'open')
             .sort((a, b) => {
-                const deadlineA = a.deadline ? (a.deadline as Timestamp).toMillis() : Infinity;
-                const deadlineB = b.deadline ? (b.deadline as Timestamp).toMillis() : Infinity;
+                const deadlineA = a.deadline ? (a.deadline as Date).getTime() : Infinity;
+                const deadlineB = b.deadline ? (b.deadline as Date).getTime() : Infinity;
                 return deadlineA - deadlineB;
             })
             .slice(0, 5);
@@ -103,12 +103,12 @@ export default function SafetyDashboardPage() {
         if (!user) return { checklists: [], inspections: [] };
         const myChecklists = assignedChecklists
             .filter(c => c.supervisorId === user.id && c.status === 'assigned')
-            .sort((a, b) => (b.createdAt as Timestamp).toMillis() - (a.createdAt as Timestamp).toMillis())
+            .sort((a, b) => (b.createdAt as Date).getTime() - (a.createdAt as Date).getTime())
             .slice(0, 3);
         
         const myInspections = safetyInspections
             .filter(i => i.assignedTo === user.id && i.status === 'open')
-            .sort((a,b) => (a.deadline as Timestamp).toMillis() - (b.deadline as Timestamp).toMillis())
+            .sort((a,b) => (a.deadline as Date).getTime() - (b.deadline as Date).getTime())
             .slice(0, 3);
             
         return { checklists: myChecklists, inspections: myInspections };

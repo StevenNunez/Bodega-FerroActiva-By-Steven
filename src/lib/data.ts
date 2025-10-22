@@ -167,6 +167,29 @@ export interface AssignedChecklist {
   reviewedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
 }
 
+export interface BehaviorObservationItem {
+  question: string;
+  status: 'si' | 'no' | 'na' | null;
+}
+
+export interface BehaviorObservation {
+    id: string;
+    obra: string;
+    workerId: string;
+    workerName: string;
+    workerRut: string;
+    observationDate: Date | Timestamp;
+    items: BehaviorObservationItem[];
+    riskLevel: 'aceptable' | 'leve' | 'grave' | 'gravisimo' | null;
+    feedback: string;
+    observerSignature: string;
+    workerSignature: string;
+    observerId: string;
+    observerName: string;
+    createdAt: Date | Timestamp;
+}
+
+
 export interface ChecklistItem {
   element: string;
   yes: boolean;

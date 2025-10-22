@@ -23,6 +23,7 @@ import {
   SafetyInspection,
   SupplierPayment,
   Checklist,
+  BehaviorObservation,
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -103,6 +104,7 @@ interface AppStateContextType {
   checklistTemplates: ChecklistTemplate[];
   assignedChecklists: AssignedChecklist[];
   safetyInspections: SafetyInspection[];
+  behaviorObservations: BehaviorObservation[];
   addTool: (toolName: string) => Promise<void>;
   updateTool: (toolId: string, data: Partial<Omit<Tool, "id" | "qrCode">>) => Promise<void>;
   deleteTool: (toolId: string) => Promise<void>;
@@ -151,6 +153,7 @@ interface AppStateContextType {
   addSupplierPayment: (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => Promise<void>;
   updateSupplierPaymentStatus: (id: string, status: 'paid', details: { paymentDate: Date; paymentMethod: string }) => Promise<void>;
   updateSupplierPayment: (id: string, data: Partial<Pick<SupplierPayment, 'work' | 'purchaseOrderNumber'>>) => Promise<void>;
+  addBehaviorObservation: (observation: Omit<BehaviorObservation, 'id' | 'observerId' | 'observerName' | 'createdAt'>) => Promise<void>;
   batchApprovedRequests: (requestIds: string[], options: { mode: "category" | "supplier" }) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
@@ -179,6 +182,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [checklistTemplates, setChecklistTemplates] = React.useState<ChecklistTemplate[]>([]);
   const [assignedChecklists, setAssignedChecklists] = React.useState<AssignedChecklist[]>([]);
   const [safetyInspections, setSafetyInspections] = React.useState<SafetyInspection[]>([]);
+  const [behaviorObservations, setBehaviorObservations] = React.useState<BehaviorObservation[]>([]);
   const [manualLots, setManualLots] = React.useState<string[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -216,6 +220,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       setChecklistTemplates([]);
       setAssignedChecklists([]);
       setSafetyInspections([]);
+      setBehaviorObservations([]);
       return;
     };
 
@@ -237,6 +242,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "checklistTemplates", setter: setChecklistTemplates, sortField: "createdAt" },
         { name: "assignedChecklists", setter: setAssignedChecklists, sortField: "createdAt" },
         { name: "safetyInspections", setter: setSafetyInspections, sortField: "createdAt" },
+        { name: "behaviorObservations", setter: setBehaviorObservations, sortField: "createdAt" },
     ];
 
     const unsubscribes = collections.map(({ name, setter, sortField }) => {
@@ -1356,6 +1362,25 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
   };
 
+  const addBehaviorObservation = async (observation: Omit<BehaviorObservation, 'id' | 'observerId' | 'observerName' | 'createdAt'>) => {
+    checkAuthAndRole(["apr", "admin", "operations"]);
+    if (!authUser) throw new Error("Usuario no autenticado.");
+    try {
+      const newDocRef = doc(collection(db, "behaviorObservations"));
+      await setDoc(newDocRef, {
+        ...observation,
+        id: newDocRef.id,
+        observerId: authUser.id,
+        observerName: authUser.name,
+        createdAt: Timestamp.now(),
+      });
+      notify("Observación de conducta guardada.", "success");
+    } catch (err: any) {
+      notify("Error al guardar la observación: " + err.message, "destructive");
+      throw err;
+    }
+  };
+
   const batchApprovedRequests = async (requestIds: string[], options: { mode: "category" | "supplier" }) => {
     checkAuthAndRole(["operations"]);
     try {
@@ -1485,6 +1510,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     checklistTemplates,
     assignedChecklists,
     safetyInspections,
+    behaviorObservations,
     addTool,
     updateTool,
     deleteTool,
@@ -1529,6 +1555,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     addSupplierPayment,
     updateSupplierPaymentStatus,
     updateSupplierPayment,
+    addBehaviorObservation,
     batchApprovedRequests,
     removeRequestFromLot,
     addRequestToLot,
