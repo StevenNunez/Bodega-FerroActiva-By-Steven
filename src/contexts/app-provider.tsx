@@ -143,9 +143,11 @@ interface AppStateContextType {
   updateSupplier: (supplierId: string, data: Partial<Omit<Supplier, "id">>) => Promise<void>;
   deleteSupplier: (supplierId: string) => Promise<void>;
   addChecklistTemplate: (template: Omit<ChecklistTemplate, "id" | "createdAt" | "createdBy">) => Promise<void>;
+  deleteChecklistTemplate: (templateId: string) => Promise<void>;
   assignChecklistToSupervisors: (template: ChecklistTemplate, supervisorIds: string[], work: string) => Promise<void>;
   completeAssignedChecklist: (checklistData: AssignedChecklist) => Promise<void>;
   reviewAssignedChecklist: (checklistId: string, status: 'approved' | 'rejected', notes: string, signature: string) => Promise<void>;
+  deleteAssignedChecklist: (checklistId: string) => Promise<void>;
   addChecklist: (checklist: Omit<Checklist, "id" | "createdBy">) => Promise<void>;
   addSafetyInspection: (inspection: Omit<SafetyInspection, "id" | "status" | "createdAt" | "createdBy">) => Promise<void>;
   completeSafetyInspection: (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => Promise<void>;
@@ -1165,6 +1167,19 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       throw err;
     }
   };
+
+  const deleteChecklistTemplate = async (templateId: string) => {
+    checkAuthAndRole(["admin"]);
+    try {
+        if (!templateId) throw new Error("ID de plantilla requerido.");
+        const templateRef = doc(db, "checklistTemplates", templateId);
+        await deleteDoc(templateRef);
+        notify("Plantilla eliminada exitosamente.", "success");
+    } catch (err: any) {
+        notify("Error al eliminar la plantilla: " + err.message, "destructive");
+        throw err;
+    }
+  };
   
  const assignChecklistToSupervisors = async (template: ChecklistTemplate, supervisorIds: string[], work: string) => {
     checkAuthAndRole(["apr", "admin", "operations"]);
@@ -1238,6 +1253,19 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       notify(`Checklist ${status === 'approved' ? 'aprobado' : 'rechazado'}.`, "success");
     } catch (err: any) {
         notify("Error al revisar el checklist: " + err.message, "destructive");
+        throw err;
+    }
+  };
+
+  const deleteAssignedChecklist = async (checklistId: string) => {
+    checkAuthAndRole(["admin"]);
+    try {
+        if (!checklistId) throw new Error("ID de checklist asignado requerido.");
+        const checklistRef = doc(db, "assignedChecklists", checklistId);
+        await deleteDoc(checklistRef);
+        notify("Checklist asignado eliminado exitosamente.", "success");
+    } catch (err: any) {
+        notify("Error al eliminar el checklist asignado: " + err.message, "destructive");
         throw err;
     }
   };
@@ -1545,9 +1573,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateSupplier,
     deleteSupplier,
     addChecklistTemplate,
+    deleteChecklistTemplate,
     assignChecklistToSupervisors,
     completeAssignedChecklist,
     reviewAssignedChecklist,
+    deleteAssignedChecklist,
     addChecklist,
     addSafetyInspection,
     completeSafetyInspection,

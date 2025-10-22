@@ -8,9 +8,21 @@ import { useAppState, useAuth } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Inbox, ArrowRight } from "lucide-react";
+import { Loader2, Inbox, ArrowRight, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Timestamp } from "firebase/firestore";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
@@ -19,7 +31,8 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
 };
 
 export default function AprReviewChecklistsPage() {
-    const { assignedChecklists, users, loading } = useAppState();
+    const { assignedChecklists, users, loading, deleteAssignedChecklist } = useAppState();
+    const { user: authUser } = useAuth();
     
     const userMap = useMemo(() => new Map(users.map(u => [u.id, u.name])), [users]);
 
@@ -40,6 +53,14 @@ export default function AprReviewChecklistsPage() {
             case 'approved': return <Badge variant="default" className="bg-green-600 text-white">Aprobado</Badge>;
             case 'rejected': return <Badge variant="destructive">Rechazado</Badge>;
             default: return <Badge variant="outline">{status}</Badge>;
+        }
+    };
+    
+    const handleDelete = async (id: string) => {
+        try {
+            await deleteAssignedChecklist(id);
+        } catch (error) {
+            console.error("Failed to delete assigned checklist", error);
         }
     };
 
@@ -66,20 +87,45 @@ export default function AprReviewChecklistsPage() {
                         {checklistsToReview.length > 0 ? (
                             <div className="space-y-3 p-4">
                                 {checklistsToReview.map(checklist => (
-                                    <Link key={checklist.id} href={`/dashboard/safety/review-checklists/${checklist.id}`} passHref>
-                                        <div className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-muted/50 transition-colors cursor-pointer">
-                                            <div className="flex-grow">
-                                                <h4 className="font-semibold">{checklist.templateTitle}</h4>
-                                                <p className="text-sm text-muted-foreground">Obra: <span className="font-medium">{checklist.work}</span></p>
-                                                <p className="text-sm text-muted-foreground">Completado por: <span className="font-medium">{userMap.get(checklist.supervisorId) || 'Desconocido'}</span></p>
-                                                <p className="text-xs text-muted-foreground mt-1">Enviado el: {formatDate(checklist.completedAt)}</p>
+                                    <div key={checklist.id} className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                        <Link href={`/dashboard/safety/review-checklists/${checklist.id}`} passHref className="flex-grow hover:bg-muted/50 transition-colors -m-4 p-4 rounded-lg">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                                <div className="flex-grow">
+                                                    <h4 className="font-semibold">{checklist.templateTitle}</h4>
+                                                    <p className="text-sm text-muted-foreground">Obra: <span className="font-medium">{checklist.work}</span></p>
+                                                    <p className="text-sm text-muted-foreground">Completado por: <span className="font-medium">{userMap.get(checklist.supervisorId) || 'Desconocido'}</span></p>
+                                                    <p className="text-xs text-muted-foreground mt-1">Enviado el: {formatDate(checklist.completedAt)}</p>
+                                                </div>
+                                                <div className="flex items-center gap-4 flex-shrink-0">
+                                                    {getStatusBadge(checklist.status)}
+                                                    <ArrowRight className="h-5 w-5 text-muted-foreground"/>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-4 flex-shrink-0">
-                                                {getStatusBadge(checklist.status)}
-                                                <ArrowRight className="h-5 w-5 text-muted-foreground"/>
-                                            </div>
-                                        </div>
-                                    </Link>
+                                        </Link>
+                                         {authUser?.role === 'admin' && (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 text-destructive">
+                                                        <Trash2 className="h-4 w-4"/>
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>¿Eliminar esta revisión?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Esta acción eliminará permanentemente el checklist asignado. No se puede deshacer.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDelete(checklist.id)} className="bg-destructive hover:bg-destructive/90">
+                                                            Sí, eliminar
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         ) : (

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
@@ -43,9 +44,17 @@ export default function AprReviewPage() {
         return assignedChecklists.find(c => c.id === checklistId) || null;
     }, [assignedChecklists, checklistId]);
 
-    const [rejectionNotes, setRejectionNotes] = useState(checklist?.rejectionNotes || "");
-    const [aprSignature, setAprSignature] = useState<string | null>(checklist?.reviewedBy?.signature || null);
+    const [rejectionNotes, setRejectionNotes] = useState("");
+    const [aprSignature, setAprSignature] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+     useEffect(() => {
+        if (checklist) {
+            setRejectionNotes(checklist.rejectionNotes || "");
+            setAprSignature(checklist.reviewedBy?.signature || null);
+        }
+    }, [checklist]);
+
 
     const supervisor = useMemo(() => {
         if (!checklist) return null;
@@ -80,7 +89,7 @@ export default function AprReviewPage() {
         try {
             await reviewAssignedChecklist(checklistId, status, rejectionNotes, aprSignature);
             toast({ title: `Checklist ${status === 'approved' ? 'aprobado' : 'rechazado'}`, description: 'El estado ha sido guardado.' });
-            router.push('/dashboard/safety/review');
+            router.push('/dashboard/safety/review-checklists');
         } catch(error: any) {
             toast({ variant: 'destructive', title: 'Error al Revisar', description: error.message || 'No se pudo completar la acción.' });
         } finally {
@@ -237,10 +246,9 @@ export default function AprReviewPage() {
                            <div>
                                 <Label>Firma del Revisor (APR)</Label>
                                 <div className="w-full h-40 border rounded-md bg-white relative">
-                                    {aprSignature && (
+                                    {isReviewed && aprSignature ? (
                                         <Image src={aprSignature} layout="fill" alt="Firma del APR" className="object-contain p-2"/>
-                                    )}
-                                    {!isReviewed && (
+                                    ) : (
                                         <SignaturePad 
                                             ref={signaturePadRef} 
                                             onEnd={() => setAprSignature(signaturePadRef.current?.getTrimmedCanvas().toDataURL('image/png'))}
@@ -254,14 +262,16 @@ export default function AprReviewPage() {
                                 )}
                            </div>
 
-                           <div className="flex gap-2">
-                               <Button variant="destructive" className="flex-1" onClick={() => handleReview('rejected')} disabled={!rejectionNotes.trim() || !aprSignature || isSubmitting || isReviewed}>
+                           {!isReviewed && (
+                             <div className="flex gap-2">
+                               <Button variant="destructive" className="flex-1" onClick={() => handleReview('rejected')} disabled={isSubmitting}>
                                    {isSubmitting ? <Loader2 className="mr-2 animate-spin"/> : <ThumbsDown className="mr-2"/>} Rechazar
                                </Button>
-                               <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleReview('approved')} disabled={!aprSignature || isSubmitting || isReviewed}>
+                               <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleReview('approved')} disabled={isSubmitting}>
                                    {isSubmitting ? <Loader2 className="mr-2 animate-spin"/> : <ThumbsUp className="mr-2"/>} Aprobar
                                </Button>
-                           </div>
+                             </div>
+                           )}
                       </CardContent>
                   </Card>
               </div>

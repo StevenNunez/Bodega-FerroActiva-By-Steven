@@ -28,12 +28,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
 
 export default function AprTemplatesPage() {
-  const { users, checklistTemplates, addChecklistTemplate, assignChecklistToSupervisors } = useAppState();
+  const { users, checklistTemplates, addChecklistTemplate, assignChecklistToSupervisors, deleteChecklistTemplate } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
 
@@ -105,6 +106,15 @@ export default function AprTemplatesPage() {
       } finally {
         setIsAssigning(false);
       }
+  }
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+        await deleteChecklistTemplate(templateId);
+        toast({ title: "Plantilla Eliminada", description: "La plantilla ha sido eliminada correctamente."});
+    } catch(error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo eliminar la plantilla.' });
+    }
   }
 
 
@@ -187,7 +197,32 @@ export default function AprTemplatesPage() {
                             {checklistTemplates.map(template => (
                                 <div key={template.id} className="p-4 border rounded-lg flex justify-between items-center">
                                     <h4 className="font-semibold">{template.title || 'Plantilla sin título'}</h4>
-                                    {canManageTemplates && <Button onClick={() => setAssigningTemplate(template)}>Asignar</Button>}
+                                    <div className="flex items-center gap-2">
+                                        {authUser?.role === 'admin' && (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>¿Eliminar plantilla "{template.title}"?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Esta acción no se puede deshacer. Se eliminará permanentemente la plantilla. No afectará a los checklists que ya hayan sido asignados.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteTemplate(template.id)} className="bg-destructive hover:bg-destructive/90">
+                                                            Sí, eliminar
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
+                                        {canManageTemplates && <Button onClick={() => setAssigningTemplate(template)}>Asignar</Button>}
+                                    </div>
                                 </div>
                             ))}
                         </div>

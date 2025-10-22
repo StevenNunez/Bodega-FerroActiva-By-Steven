@@ -52,6 +52,7 @@ function addHeader(doc: jsPDF, logo?: string) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const logoSize = 25;
   const topY = 8;
+  const headerSectionEndY = topY + logoSize + 2;
 
   if (logo) doc.addImage(logo, 'JPEG', MARGIN, topY, logoSize, logoSize);
 
@@ -64,11 +65,13 @@ function addHeader(doc: jsPDF, logo?: string) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(COLORS.primary);
-  doc.text('REGISTRO DE OBSERVACIÓN DE CONDUCTA', pageWidth / 2, 20, { align: 'center' });
+  doc.text('REGISTRO DE OBSERVACIÓN DE CONDUCTA', pageWidth / 2, topY + 12, { align: 'center' });
 
   doc.setDrawColor(COLORS.primary);
   doc.setLineWidth(0.5);
-  doc.line(MARGIN, 30, pageWidth - MARGIN, 30);
+  doc.line(MARGIN, headerSectionEndY, pageWidth - MARGIN, headerSectionEndY);
+  
+  return headerSectionEndY;
 }
 
 function addFooter(doc: jsPDF) {
@@ -93,17 +96,17 @@ function addFooter(doc: jsPDF) {
     }
 }
 
-function addObservationInfo(doc: jsPDF, observation: BehaviorObservation) {
+function addObservationInfo(doc: jsPDF, observation: BehaviorObservation, startY: number) {
   const infoData = [
     ['Obra:', observation.obra],
     ['Trabajador Observado:', observation.workerName],
-    ['RUT:', observation.workerRut],
+    ['RUT:', observation.workerRut || 'N/A'],
     ['Fecha de Observación:', formatDate(observation.observationDate)],
   ];
 
   doc.autoTable({
     body: infoData,
-    startY: 34,
+    startY: startY + 2,
     theme: 'grid',
     styles: { fontSize: 9, cellPadding: 2, textColor: COLORS.text, lineWidth: 0.1 },
     columnStyles: { 0: { fontStyle: 'bold', fillColor: COLORS.lightGray, cellWidth: 50 } },
@@ -117,8 +120,8 @@ export async function generateBehaviorObservationPDF(observation: BehaviorObserv
   const pageWidth = doc.internal.pageSize.getWidth();
   const logo = await getBase64FromUrl('/logopdf.jpg');
 
-  addHeader(doc, logo);
-  let y = addObservationInfo(doc, observation);
+  let y = addHeader(doc, logo);
+  y = addObservationInfo(doc, observation, y);
 
   const tableRows = observation.items.map((item, i) => {
     const status = item.status === 'si' ? 'Sí' : item.status === 'no' ? 'No' : 'N/A';
