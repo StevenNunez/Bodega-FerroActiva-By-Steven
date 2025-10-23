@@ -287,28 +287,24 @@ export default function OperationsLotsPage() {
   }, [updatePurchaseRequestStatus, toast]);
 
   return (
-    <div className="flex flex-col gap-8 p-6 bg-background min-h-screen">
+    <div className="flex flex-col gap-8">
       <PageHeader
         title="Gestión de Lotes de Compra"
         description="Agrupa las solicitudes aprobadas en lotes y ajústalos antes de generar las órdenes de compra."
       />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="grid grid-cols-1 gap-8 items-start">
         <ApprovedRequestsCard
           approvedRequests={approvedRequests}
           batchedLots={batchedLots}
           handleAddBack={handleAddBack}
         />
-        <div className="space-y-8">
-          <CreateLotCard />
-          <ActiveLotsCard
+        <CreateLotCard />
+        <ActiveLotsCard
             batchedLots={batchedLots}
             handleRemove={handleRemove}
             handleArchiveRequest={handleArchiveRequest}
-          />
-        </div>
+        />
       </div>
     </div>
   );
 }
-
-    

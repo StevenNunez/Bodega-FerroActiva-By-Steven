@@ -112,7 +112,7 @@ function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm, materials }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent onInteractOutside={(e) => { e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle>Registrar Recepción de Material</DialogTitle>
           <DialogDescription>
@@ -542,5 +542,3 @@ export default function AdminPurchaseRequestsPage() {
     </div>
   );
 }
-
-    

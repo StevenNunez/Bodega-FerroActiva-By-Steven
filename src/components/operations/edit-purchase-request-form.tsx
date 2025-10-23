@@ -101,7 +101,7 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" onInteractOutside={(e) => { e.preventDefault(); }}>
             <DialogHeader>
                 <DialogTitle>Gestionar Solicitud de Compra</DialogTitle>
                 <DialogDescription>
@@ -228,5 +228,3 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
     </Dialog>
   );
 }
-
-    

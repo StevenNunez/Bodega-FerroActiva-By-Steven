@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -102,7 +103,6 @@ export default function SupervisorPurchaseRequestPage() {
     null
   );
 
-  // 🔹 Estado para paginación
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -116,6 +116,11 @@ export default function SupervisorPurchaseRequestPage() {
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
   });
+  
+  const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
+    if (!date) return null;
+    return date instanceof Timestamp ? date.toDate() : date;
+  };
 
   useEffect(() => {
     if (selectedMaterialId) {
@@ -128,11 +133,18 @@ export default function SupervisorPurchaseRequestPage() {
     }
   }, [selectedMaterialId, materials, setValue]);
 
-  const myRequests = purchaseRequests.filter(
-    (pr) => pr.supervisorId === authUser?.id
-  );
+  const myRequests = React.useMemo(() => {
+    if (!authUser) return [];
+    return purchaseRequests
+      .filter((pr) => pr.supervisorId === authUser.id)
+      .sort((a, b) => {
+        const dateA = getDate(a.createdAt);
+        const dateB = getDate(b.createdAt);
+        if (dateA && dateB) return dateB.getTime() - dateA.getTime();
+        return 0;
+      });
+  }, [purchaseRequests, authUser]);
 
-  // 🔹 Calcular solicitudes paginadas
   const paginatedRequests = myRequests.slice(
     (page - 1) * pageSize,
     page * pageSize
@@ -225,10 +237,6 @@ export default function SupervisorPurchaseRequestPage() {
     }
   };
 
-  const getDate = (date: Date | Timestamp) => {
-    return date instanceof Timestamp ? date.toDate() : date;
-  };
-
   const getChangeTooltip = (req: PurchaseRequest) => {
     if (req.originalQuantity && req.originalQuantity !== req.quantity) {
       return `Cantidad original: ${req.originalQuantity}. ${req.notes || ""}`;
@@ -246,7 +254,6 @@ export default function SupervisorPurchaseRequestPage() {
         description="Pide materiales que no están en el inventario o cuyo stock es bajo."
       />
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* 🔹 Formulario */}
         <Card>
           <CardHeader>
             <CardTitle>Generar Solicitud de Compra</CardTitle>
@@ -257,7 +264,6 @@ export default function SupervisorPurchaseRequestPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Selección de material existente */}
               <div className="space-y-2">
                 <Label>Seleccionar material existente (Opcional)</Label>
                 <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -309,7 +315,6 @@ export default function SupervisorPurchaseRequestPage() {
                 </Popover>
               </div>
 
-              {/* Nombre, cantidad y unidad */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="materialName">Nombre del Material</Label>
@@ -371,7 +376,6 @@ export default function SupervisorPurchaseRequestPage() {
                   </div>
                 </div>
 
-                {/* Área */}
                 <div className="space-y-2">
                   <Label htmlFor="area">Área / Proyecto</Label>
                   <Input
@@ -386,7 +390,6 @@ export default function SupervisorPurchaseRequestPage() {
                   )}
                 </div>
 
-                {/* Categoría */}
                 <div className="space-y-2">
                   <Label htmlFor="category">Categoría del Material</Label>
                   <Controller
@@ -458,7 +461,6 @@ export default function SupervisorPurchaseRequestPage() {
                 </div>
               </div>
 
-              {/* Justificación */}
               <div className="space-y-2">
                 <Label htmlFor="justification">
                   Justificación de la Compra
@@ -475,7 +477,6 @@ export default function SupervisorPurchaseRequestPage() {
                 )}
               </div>
 
-              {/* Botón submit */}
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
@@ -491,7 +492,6 @@ export default function SupervisorPurchaseRequestPage() {
           </CardContent>
         </Card>
 
-        {/* 🔹 Historial */}
         <Card>
           <CardHeader>
             <CardTitle>Historial de Solicitudes de Compra</CardTitle>
@@ -539,7 +539,7 @@ export default function SupervisorPurchaseRequestPage() {
                               )}
                             </TableCell>
                             <TableCell>
-                              {getDate(req.createdAt).toLocaleDateString()}
+                              {getDate(req.createdAt)?.toLocaleDateString() ?? 'N/A'}
                             </TableCell>
                             <TableCell>{getStatusBadge(req.status)}</TableCell>
                           </TableRow>
@@ -557,7 +557,6 @@ export default function SupervisorPurchaseRequestPage() {
               </div>
             </div>
 
-            {/* 🔹 Controles de paginación */}
             {myRequests.length > pageSize && (
               <div className="flex justify-between items-center mt-4">
                 <Button

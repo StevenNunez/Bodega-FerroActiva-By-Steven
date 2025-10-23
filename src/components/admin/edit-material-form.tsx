@@ -90,7 +90,7 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px]" onInteractOutside={(e) => { e.preventDefault(); }}>
             <DialogHeader>
                 <DialogTitle>Editar Material</DialogTitle>
                 <DialogDescription>
@@ -249,5 +249,3 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
     </Dialog>
   );
 }
-
-    

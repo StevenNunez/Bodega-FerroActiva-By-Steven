@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Inbox, PackagePlus, ShoppingCart, Truck, Download, Trash2 } from 'lucide-react';
+import { FileText, Inbox, PackagePlus, ShoppingCart, Truck, Download, Trash2, CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { PurchaseRequest, PurchaseOrder as PurchaseOrderType, Supplier } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,6 +17,11 @@ import { generatePurchaseOrderPDF } from '@/lib/pdf-generator';
 import { Timestamp } from 'firebase/firestore';
 import { useLots } from '@/hooks/use-lots';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format, isSameDay } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 
 interface GenerateOrderCardProps {
@@ -80,7 +85,9 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
                     </Select>
                 </div>
                 <Button className="w-full" onClick={handleGenerateOrder} disabled={!selectedSupplier || totalRequests === 0}>
-                    <FileText className="mr-2"/> Generar Orden de Compra
+                    <FileText className="mr-2"/>
+                    <span className="sm:hidden">Generar OC</span>
+                    <span className="hidden sm:inline">Generar Orden de Compra</span>
                 </Button>
             </CardContent>
         </Card>
@@ -91,17 +98,22 @@ export default function OperationsOrdersPage() {
     const { purchaseOrders, suppliers, cancelPurchaseOrder } = useAppState();
     const { batchedLots } = useLots();
     const { toast } = useToast();
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
     
     const getSupplierName = (id: string) => suppliers.find(s => s.id === id)?.name || 'Desconocido';
     const getSupplier = (id: string): Supplier | undefined => suppliers.find(s => s.id === id);
     
-    const sortedPurchaseOrders = useMemo(() => {
-        return [...purchaseOrders].sort((a, b) => {
-            const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt).getTime();
-            const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt).getTime();
-            return dateA - dateB;
-        });
-    }, [purchaseOrders]);
+    const getDate = (date: Date | Timestamp) => {
+        return date instanceof Timestamp ? date.toDate() : date;
+    }
+    
+    const filteredPurchaseOrders = useMemo(() => {
+        return purchaseOrders.filter(order => {
+            if (!selectedDate) return true;
+            const orderDate = getDate(order.createdAt);
+            return isSameDay(orderDate, selectedDate);
+        }).sort((a, b) => getDate(b.createdAt).getTime() - getDate(a.createdAt).getTime());
+    }, [purchaseOrders, selectedDate]);
 
 
     const handleDownloadPDF = (order: PurchaseOrderType, index: number) => {
@@ -121,10 +133,6 @@ export default function OperationsOrdersPage() {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo anular la orden.' });
         }
     };
-    
-    const getDate = (date: Date | Timestamp) => {
-        return date instanceof Timestamp ? date.toDate() : date;
-    }
 
     return (
         <div className="flex flex-col gap-8">
@@ -155,12 +163,38 @@ export default function OperationsOrdersPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Truck /> Historial de Órdenes de Compra</CardTitle>
-                    <CardDescription>Aquí puedes ver todas las órdenes de compra que has generado.</CardDescription>
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                        <div>
+                            <CardTitle className="flex items-center gap-2"><Truck /> Historial de Órdenes de Compra</CardTitle>
+                            <CardDescription>Aquí puedes ver todas las órdenes de compra que has generado.</CardDescription>
+                        </div>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                    "w-full sm:w-[280px] justify-start text-left font-normal",
+                                    !selectedDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {selectedDate ? format(selectedDate, "PPP", {locale: es}) : <span>Selecciona una fecha</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={selectedDate}
+                                    onSelect={setSelectedDate}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     <Accordion type="multiple" className="w-full space-y-4">
-                        {sortedPurchaseOrders.length > 0 ? sortedPurchaseOrders.map((order, index) => (
+                        {filteredPurchaseOrders.length > 0 ? filteredPurchaseOrders.map((order, index) => (
                             <AccordionItem value={order.id} key={order.id} className="border rounded-lg bg-card">
                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full p-4">
                                     <AccordionTrigger className="w-full p-0 hover:no-underline text-left flex-grow">
@@ -227,7 +261,7 @@ export default function OperationsOrdersPage() {
                             <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-12">
                                 <Inbox className="h-16 w-16 mb-4"/>
                                 <h3 className="text-xl font-semibold">Sin Órdenes</h3>
-                                <p className="mt-2">Aún no se han generado órdenes de compra.</p>
+                                <p className="mt-2">No se han generado órdenes de compra para la fecha seleccionada.</p>
                             </div>
                         )}
                     </Accordion>

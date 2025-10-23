@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -92,7 +93,12 @@ export default function AprPurchaseRequestPage() {
   );
 
   const [page, setPage] = useState(1);
-  const itemsPerPage = 10; // ✅ ahora muestra 10 por página
+  const itemsPerPage = 10;
+  
+  const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
+    if (!date) return null;
+    return date instanceof Timestamp ? date.toDate() : date;
+  };
 
   const {
     register,
@@ -116,10 +122,17 @@ export default function AprPurchaseRequestPage() {
     }
   }, [selectedMaterialId, materials, setValue]);
 
-  const myRequests = useMemo(
-    () => purchaseRequests.filter((pr) => pr.supervisorId === authUser?.id),
-    [purchaseRequests, authUser?.id]
-  );
+  const myRequests = useMemo(() => {
+    if (!authUser) return [];
+    return purchaseRequests
+        .filter((pr) => pr.supervisorId === authUser.id)
+        .sort((a, b) => {
+            const dateA = getDate(a.createdAt);
+            const dateB = getDate(b.createdAt);
+            if(dateA && dateB) return dateB.getTime() - dateA.getTime();
+            return 0;
+        });
+  }, [purchaseRequests, authUser]);
 
   const paginatedRequests = myRequests.slice(
     (page - 1) * itemsPerPage,
@@ -199,10 +212,6 @@ export default function AprPurchaseRequestPage() {
     }
   };
 
-  const getDate = (date: Date | Timestamp) => {
-    return date instanceof Timestamp ? date.toDate() : date;
-  };
-
   const getChangeTooltip = (req: PurchaseRequest) => {
     if (req.originalQuantity && req.originalQuantity !== req.quantity) {
       return `Cantidad original: ${req.originalQuantity}. ${req.notes || ""}`;
@@ -220,7 +229,6 @@ export default function AprPurchaseRequestPage() {
         description="Pide materiales que no están en el inventario o cuyo stock es bajo."
       />
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* ✅ Formulario */}
         <Card>
           <CardHeader>
             <CardTitle>Generar Solicitud de Compra</CardTitle>
@@ -231,7 +239,6 @@ export default function AprPurchaseRequestPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* selección material */}
               <div className="space-y-2">
                 <Label>Seleccionar material existente (Opcional)</Label>
                 <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
@@ -283,7 +290,6 @@ export default function AprPurchaseRequestPage() {
                 </Popover>
               </div>
 
-              {/* campos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="materialName">Nombre del Material</Label>
@@ -459,7 +465,6 @@ export default function AprPurchaseRequestPage() {
           </CardContent>
         </Card>
 
-        {/* ✅ Historial */}
         <Card>
           <CardHeader>
             <CardTitle>Historial de Solicitudes de Compra</CardTitle>
@@ -486,7 +491,6 @@ export default function AprPurchaseRequestPage() {
                         const changeTooltip = getChangeTooltip(req);
                         return (
                           <TableRow key={req.id}>
-                            {/* ✅ Material más ancho y sin truncate */}
                             <TableCell className="font-medium min-w-[250px] whitespace-pre-wrap break-words">
                               {req.materialName}
                             </TableCell>
@@ -506,7 +510,7 @@ export default function AprPurchaseRequestPage() {
                               )}
                             </TableCell>
                             <TableCell className="min-w-[150px]">
-                              {getDate(req.createdAt).toLocaleDateString()}
+                              {getDate(req.createdAt)?.toLocaleDateString() ?? 'N/A'}
                             </TableCell>
                             <TableCell className="min-w-[150px]">
                               {getStatusBadge(req.status)}
@@ -526,7 +530,6 @@ export default function AprPurchaseRequestPage() {
               </div>
             </div>
 
-            {/* ✅ Paginación */}
             {totalPages > 1 && (
               <div className="flex justify-between items-center mt-4">
                 <Button

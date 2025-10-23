@@ -39,6 +39,7 @@ import {
   ThumbsUp,
   Package,
   PackageOpen,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { EditPurchaseRequestForm } from "@/components/operations/edit-purchase-request-form";
@@ -48,6 +49,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 // Tipos
 type CompatibleMaterialRequest = MaterialRequest & { materialId?: string; quantity?: number };
@@ -56,9 +61,140 @@ interface Material {
   name: string;
   category: string;
   stock: number;
+  unit: string;
+  archived?: boolean;
 }
 type PurchaseRequestStatus = import('@/lib/data').PurchaseRequestStatus;
 type PurchaseRequest = import('@/lib/data').PurchaseRequest;
+type MaterialRequest = import('@/lib/data').MaterialRequest;
+
+interface ReceiveRequestDialogProps {
+  request: PurchaseRequest | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (requestId: string, quantity: number, materialId?: string) => Promise<void>;
+  materials: Material[];
+}
+
+function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm, materials }: ReceiveRequestDialogProps) {
+  const [receivedQuantity, setReceivedQuantity] = useState<number | string>("");
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | undefined>(undefined);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const { toast } = useToast();
+
+  React.useEffect(() => {
+    if (request) {
+      setReceivedQuantity(request.quantity);
+      setSelectedMaterialId(undefined); // Reset on new request
+    } else {
+      setReceivedQuantity("");
+      setSelectedMaterialId(undefined);
+    }
+  }, [request]);
+
+  const handleConfirmClick = async () => {
+    if (!request) return;
+    const quantityNum = Number(receivedQuantity);
+    if (isNaN(quantityNum) || quantityNum <= 0) {
+      toast({ variant: "destructive", title: "Error", description: "La cantidad debe ser un número positivo." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await onConfirm(request.id, quantityNum, selectedMaterialId);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const unarchivedMaterials = useMemo(() => materials.filter(m => !m.archived), [materials]);
+
+  if (!request) return null;
+  
+  const selectedMaterialName = selectedMaterialId
+      ? materials.find(m => m.id === selectedMaterialId)?.name
+      : "Asignar a material existente...";
+
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent onInteractOutside={(e) => { e.preventDefault(); }}>
+        <DialogHeader>
+          <DialogTitle>Registrar Recepción de Material</DialogTitle>
+          <DialogDescription>
+            Confirma la cantidad de <span className="font-semibold">{request.materialName}</span> que ha llegado a bodega.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="received-quantity">Cantidad Recibida Real</Label>
+            <Input
+              id="received-quantity"
+              type="number"
+              value={receivedQuantity}
+              onChange={(e) => setReceivedQuantity(e.target.value)}
+              placeholder="Ingresa la cantidad que llegó..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Puedes ajustar la cantidad si es diferente a la aprobada ({request.quantity}).
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Asignar a Material Existente (Opcional)</Label>
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between"
+                >
+                  <span className="truncate">{selectedMaterialName}</span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput placeholder="Buscar material..." />
+                  <CommandList>
+                    <CommandEmpty>No se encontraron materiales.</CommandEmpty>
+                    <CommandGroup>
+                      {unarchivedMaterials.map((material) => (
+                        <CommandItem
+                          key={material.id}
+                          value={material.name}
+                          onSelect={() => {
+                            setSelectedMaterialId(material.id);
+                            setPopoverOpen(false);
+                          }}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", selectedMaterialId === material.id ? "opacity-100" : "opacity-0")} />
+                          {material.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              Si este material ya existe (ej. es un duplicado), selecciónalo aquí para sumar el stock en lugar de crear uno nuevo.
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
+          <Button onClick={handleConfirmClick} disabled={isSubmitting || !receivedQuantity}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
+            Confirmar Recepción
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 
 // Constantes
@@ -84,6 +220,7 @@ const PurchaseRequestTable = memo(
     page,
     setPage,
     setEditingRequest,
+    setReceivingRequest, // Nueva prop
     getStatusBadge,
     getChangeTooltip,
     formatDate,
@@ -97,6 +234,7 @@ const PurchaseRequestTable = memo(
     page: number;
     setPage: (page: number) => void;
     setEditingRequest: (request: PurchaseRequest | null) => void;
+    setReceivingRequest: (request: PurchaseRequest | null) => void; // Nueva prop
     getStatusBadge: (status: PurchaseRequestStatus) => JSX.Element;
     getChangeTooltip: (req: PurchaseRequest) => string | null;
     formatDate: (date: Date | Timestamp | null | undefined) => string;
@@ -122,7 +260,8 @@ const PurchaseRequestTable = memo(
 
     const totalPages = Math.ceil(filteredRequests.length / ITEMS_PER_PAGE);
     
-    const editableStatuses: PurchaseRequestStatus[] = ["pending", "approved", "batched"];
+    const editableStatuses: PurchaseRequestStatus[] = ["pending"];
+    const receivableStatuses: PurchaseRequestStatus[] = ["approved", "batched", "ordered"];
 
     return (
       <Card className="!max-w-none transition-all duration-300">
@@ -170,7 +309,7 @@ const PurchaseRequestTable = memo(
                   </div>
             </div>
             <ScrollArea className="border rounded-md">
-              <div className="min-w-[1000px]">
+              <div className="min-w-[1200px]">
                 <Table>
                   <TableHeader className="sticky top-0 bg-card z-10">
                     <TableRow>
@@ -178,7 +317,8 @@ const PurchaseRequestTable = memo(
                       <TableHead className="min-w-[120px]">Cantidad</TableHead>
                       <TableHead className="min-w-[300px]">Justificación</TableHead>
                       <TableHead className="min-w-[150px]">Solicitante</TableHead>
-                      <TableHead className="min-w-[150px]">Fecha</TableHead>
+                      <TableHead className="min-w-[150px]">Fecha Solicitud</TableHead>
+                      <TableHead className="min-w-[150px]">Fecha Recepción</TableHead>
                       <TableHead className="min-w-[150px]">Estado</TableHead>
                       <TableHead className="min-w-[180px] text-right">Acción</TableHead>
                     </TableRow>
@@ -213,9 +353,10 @@ const PurchaseRequestTable = memo(
                             </TableCell>
                             <TableCell className="min-w-[150px]">{supervisor}</TableCell>
                             <TableCell className="min-w-[150px]">{formatDate(req.createdAt)}</TableCell>
+                            <TableCell className="min-w-[150px]">{formatDate(req.receivedAt)}</TableCell>
                             <TableCell className="min-w-[150px]">{getStatusBadge(req.status)}</TableCell>
-                            <TableCell className="text-right min-w-[180px]">
-                              {editableStatuses.includes(req.status) ? (
+                            <TableCell className="text-right min-w-[180px] space-x-2">
+                              {editableStatuses.includes(req.status) && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -225,8 +366,16 @@ const PurchaseRequestTable = memo(
                                   <Edit className="mr-2 h-4 w-4" />
                                   Gestionar
                                 </Button>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">Gestionada</span>
+                              )}
+                              {receivableStatuses.includes(req.status) && (
+                                 <Button
+                                    size="sm"
+                                    onClick={() => setReceivingRequest(req)}
+                                    aria-label={`Recibir solicitud de compra ${req.materialName}`}
+                                  >
+                                    <PackageCheck className="mr-2 h-4 w-4" />
+                                    Recibir
+                                </Button>
                               )}
                             </TableCell>
                           </TableRow>
@@ -234,7 +383,7 @@ const PurchaseRequestTable = memo(
                       })
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center">
+                        <TableCell colSpan={8} className="h-24 text-center">
                           No hay solicitudes de compra para los filtros seleccionados.
                         </TableCell>
                       </TableRow>
@@ -625,10 +774,11 @@ const RecentReceivedCard = memo(
 
 // Componente principal
 export default function OperationsPage() {
-  const { purchaseRequests, users, requests, materials, isLoading } = useAppState();
+  const { purchaseRequests, users, requests, materials, receivePurchaseRequest, isLoading } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
+  const [receivingRequest, setReceivingRequest] = useState<PurchaseRequest | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [page, setPage] = useState(1);
   const [stockSearchTerm, setStockSearchTerm] = useState("");
@@ -648,8 +798,24 @@ export default function OperationsPage() {
       : "N/A";
   };
 
+  const handleReceive = async (id: string, quantity: number, existingMaterialId?: string) => {
+    try {
+      await receivePurchaseRequest(id, quantity, existingMaterialId);
+      setReceivingRequest(null);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "No se pudo actualizar el stock.",
+      });
+    }
+  };
+
   const supervisorMap = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users]);
-  const materialMap = useMemo(() => new Map(materials.map((m) => [m.id, m])), [materials]);
+  const materialMap = useMemo(() => new Map(materials.map((m) => [m.id, m as Material])), [materials]);
 
   const getStatusBadge = useMemo(
     () => (status: PurchaseRequestStatus) => {
@@ -707,6 +873,13 @@ export default function OperationsPage() {
           onClose={() => setEditingRequest(null)}
         />
       )}
+      <ReceiveRequestDialog
+        request={receivingRequest}
+        isOpen={!!receivingRequest}
+        onClose={() => setReceivingRequest(null)}
+        onConfirm={handleReceive}
+        materials={materials}
+      />
       <PageHeader
         title={`Bienvenido, ${authUser?.name ?? "Usuario"}`}
         description="Gestiona las solicitudes de compra y supervisa el estado general de la operación."
@@ -759,6 +932,7 @@ export default function OperationsPage() {
             page={page}
             setPage={setPage}
             setEditingRequest={setEditingRequest}
+            setReceivingRequest={setReceivingRequest} // Pasar la función
             getStatusBadge={getStatusBadge}
             getChangeTooltip={getChangeTooltip}
             formatDate={formatDate}
