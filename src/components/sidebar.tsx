@@ -33,6 +33,7 @@ import {
   DollarSign,
   ShieldAlert,
   ClipboardPaste,
+  BarChart3,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -54,7 +55,6 @@ const adminNavItems = [
   { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
   { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
-  { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
   { href: '/dashboard/admin/certificate', icon: Medal, label: 'Mi Certificado' },
 ];
 
@@ -114,6 +114,11 @@ const paymentsNavItems = [
     { href: '/dashboard/payments', icon: LayoutDashboard, label: 'Resumen de Pagos', notificationKey: 'paymentNotifications' },
     { href: '/dashboard/payments/pago-facturas', icon: DollarSign, label: 'Pago Facturas' },
     { href: '/dashboard/payments/suppliers', icon: Briefcase, label: 'Proveedores' },
+];
+
+const reportsNavItems = [
+    { href: '/dashboard/reports/stats', icon: BarChart3, label: 'Estadísticas de Consumo' },
+    { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
 ];
 
 const safetyNavItems = (role: string) => {
@@ -209,10 +214,13 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
      if (pathname.startsWith('/dashboard/payments')) {
         return { currentNavItems: paymentsNavItems, isSubModule: true, moduleTitle: 'Módulo de Pagos' };
     }
+     if (pathname.startsWith('/dashboard/reports')) {
+        return { currentNavItems: reportsNavItems, isSubModule: true, moduleTitle: 'Estadísticas y Reportes' };
+    }
     
     return { currentNavItems: roleNav, isSubModule: false, moduleTitle: '' };
 
-  }, [pathname, user, paymentsNavItems, safetyNavItems]);
+  }, [pathname, user]);
   
 
   return (
