@@ -2,7 +2,15 @@
 
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin";
+
+export interface Tenant {
+  id: string;
+  name: string;
+  tenantId: string; // The unique identifier for the tenant (e.g., RUT)
+  createdAt: Date | Timestamp;
+}
+
 
 export interface User {
   id: string; // Corresponds to Firebase Auth UID
@@ -10,6 +18,7 @@ export interface User {
   email: string;
   role: UserRole;
   qrCode: string;
+  tenantId: string; // ID of the company/tenant they belong to
   // Payroll information
   rut?: string;
   cargo?: string;
@@ -22,17 +31,20 @@ export interface User {
 export interface Unit {
   id: string;
   name: string;
+  tenantId: string;
 }
 
 export interface Tool {
   id: string;
   name:string;
   qrCode: string;
+  tenantId: string;
 }
 
 export interface MaterialCategory {
     id: string;
     name: string;
+    tenantId: string;
 }
 
 export interface Material {
@@ -43,6 +55,7 @@ export interface Material {
   category: string;
   supplierId?: string | null; // Preferred supplier
   archived?: boolean;
+  tenantId: string;
 }
 
 export interface MaterialRequest {
@@ -55,6 +68,7 @@ export interface MaterialRequest {
   supervisorId: string;
   status: "pending" | "approved" | "rejected";
   createdAt: Date | Timestamp;
+  tenantId: string;
 }
 
 export type PurchaseRequestStatus = "pending" | "approved" | "rejected" | "received" | "ordered" | "batched";
@@ -94,6 +108,7 @@ export interface PurchaseRequest {
   notes?: string | null;
   approvedById?: string | null;
   approvedAt?: Date | Timestamp | null;
+  tenantId: string;
 }
 
 export interface ToolLog {
@@ -105,6 +120,7 @@ export interface ToolLog {
   supervisorId: string;
   returnCondition?: 'ok' | 'damaged';
   returnNotes?: string;
+  tenantId: string;
 }
 
 export interface AttendanceLog {
@@ -117,12 +133,14 @@ export interface AttendanceLog {
   originalTimestamp?: Date | Timestamp | null;
   modifiedAt?: Date | Timestamp | null;
   modifiedBy?: string | null; // User ID of the admin who modified it
+  tenantId: string;
 }
 
 
 export interface Supplier {
     id: string;
     name: string;
+    tenantId: string; 
     categories: string[];
     rut?: string;
     bank?: string;
@@ -138,6 +156,7 @@ export interface PurchaseOrder {
     status: 'generated' | 'sent' | 'completed';
     requestIds: string[];
     items: { materialName: string; totalQuantity: number; unit: string; category: string }[];
+    tenantId: string;
 }
 
 export interface ChecklistTemplate {
@@ -146,6 +165,7 @@ export interface ChecklistTemplate {
   items: Pick<ChecklistItem, 'element'>[];
   createdBy: string; // User ID of APR
   createdAt: Date | Timestamp;
+  tenantId: string;
 }
 
 export interface AssignedChecklist {
@@ -165,6 +185,7 @@ export interface AssignedChecklist {
   evidencePhotos: string[]; // Array of data URIs
   performedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
   reviewedBy: { name: string; role: string; signature: string; date: Date | Timestamp | null };
+  tenantId: string;
 }
 
 export interface BehaviorObservationItem {
@@ -187,6 +208,7 @@ export interface BehaviorObservation {
     observerId: string;
     observerName: string;
     createdAt: Date | Timestamp;
+    tenantId: string;
 }
 
 
@@ -234,6 +256,7 @@ export interface SafetyInspection {
     date: Date | Timestamp;
   };
   rejectionNotes?: string; // If APR rejects the completion
+  tenantId: string;
 }
 
 export interface SupplierPayment {
@@ -248,6 +271,7 @@ export interface SupplierPayment {
   work?: string; // Obra
   paymentDate?: Date | Timestamp;
   paymentMethod?: string;
+  tenantId: string;
 }
 
 
@@ -260,4 +284,5 @@ export interface Checklist {
         checked: boolean;
     }[];
     createdBy: string;
+    tenantId: string;
 }

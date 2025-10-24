@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -23,7 +24,7 @@ import { Timestamp } from 'firebase/firestore';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin'], { required_error: 'Debes seleccionar un rol.' }),
   rut: z.string().optional(),
   cargo: z.string().optional(),
   fechaIngreso: z.date().optional(),
@@ -78,6 +79,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
         case 'apr': return 'APR';
         case 'guardia': return 'Guardia';
         case 'finance': return 'Jefe de Adm. y Finanzas';
+        case 'super-admin': return 'Super Administrador';
         default: return 'Usuario';
     }
   }

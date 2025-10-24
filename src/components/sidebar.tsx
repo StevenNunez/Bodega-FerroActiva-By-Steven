@@ -55,7 +55,6 @@ const adminNavItems = [
   { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
   { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
-  { href: '/dashboard/admin/certificate', icon: Medal, label: 'Mi Certificado' },
 ];
 
 const supervisorNavItems = [
@@ -92,6 +91,22 @@ const financeNavItems = [
   // This role only sees the Payments module from the main hub
 ];
 
+const superAdminNavItems = [
+  { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Admin Resumen' },
+  { href: '/dashboard/operations', icon: Briefcase, label: 'Admin Obra Resumen' },
+  { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Supervisor Resumen' },
+  { href: '/dashboard/apr', icon: LayoutDashboard, label: 'APR Resumen' },
+  { href: '/dashboard/worker', icon: Wrench, label: 'Colaborador Panel' },
+  { href: '/dashboard/admin/users', icon: Users, label: 'Gestión de Usuarios' },
+  { href: '/dashboard/admin/tools', icon: Wrench, label: 'Gestión de Herramientas' },
+  { href: '/dashboard/admin/materials', icon: Package, label: 'Gestión de Materiales' },
+  { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
+  { href: '/dashboard/operations/orders', icon: FileText, label: 'Gestión de Órdenes' },
+  { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes Materiales' },
+  { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes Compra' },
+];
+
+
 const mainNavItemsByRole = {
   admin: adminNavItems,
   supervisor: supervisorNavItems,
@@ -99,6 +114,7 @@ const mainNavItemsByRole = {
   operations: operationsNavItems,
   apr: aprNavItems,
   finance: financeNavItems,
+  'super-admin': superAdminNavItems, 
   guardia: [{ href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' }], 
 };
 
@@ -121,23 +137,27 @@ const reportsNavItems = [
     { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
 ];
 
+const subscriptionsNavItems = [
+    { href: '/dashboard/subscriptions', icon: Users, label: 'Gestión de Inquilinos' },
+];
+
 const safetyNavItems = (role: string) => {
     const items = [
         { href: '/dashboard/safety', icon: LayoutDashboard, label: 'Resumen' }
     ];
     
-    if (['apr', 'admin', 'operations'].includes(role)) {
+    if (['apr', 'admin', 'operations', 'super-admin'].includes(role)) {
         items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Inspección de Seguridad'});
         items.push({ href: '/dashboard/safety/behavior-observation', icon: ClipboardPaste, label: 'Observación de Conducta' });
     }
 
-    if (role === 'apr' || role === 'admin') {
+    if (role === 'apr' || role === 'admin' || role === 'super-admin') {
         items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas'});
         items.push({ href: '/dashboard/safety/review-checklists', icon: ShieldCheck, label: 'Revisar Checklists'});
         items.push({ href: '/dashboard/safety/review-inspections', icon: ShieldCheck, label: 'Revisar Inspecciones' });
         items.push({ href: '/dashboard/safety/review-observations', icon: ShieldCheck, label: 'Revisar Observaciones' });
     }
-    if (['admin', 'supervisor', 'operations', 'apr'].includes(role)) {
+    if (['admin', 'supervisor', 'operations', 'apr', 'super-admin'].includes(role)) {
          items.push({ href: '/dashboard/safety/assigned-checklists', icon: ListChecks, label: 'Mis Checklists' });
          items.push({ href: '/dashboard/safety/assigned-inspections', icon: ShieldCheck, label: 'Mis Inspecciones' });
     }
@@ -190,6 +210,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
       case 'apr': return 'APR';
       case 'guardia': return 'Guardia';
       case 'finance': return 'Jefe de Adm. y Finanzas';
+      case 'super-admin': return 'Super Administrador';
       default: return 'Usuario';
     }
   }
@@ -203,7 +224,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
   const { currentNavItems, isSubModule, moduleTitle } = React.useMemo(() => {
     if (!user) return { currentNavItems: [], isSubModule: false, moduleTitle: '' };
 
-    const roleNav = mainNavItemsByRole[user.role] || [];
+    const roleNav = mainNavItemsByRole[user.role as keyof typeof mainNavItemsByRole] || [];
     
     if (pathname.startsWith('/dashboard/attendance')) {
         return { currentNavItems: attendanceNavItems, isSubModule: true, moduleTitle: 'Módulo de Asistencia' };
@@ -216,6 +237,9 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     }
      if (pathname.startsWith('/dashboard/reports')) {
         return { currentNavItems: reportsNavItems, isSubModule: true, moduleTitle: 'Estadísticas y Reportes' };
+    }
+    if (pathname.startsWith('/dashboard/subscriptions')) {
+        return { currentNavItems: subscriptionsNavItems, isSubModule: true, moduleTitle: 'Módulo de Suscripciones' };
     }
     
     return { currentNavItems: roleNav, isSubModule: false, moduleTitle: '' };

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -24,6 +23,7 @@ import {
   SupplierPayment,
   Checklist,
   BehaviorObservation,
+  Tenant
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -45,6 +45,7 @@ import {
   type QueryConstraint,
 } from "firebase/firestore";
 import {
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
@@ -105,6 +106,11 @@ interface AppStateContextType {
   assignedChecklists: AssignedChecklist[];
   safetyInspections: SafetyInspection[];
   behaviorObservations: BehaviorObservation[];
+  tenants: Tenant[];
+  currentTenantId: string | null;
+  setCurrentTenantId: (tenantId: string | null) => void;
+  addTenant: (tenantData: { tenantName: string; tenantId: string; adminName: string; adminEmail: string; }) => Promise<void>;
+  deleteTenant: (tenantId: string) => Promise<void>;
   addTool: (toolName: string) => Promise<void>;
   updateTool: (toolId: string, data: Partial<Omit<Tool, "id" | "qrCode">>) => Promise<void>;
   deleteTool: (toolId: string) => Promise<void>;
@@ -186,10 +192,18 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [safetyInspections, setSafetyInspections] = React.useState<SafetyInspection[]>([]);
   const [behaviorObservations, setBehaviorObservations] = React.useState<BehaviorObservation[]>([]);
   const [manualLots, setManualLots] = React.useState<string[]>([]);
+  const [tenants, setTenants] = React.useState<Tenant[]>([]);
+  const [currentTenantId, setCurrentTenantId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const { user: authUser } = useAuth();
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    if (authUser && authUser.tenantId && !currentTenantId) {
+      setCurrentTenantId(authUser.tenantId);
+    }
+  }, [authUser, currentTenantId]);
 
   const notify = React.useCallback(
     (message: string, variant: "default" | "destructive" | "success" = "default") => {
@@ -206,28 +220,15 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!authUser) {
       setLoading(false);
-      // Clear data when user logs out
-      setUsers([]);
-      setTools([]);
-      setMaterials([]);
-      setMaterialCategories([]);
-      setUnits([]);
-      setRequests([]);
-      setToolLogs([]);
-      setAttendanceLogs([]);
-      setPurchaseRequests([]);
-      setSuppliers([]);
-      setSupplierPayments([]);
-      setPurchaseOrders([]);
-      setChecklistTemplates([]);
-      setAssignedChecklists([]);
-      setSafetyInspections([]);
-      setBehaviorObservations([]);
       return;
     };
 
     setLoading(true);
     console.log("--- CONECTANDO A FIRESTORE (ESTO DEBE APARECER SOLO UNA VEZ POR RECARGA) ---");
+    
+    const isSuperAdmin = authUser.role === 'super-admin';
+    const activeTenantId = isSuperAdmin ? currentTenantId : authUser.tenantId;
+
     const collections: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>>; sortField?: string }[] = [
         { name: "users", setter: setUsers, sortField: "name" },
         { name: "tools", setter: setTools, sortField: "name" },
@@ -245,40 +246,73 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: "assignedChecklists", setter: setAssignedChecklists, sortField: "createdAt" },
         { name: "safetyInspections", setter: setSafetyInspections, sortField: "createdAt" },
         { name: "behaviorObservations", setter: setBehaviorObservations, sortField: "createdAt" },
+        // Tenants collection is never filtered by tenantId
+        { name: "tenants", setter: setTenants, sortField: "createdAt" },
     ];
 
     const unsubscribes = collections.map(({ name, setter, sortField }) => {
-      const collRef = collection(db, name);
-      const queryConstraints: QueryConstraint[] = [];
-      if (sortField) {
-          queryConstraints.push(orderBy(sortField, "desc"));
-      }
-      const q = query(collRef, ...queryConstraints);
-      
-      return onSnapshot(
-        q,
-        (snapshot) => {
-          const data = snapshot.docs.map((doc) => convertTimestamps({ ...doc.data(), id: doc.id }));
-          setter(data);
-        },
-        (err) => {
-          console.error(`Error fetching ${name}:`, err);
-          setError(`Error al cargar datos de ${name}.`);
-          notify(`Error al cargar datos de ${name}: ${err.message}`, "destructive");
+        const collRef = collection(db, name);
+        let queryConstraints: QueryConstraint[] = [];
+
+        // Apply tenant filter if applicable
+        const shouldFilterByTenant = name !== 'tenants' && activeTenantId;
+        if (shouldFilterByTenant) {
+            queryConstraints.push(where("tenantId", "==", activeTenantId));
         }
-      );
+
+        // Apply orderBy ONLY if NOT filtering by tenant
+        if (sortField && !shouldFilterByTenant) {
+            queryConstraints.push(orderBy(sortField, "desc"));
+        }
+        
+        const q = query(collRef, ...queryConstraints);
+        
+        return onSnapshot(
+            q,
+            (snapshot) => {
+                let data = snapshot.docs.map((doc) => convertTimestamps({ ...doc.data(), id: doc.id }));
+
+                // Perform client-side sorting if filtering by tenant
+                if (sortField && shouldFilterByTenant) {
+                    data.sort((a, b) => {
+                        const valA = a[sortField];
+                        const valB = b[sortField];
+                        
+                        // Handle date/timestamp sorting
+                        if (valA instanceof Date && valB instanceof Date) {
+                            return valB.getTime() - valA.getTime(); // Descending for dates
+                        }
+                        // Handle string sorting for names
+                        if (typeof valA === 'string' && typeof valB === 'string') {
+                            return valA.localeCompare(valB); // Ascending for names
+                        }
+                        return 0;
+                    });
+                }
+                setter(data);
+            },
+            (err) => {
+                console.error(`Error fetching ${name}:`, err);
+                setError(`Error al cargar datos de ${name}.`);
+                notify(`Error al cargar datos de ${name}: ${err.message}`, "destructive");
+            }
+        );
     });
 
     const allDataLoaded = Promise.all(
-        collections.map(({ name }) => 
-            getDocs(query(collection(db, name))).catch(() => null)
-        )
+        collections.map(({ name }) => {
+            let constraints = [];
+            if(name !== 'tenants' && activeTenantId) {
+                 constraints.push(where("tenantId", "==", activeTenantId));
+            }
+            return getDocs(query(collection(db, name), ...constraints)).catch(() => null)
+        })
     );
 
     allDataLoaded.finally(() => setLoading(false));
 
     return () => unsubscribes.forEach((unsub) => unsub());
-  }, [authUser, notify]);
+  }, [authUser, notify, currentTenantId]);
 
 
   const checkAuthAndRole = (allowedRoles: string[]) => {
@@ -288,15 +322,87 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const getTenantId = () => {
+    const tenantId = authUser?.role === 'super-admin' ? currentTenantId : authUser?.tenantId;
+    if (!tenantId) throw new Error("No se pudo determinar el inquilino (tenant ID).");
+    return tenantId;
+  };
+
+  const addTenant = async (tenantData: { tenantName: string; tenantId: string; adminName: string; adminEmail: string; }) => {
+    checkAuthAndRole(['super-admin']);
+    
+    const tenantQuery = query(collection(db, 'tenants'), where('tenantId', '==', tenantData.tenantId));
+    const existingTenants = await getDocs(tenantQuery);
+    if (!existingTenants.empty) {
+        throw new Error('Ya existe un suscriptor con este ID (RUT).');
+    }
+
+    const userQuery = query(collection(db, 'users'), where('email', '==', tenantData.adminEmail));
+    const existingUsers = await getDocs(userQuery);
+    if (!existingUsers.empty) {
+        throw new Error('El correo electrónico del administrador ya está en uso.');
+    }
+
+    try {
+        const batch = writeBatch(db);
+        const newTenantRef = doc(collection(db, 'tenants'));
+        batch.set(newTenantRef, {
+            id: newTenantRef.id,
+            name: tenantData.tenantName,
+            tenantId: tenantData.tenantId,
+            createdAt: Timestamp.now()
+        });
+        
+        // Creates a "pre-approved" user document. The actual auth account is created
+        // by the user themselves via the login page.
+        const newUserRef = doc(collection(db, 'users'));
+        const qrCode = `USER-${newUserRef.id}`;
+        
+        batch.set(newUserRef, {
+            id: newUserRef.id, // This is temporary, will be updated on first login
+            name: tenantData.adminName,
+            email: tenantData.adminEmail,
+            role: 'admin',
+            tenantId: tenantData.tenantId,
+            qrCode: qrCode,
+        });
+
+        await batch.commit();
+
+        notify("Suscriptor Creado.", "success");
+    } catch(err: any) {
+        notify('Error al crear el suscriptor: ' + err.message, 'destructive');
+        throw err;
+    }
+  };
+
+
+  const deleteTenant = async (tenantId: string) => {
+    checkAuthAndRole(['super-admin']);
+    try {
+        if (!tenantId) throw new Error("Tenant ID is required.");
+        // In a real app, you would add logic here to prevent deletion if there are active users, etc.
+        const tenantRef = doc(db, "tenants", tenantId);
+        await deleteDoc(tenantRef);
+        notify("Suscriptor eliminado.", "success");
+    } catch (err: any) {
+        notify('Error al eliminar suscriptor: ' + err.message, 'destructive');
+        throw err;
+    }
+  };
+
+
   const addTool = async (toolName: string) => {
     checkAuthAndRole(["admin"]);
     try {
+      const tenantId = getTenantId();
       const newDocRef = doc(collection(db, "tools"));
       const normalizedToolName = normalizeString(toolName);
       await setDoc(newDocRef, {
         id: newDocRef.id,
         name: toolName,
         qrCode: `TOOL-${normalizedToolName}-${nanoid(4)}`,
+        tenantId,
       });
       notify("Herramienta agregada exitosamente.", "success");
     } catch (err: any) {
@@ -336,7 +442,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateUser = async (userId: string, data: Partial<Omit<User, "id" | "email" | "qrCode">>) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
     try {
       if (!userId) throw new Error("User ID is required");
       const userRef = doc(db, "users", userId);
@@ -349,7 +455,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteUser = async (userId: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
     try {
       if (!userId) throw new Error("User ID is required");
       const userRef = doc(db, "users", userId);
@@ -363,6 +469,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const addMaterial = async (material: Omit<Material, "id"> & { justification?: string }) => {
     checkAuthAndRole(["admin", "operations"]);
+    const tenantId = getTenantId();
     try {
       const batch = writeBatch(db);
       const newMaterialRef = doc(collection(db, "materials"));
@@ -371,11 +478,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       const unitExists = units.some(u => u.name.toLowerCase() === material.unit.toLowerCase());
       if (!unitExists) {
         const newUnitRef = doc(collection(db, "units"));
-        batch.set(newUnitRef, { name: material.unit, id: newUnitRef.id });
+        batch.set(newUnitRef, { name: material.unit, id: newUnitRef.id, tenantId });
       }
 
       const { justification, ...materialData } = material;
-      batch.set(newMaterialRef, { ...materialData, id: newMaterialRef.id });
+      batch.set(newMaterialRef, { ...materialData, id: newMaterialRef.id, tenantId });
 
       if (material.stock > 0 && authUser) {
         const newPurchaseRequestRef = doc(collection(db, "purchaseRequests"));
@@ -392,6 +499,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
           createdAt: Timestamp.now(),
           receivedAt: Timestamp.now(),
           lotId: null,
+          tenantId,
         });
       }
 
@@ -405,6 +513,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const updateMaterial = async (materialId: string, data: Partial<Omit<Material, "id">>) => {
     checkAuthAndRole(["admin", "operations"]);
+    const tenantId = getTenantId();
     try {
         const batch = writeBatch(db);
         const materialRef = doc(db, "materials", materialId);
@@ -422,7 +531,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             const unitExists = units.some(u => u.name.toLowerCase() === updateData.unit!.toLowerCase());
             if (!unitExists) {
                 const newUnitRef = doc(collection(db, "units"));
-                batch.set(newUnitRef, { name: updateData.unit, id: newUnitRef.id });
+                batch.set(newUnitRef, { name: updateData.unit, id: newUnitRef.id, tenantId });
             }
         }
 
@@ -439,14 +548,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const deleteMaterial = async (materialId: string) => {
     checkAuthAndRole(["admin"]);
+    const tenantId = getTenantId();
     try {
         if (!materialId) throw new Error("ID de material requerido.");
         
         const materialRef = doc(db, "materials", materialId);
         
-        // This is a simplified check. A more robust check would require iterating through docs client-side or a more complex query/data model.
-        // For this context, we will check if ANY request contains the materialId in its items array.
-        const allRequests = await getDocs(collection(db, 'requests'));
+        const allRequests = await getDocs(query(collection(db, 'requests'), where('tenantId', '==', tenantId)));
         const requestUsingMaterial = allRequests.docs.some(doc => {
             const items = doc.data().items as { materialId: string, quantity: number }[] | undefined;
             return items?.some(item => item.materialId === materialId);
@@ -456,15 +564,14 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             throw new Error("No se puede eliminar: El material está en uso en una o más solicitudes de material.");
         }
 
-        // Check old `materialId` field structure for legacy support
-        const oldRequestsQuery = query(collection(db, "requests"), where("materialId", "==", materialId));
+        const oldRequestsQuery = query(collection(db, "requests"), where("materialId", "==", materialId), where('tenantId', '==', tenantId));
         const oldRequestsSnapshot = await getDocs(oldRequestsQuery);
 
         if (!oldRequestsSnapshot.empty) {
             throw new Error("No se puede eliminar: El material está en uso en una o más solicitudes (formato antiguo).");
         }
         
-        const purchaseRequestQuery = query(collection(db, "purchaseRequests"), where("materialName", "==", (await getDoc(materialRef)).data()?.name));
+        const purchaseRequestQuery = query(collection(db, "purchaseRequests"), where("materialName", "==", (await getDoc(materialRef)).data()?.name), where('tenantId', '==', tenantId));
         const purchaseRequestSnapshot = await getDocs(purchaseRequestQuery);
         if (!purchaseRequestSnapshot.empty) {
             throw new Error("No se puede eliminar: El material está referenciado en solicitudes de compra.");
@@ -481,6 +588,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const addManualStockEntry = async (materialId: string, quantity: number, justification: string) => {
     checkAuthAndRole(["admin", "operations"]);
+    const tenantId = getTenantId();
     try {
       if (!authUser) throw new Error("Acción no autorizada.");
       const materialRef = doc(db, "materials", materialId);
@@ -506,6 +614,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         createdAt: Timestamp.now(),
         receivedAt: Timestamp.now(),
         lotId: null,
+        tenantId,
       });
 
       await batch.commit();
@@ -517,10 +626,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addMaterialCategory = async (name: string) => {
-    checkAuthAndRole(["admin", "operations", "supervisor"]);
+    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin"]);
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "materialCategories"));
-      await setDoc(newDocRef, { name, id: newDocRef.id });
+      await setDoc(newDocRef, { name, id: newDocRef.id, tenantId });
       notify("Categoría de material agregada exitosamente.", "success");
     } catch (err: any) {
       notify("Error al agregar categoría de material: " + err.message, "destructive");
@@ -529,7 +639,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateMaterialCategory = async (id: string, name: string) => {
-    checkAuthAndRole(["admin", "operations", "supervisor"]);
+    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin"]);
     try {
       const categoryRef = doc(db, "materialCategories", id);
       await updateDoc(categoryRef, { name });
@@ -541,21 +651,22 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteMaterialCategory = async (id: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
+    const tenantId = getTenantId();
     try {
       const categoryRef = doc(db, "materialCategories", id);
       const categoryDoc = await getDoc(categoryRef);
       const category = categoryDoc.data() as MaterialCategory;
 
       const materialsWithCategory = await getDocs(
-        query(collection(db, "materials"), where("category", "==", category.name))
+        query(collection(db, "materials"), where("category", "==", category.name), where('tenantId', '==', tenantId))
       );
       if (!materialsWithCategory.empty) {
         throw new Error("No se puede eliminar: existen materiales asignados a esta categoría.");
       }
 
       const suppliersWithCategory = await getDocs(
-        query(collection(db, "suppliers"), where("categories", "array-contains", category.name))
+        query(collection(db, "suppliers"), where("categories", "array-contains", category.name), where('tenantId', '==', tenantId))
       );
       if (!suppliersWithCategory.empty) {
         throw new Error("No se puede eliminar: existen proveedores asignados a esta categoría.");
@@ -570,7 +681,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addUnit = async (name: string) => {
-    checkAuthAndRole(["admin", "operations", "supervisor", "apr"]);
+    checkAuthAndRole(["admin", "operations", "supervisor", "apr", "super-admin"]);
+    const tenantId = getTenantId();
     try {
         const unitExists = units.some(u => u.name.toLowerCase() === name.toLowerCase());
         if (unitExists) {
@@ -578,7 +690,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             return;
         }
         const newDocRef = doc(collection(db, "units"));
-        await setDoc(newDocRef, { name, id: newDocRef.id });
+        await setDoc(newDocRef, { name, id: newDocRef.id, tenantId });
         notify("Unidad agregada exitosamente.", "success");
     } catch (err: any) {
         notify("Error al agregar unidad: " + err.message, "destructive");
@@ -587,13 +699,14 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const deleteUnit = async (id: string) => {
-    checkAuthAndRole(["admin", "operations"]);
+    checkAuthAndRole(["admin", "operations", "super-admin"]);
+    const tenantId = getTenantId();
     try {
         const unitRef = doc(db, "units", id);
         const unitDoc = await getDoc(unitRef);
         const unit = unitDoc.data() as Unit;
         
-        const materialsWithUnit = await getDocs(query(collection(db, "materials"), where("unit", "==", unit.name)));
+        const materialsWithUnit = await getDocs(query(collection(db, "materials"), where("unit", "==", unit.name), where('tenantId', '==', tenantId)));
         if (!materialsWithUnit.empty) {
           throw new Error("No se puede eliminar: la unidad está en uso en uno o más materiales.");
         }
@@ -608,7 +721,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const addRequest = async (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => {
-    checkAuthAndRole(["supervisor", "worker", "admin", "apr", "operations"]);
+    checkAuthAndRole(["supervisor", "worker", "admin", "apr", "operations", "super-admin"]);
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "requests"));
       await setDoc(newDocRef, {
@@ -616,6 +730,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         id: newDocRef.id,
         status: "pending",
         createdAt: Timestamp.now(),
+        tenantId,
       });
       notify("Solicitud de material agregada exitosamente.", "success");
     } catch (err: any) {
@@ -625,7 +740,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const approveRequest = async (requestId: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
     try {
         const requestRef = doc(db, "requests", requestId);
         const requestDoc = await getDoc(requestRef);
@@ -659,7 +774,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const checkoutTool = async (toolId: string, workerId: string, supervisorId: string) => {
-    checkAuthAndRole(["admin", "supervisor", "apr", "operations"]);
+    checkAuthAndRole(["admin", "supervisor", "apr", "operations", "super-admin"]);
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "toolLogs"));
       await setDoc(newDocRef, {
@@ -669,6 +785,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         supervisorId,
         checkoutDate: Timestamp.now(),
         returnDate: null,
+        tenantId,
       });
       notify("Herramienta asignada exitosamente.", "success");
     } catch (err: any) {
@@ -678,7 +795,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const returnTool = async (logId: string, condition: "ok" | "damaged" = "ok", notes: string = "") => {
-    checkAuthAndRole(["admin", "supervisor", "apr", "operations"]);
+    checkAuthAndRole(["admin", "supervisor", "apr", "operations", "super-admin"]);
     try {
       const logRef = doc(db, "toolLogs", logId);
       await updateDoc(logRef, {
@@ -694,11 +811,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const findActiveLogForTool = async (toolId: string): Promise<ToolLog | null> => {
+    const tenantId = getTenantId();
     try {
         const q = query(
             collection(db, 'toolLogs'),
             where('toolId', '==', toolId),
-            where('returnDate', '==', null)
+            where('returnDate', '==', null),
+            where('tenantId', '==', tenantId)
         );
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) {
@@ -715,7 +834,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleAttendanceScan = async (userId: string) => {
-    checkAuthAndRole(["admin", "guardia", "operations", "supervisor", "apr"]);
+    checkAuthAndRole(["admin", "guardia", "operations", "supervisor", "apr", "super-admin"]);
+    const tenantId = getTenantId();
     try {
         const userRef = doc(db, "users", userId);
         const userDoc = await getDoc(userRef);
@@ -724,9 +844,12 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
         const user = userDoc.data() as User;
         
+        if(user.tenantId !== tenantId) {
+            throw new Error("El usuario no pertenece a esta obra/empresa.");
+        }
+        
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
-        // Find the latest log for this user today, regardless of type
         const allLogsForUserToday = attendanceLogs
             .filter(log => log.userId === userId && log.date === today)
             .sort((a,b) => (b.timestamp as Timestamp).toMillis() - (a.timestamp as Timestamp).toMillis());
@@ -743,6 +866,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             timestamp: Timestamp.now(),
             date: today,
             type: newLogType,
+            tenantId,
         });
 
         notify(`${newLogType === 'in' ? 'Entrada' : 'Salida'} registrada para ${user.name}.`, "success");
@@ -754,7 +878,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const saveAttendanceLog = async (logData: Partial<AttendanceLog> & { forDate?: Date; forUser?: User }) => {
-    checkAuthAndRole(['admin', 'operations']);
+    checkAuthAndRole(['admin', 'operations', 'super-admin']);
     if (!authUser) throw new Error('Usuario no autenticado.');
 
     const isEditing = Boolean(logData.id);
@@ -772,7 +896,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             await updateDoc(logRef, {
                 timestamp: Timestamp.fromDate(timestamp as Date),
                 type,
-                originalTimestamp: originalLog.timestamp, // Guardar el valor anterior
+                originalTimestamp: originalLog.timestamp,
                 modifiedAt: Timestamp.now(),
                 modifiedBy: authUser.id
             });
@@ -781,6 +905,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             // Create new log
             const { forUser, forDate, timestamp, type } = logData;
             if (!forUser || !forDate || !timestamp || !type) throw new Error("Faltan datos para crear el registro.");
+            const tenantId = getTenantId();
             
             const newLogRef = doc(collection(db, "attendanceLogs"));
             await setDoc(newLogRef, {
@@ -791,7 +916,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
                 date: (timestamp as Date).toISOString().split('T')[0],
                 type: type,
                 modifiedAt: Timestamp.now(),
-                modifiedBy: authUser.id
+                modifiedBy: authUser.id,
+                tenantId
             });
             notify("Nuevo registro añadido.", "success");
         }
@@ -802,8 +928,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addManualAttendance = async (userId: string, forDate: Date, time: string, type: 'in' | 'out') => {
-    checkAuthAndRole(["admin", "operations"]);
+    checkAuthAndRole(["admin", "operations", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
+    const tenantId = getTenantId();
     
     try {
         const user = users.find(u => u.id === userId);
@@ -823,6 +950,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
             type: type,
             modifiedAt: Timestamp.now(),
             modifiedBy: authUser.id,
+            tenantId,
         });
         notify("Registro manual añadido exitosamente.", "success");
     } catch (err: any) {
@@ -832,7 +960,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const updateAttendanceLog = async (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => {
-    checkAuthAndRole(["admin", "operations"]);
+    checkAuthAndRole(["admin", "operations", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
     
     try {
@@ -852,7 +980,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const deleteAttendanceLog = async (logId: string) => {
-    checkAuthAndRole(["admin", "operations"]);
+    checkAuthAndRole(["admin", "operations", "super-admin"]);
     try {
       if (!logId) throw new Error("Log ID is required");
       const logRef = doc(db, "attendanceLogs", logId);
@@ -865,18 +993,18 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addPurchaseRequest = async (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => {
-    checkAuthAndRole(["supervisor", "worker", "admin", "operations", "apr"]);
+    checkAuthAndRole(["supervisor", "worker", "admin", "operations", "apr", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
+    const tenantId = getTenantId();
     try {
       const batch = writeBatch(db);
       const newDocRef = doc(collection(db, "purchaseRequests"));
 
-      // Check if unit exists, if not, create it
       if (request.unit) {
           const unitExists = units.some(u => u.name.toLowerCase() === request.unit!.toLowerCase());
           if (!unitExists) {
             const newUnitRef = doc(collection(db, "units"));
-            batch.set(newUnitRef, { name: request.unit, id: newUnitRef.id });
+            batch.set(newUnitRef, { name: request.unit, id: newUnitRef.id, tenantId });
           }
       }
 
@@ -888,6 +1016,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         createdAt: Timestamp.now(),
         receivedAt: null,
         lotId: null,
+        tenantId,
       });
 
       await batch.commit();
@@ -904,9 +1033,10 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     status: PurchaseRequestStatus,
     data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "unit" | "notes" | "justification">>
   ) => {
-    checkAuthAndRole(["operations", "admin"]);
+    checkAuthAndRole(["operations", "admin", "super-admin"]);
+    if (!authUser) throw new Error("Acción no autorizada.");
+    const tenantId = getTenantId();
     try {
-      if (!authUser) throw new Error("Acción no autorizada.");
       const requestRef = doc(db, "purchaseRequests", id);
       const originalRequest = purchaseRequests.find((pr) => pr.id === id);
       if (!originalRequest) throw new Error("Solicitud original no encontrada.");
@@ -914,12 +1044,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       const batch = writeBatch(db);
       let updateData: any = { ...data };
 
-      // Check if unit exists, if not, create it
       if (data?.unit) {
           const unitExists = units.some(u => u.name.toLowerCase() === data.unit!.toLowerCase());
           if (!unitExists) {
             const newUnitRef = doc(collection(db, "units"));
-            batch.set(newUnitRef, { name: data.unit, id: newUnitRef.id });
+            batch.set(newUnitRef, { name: data.unit, id: newUnitRef.id, tenantId });
           }
       }
 
@@ -943,7 +1072,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const deletePurchaseRequest = async (id: string) => {
-    checkAuthAndRole(['operations', 'admin']);
+    checkAuthAndRole(['operations', 'admin', 'super-admin']);
     try {
         const reqRef = doc(db, "purchaseRequests", id);
         await deleteDoc(reqRef);
@@ -956,7 +1085,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
  const receivePurchaseRequest = async (purchaseRequestId: string, receivedQuantity: number, existingMaterialId?: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
+    const tenantId = getTenantId();
     try {
         const reqRef = doc(db, "purchaseRequests", purchaseRequestId);
         const reqDoc = await getDoc(reqRef);
@@ -971,18 +1101,16 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         let materialRef;
 
         if (existingMaterialId) {
-            // Use existing material
             materialRef = doc(db, "materials", existingMaterialId);
             const materialDoc = await getDoc(materialRef);
             if (!materialDoc.exists()) throw new Error("El material existente seleccionado no fue encontrado.");
             const existingMaterialData = materialDoc.data() as Material;
             batch.update(materialRef, { stock: existingMaterialData.stock + receivedQuantity });
         } else {
-            // Create new material
             materialRef = doc(collection(db, "materials"));
             batch.set(materialRef, {
                 id: materialRef.id, name: req.materialName, stock: receivedQuantity,
-                unit: req.unit, category: req.category, supplierId: null,
+                unit: req.unit, category: req.category, supplierId: null, tenantId,
             });
         }
         
@@ -1016,6 +1144,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
                 receivedAt: null,
                 notes: `Generado por faltante de OC #${req.id}. Pendiente: ${remainingQuantity}.`,
                 originalQuantity: null,
+                tenantId,
             });
             notify(`Recepción parcial registrada. Se creó una nueva solicitud por las ${remainingQuantity} unidades faltantes.`, "success");
         } else {
@@ -1032,7 +1161,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
  const generatePurchaseOrder = async (requests: PurchaseRequest[], supplierId: string) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "super-admin"]);
+    const tenantId = getTenantId();
     try {
         const batch = writeBatch(db);
 
@@ -1060,9 +1190,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
                 unit,
                 category,
             })),
+            tenantId,
         });
 
-        // Also change the status of the requests to "ordered"
         for (const req of requests) {
             const reqRef = doc(db, "purchaseRequests", req.id);
             batch.update(reqRef, { status: "ordered" });
@@ -1078,7 +1208,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const cancelPurchaseOrder = async (orderId: string) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "super-admin"]);
     try {
       const orderRef = doc(db, "purchaseOrders", orderId);
       const orderDoc = await getDoc(orderRef);
@@ -1108,10 +1238,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addSupplier = async (data: Partial<Omit<Supplier, 'id'>>) => {
-    checkAuthAndRole(["admin", "operations", "supervisor"]);
+    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin"]);
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "suppliers"));
-      await setDoc(newDocRef, { ...data, id: newDocRef.id });
+      await setDoc(newDocRef, { ...data, id: newDocRef.id, tenantId });
       notify("Proveedor agregado exitosamente.", "success");
       return newDocRef.id;
     } catch (err: any) {
@@ -1121,7 +1252,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSupplier = async (supplierId: string, data: Partial<Omit<Supplier, "id">>) => {
-    checkAuthAndRole(["admin", "operations", "supervisor"]);
+    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin"]);
     try {
       if (!supplierId) throw new Error("Supplier ID is required");
       const supplierRef = doc(db, "suppliers", supplierId);
@@ -1134,7 +1265,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteSupplier = async (supplierId: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
+    const tenantId = getTenantId();
     try {
       if (!supplierId) throw new Error("Supplier ID is required");
       const isSupplierInUse = materials.some((m) => m.supplierId === supplierId);
@@ -1151,8 +1283,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
  const addChecklistTemplate = async (template: Omit<ChecklistTemplate, "id" | "createdAt" | "createdBy">) => {
-    checkAuthAndRole(["apr", "admin", "operations"]);
+    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "checklistTemplates"));
       await setDoc(newDocRef, {
@@ -1160,6 +1293,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         id: newDocRef.id,
         createdBy: authUser.id,
         createdAt: Timestamp.now(),
+        tenantId,
       });
       notify("Plantilla de checklist creada exitosamente.", "success");
     } catch (err: any) {
@@ -1169,7 +1303,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteChecklistTemplate = async (templateId: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
     try {
         if (!templateId) throw new Error("ID de plantilla requerido.");
         const templateRef = doc(db, "checklistTemplates", templateId);
@@ -1182,8 +1316,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
  const assignChecklistToSupervisors = async (template: ChecklistTemplate, supervisorIds: string[], work: string) => {
-    checkAuthAndRole(["apr", "admin", "operations"]);
+    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
+    const tenantId = getTenantId();
     try {
         const batch = writeBatch(db);
         for (const supervisorId of supervisorIds) {
@@ -1208,6 +1343,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
                 evidencePhotos: [],
                 performedBy: { name: '', role: '', signature: '', date: null },
                 reviewedBy: { name: '', role: '', signature: '', date: null },
+                tenantId,
             };
             batch.set(newDocRef, assignedChecklist);
         }
@@ -1220,7 +1356,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const completeAssignedChecklist = async (checklistData: AssignedChecklist) => {
-    checkAuthAndRole(["supervisor", "admin", "operations", "apr"]);
+    checkAuthAndRole(["supervisor", "admin", "operations", "apr", "super-admin"]);
     try {
       const checklistRef = doc(db, "assignedChecklists", checklistData.id);
       await updateDoc(checklistRef, {
@@ -1236,7 +1372,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const reviewAssignedChecklist = async (checklistId: string, status: 'approved' | 'rejected', notes: string, signature: string) => {
-    checkAuthAndRole(["apr", "admin"]);
+    checkAuthAndRole(["apr", "admin", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
       const checklistRef = doc(db, "assignedChecklists", checklistId);
@@ -1258,7 +1394,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteAssignedChecklist = async (checklistId: string) => {
-    checkAuthAndRole(["admin"]);
+    checkAuthAndRole(["admin", "super-admin"]);
     try {
         if (!checklistId) throw new Error("ID de checklist asignado requerido.");
         const checklistRef = doc(db, "assignedChecklists", checklistId);
@@ -1271,14 +1407,16 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addChecklist = async (checklist: Omit<Checklist, "id" | "createdBy">) => {
-      checkAuthAndRole(["apr", "admin"]);
+      checkAuthAndRole(["apr", "admin", "super-admin"]);
       if (!authUser) throw new Error("Usuario no autenticado.");
+      const tenantId = getTenantId();
       try {
         const newDocRef = doc(collection(db, "checklists"));
         await setDoc(newDocRef, {
             ...checklist,
             id: newDocRef.id,
             createdBy: authUser.id,
+            tenantId,
         });
         notify("Checklist guardado exitosamente.", "success");
       } catch (err: any) {
@@ -1288,8 +1426,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const addSafetyInspection = async (inspection: Omit<SafetyInspection, "id" | "status" | "createdAt" | "createdBy">) => {
-    checkAuthAndRole(["apr", "admin", "operations"]);
+    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "safetyInspections"));
       await setDoc(newDocRef, {
@@ -1299,6 +1438,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         createdAt: Timestamp.now(),
         status: 'open',
         assignedAt: Timestamp.now(),
+        tenantId,
       });
       notify("Inspección de seguridad guardada y asignada exitosamente.", "success");
     } catch (err: any) {
@@ -1308,7 +1448,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const completeSafetyInspection = async (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => {
-    checkAuthAndRole(["supervisor", "admin", "operations", "apr"]);
+    checkAuthAndRole(["supervisor", "admin", "operations", "apr", "super-admin"]);
     try {
         const inspectionRef = doc(db, "safetyInspections", inspectionId);
         await updateDoc(inspectionRef, {
@@ -1324,7 +1464,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const reviewSafetyInspection = async (inspectionId: string, status: 'approved' | 'rejected', notes: string, signature: string) => {
-    checkAuthAndRole(["apr", "admin"]);
+    checkAuthAndRole(["apr", "admin", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
       const inspectionRef = doc(db, "safetyInspections", inspectionId);
@@ -1346,7 +1486,8 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
    const addSupplierPayment = async (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => {
-    checkAuthAndRole(["admin", "operations", "finance"]);
+    checkAuthAndRole(["admin", "operations", "finance", "super-admin"]);
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "supplierPayments"));
       await setDoc(newDocRef, {
@@ -1354,6 +1495,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         id: newDocRef.id,
         status: "pending",
         createdAt: Timestamp.now(),
+        tenantId,
       });
       notify("Pago a proveedor registrado.", "success");
     } catch (err: any) {
@@ -1363,7 +1505,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSupplierPaymentStatus = async (id: string, status: 'paid', details: { paymentDate: Date; paymentMethod: string }) => {
-    checkAuthAndRole(["admin", "operations", "finance"]);
+    checkAuthAndRole(["admin", "operations", "finance", "super-admin"]);
     try {
       const paymentRef = doc(db, "supplierPayments", id);
       await updateDoc(paymentRef, { 
@@ -1379,7 +1521,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSupplierPayment = async (id: string, data: Partial<Pick<SupplierPayment, 'work' | 'purchaseOrderNumber'>>) => {
-      checkAuthAndRole(["admin", "operations", "finance"]);
+      checkAuthAndRole(["admin", "operations", "finance", "super-admin"]);
       try {
         const paymentRef = doc(db, "supplierPayments", id);
         await updateDoc(paymentRef, data);
@@ -1391,8 +1533,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addBehaviorObservation = async (observation: Omit<BehaviorObservation, 'id' | 'observerId' | 'observerName' | 'createdAt'>) => {
-    checkAuthAndRole(["apr", "admin", "operations"]);
+    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
     if (!authUser) throw new Error("Usuario no autenticado.");
+    const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "behaviorObservations"));
       await setDoc(newDocRef, {
@@ -1401,6 +1544,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         observerId: authUser.id,
         observerName: authUser.name,
         createdAt: Timestamp.now(),
+        tenantId,
       });
       notify("Observación de conducta guardada.", "success");
     } catch (err: any) {
@@ -1410,7 +1554,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const batchApprovedRequests = async (requestIds: string[], options: { mode: "category" | "supplier" }) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "super-admin"]);
     try {
       const batch = writeBatch(db);
       const relevantRequests = purchaseRequests.filter((pr) => requestIds.includes(pr.id));
@@ -1455,7 +1599,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeRequestFromLot = async (requestId: string) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "super-admin"]);
     try {
       const requestRef = doc(db, "purchaseRequests", requestId);
       await updateDoc(requestRef, { lotId: null, status: "approved" });
@@ -1467,7 +1611,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addRequestToLot = async (requestId: string, lotId: string) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "super-admin"]);
     try {
       const requestRef = doc(db, "purchaseRequests", requestId);
       await updateDoc(requestRef, { lotId, status: "batched" });
@@ -1479,7 +1623,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createLot = async (lotName: string) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "super-admin"]);
     try {
       const newLotId = `manual-${lotName.replace(/\s/g, "-").toLowerCase()}-${nanoid(4)
         }`;
@@ -1495,7 +1639,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
  const deleteLot = async (lotId: string) => {
-    checkAuthAndRole(["operations"]);
+    checkAuthAndRole(["operations", "super-admin"]);
     try {
         const batch = writeBatch(db);
         
@@ -1539,6 +1683,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     assignedChecklists,
     safetyInspections,
     behaviorObservations,
+    tenants,
+    currentTenantId,
+    setCurrentTenantId,
+    addTenant,
+    deleteTenant,
     addTool,
     updateTool,
     deleteTool,
@@ -1622,11 +1771,34 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
-            setUser({ ...(userDoc.data() as User), fb: firebaseUser });
+            // If the user document has a temporary ID, update it with the real auth UID
+            if (userDoc.data().id !== firebaseUser.uid) {
+                await updateDoc(userDocRef, { id: firebaseUser.uid, qrCode: `USER-${firebaseUser.uid}` });
+            }
+            setUser({ ...(userDoc.data() as User), id: firebaseUser.uid, fb: firebaseUser });
           } else {
-            setUser(null);
-             console.error("No user document found in Firestore for UID:", firebaseUser.uid);
-            await signOut(auth); // Sign out if no user profile
+             // This can happen if an invited user is completing registration
+             const userQuery = query(collection(db, "users"), where("email", "==", firebaseUser.email));
+             const userSnapshot = await getDocs(userQuery);
+             if (!userSnapshot.empty) {
+                 const invitedUserDoc = userSnapshot.docs[0];
+                 const invitedUserRef = doc(db, "users", invitedUserDoc.id);
+                 // We need to delete the old doc and create a new one with the correct ID (auth UID)
+                 const batch = writeBatch(db);
+                 batch.delete(invitedUserRef);
+                 
+                 const newUserRef = doc(db, "users", firebaseUser.uid);
+                 const userData = invitedUserDoc.data();
+                 batch.set(newUserRef, { ...userData, id: firebaseUser.uid, qrCode: `USER-${firebaseUser.uid}` });
+                 
+                 await batch.commit();
+                 setUser({ ...(userData as User), id: firebaseUser.uid, fb: firebaseUser });
+
+             } else {
+                setUser(null);
+                console.error("No user document found in Firestore for UID:", firebaseUser.uid);
+                await signOut(auth); // Sign out if no user profile
+             }
           }
         } else {
           setUser(null);

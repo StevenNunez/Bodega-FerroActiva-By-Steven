@@ -64,11 +64,11 @@ export function CreateSupplierForm() {
       });
       reset();
       setSelectedCategories([]);
-    } catch (error) {
+    } catch (error: any) {
        toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'No se pudo crear el proveedor.',
+        description: error.message || 'No se pudo crear el proveedor.',
       });
     }
   };
@@ -80,8 +80,9 @@ export function CreateSupplierForm() {
         <Input id="name" placeholder="Ej: Ferretería El Clavo" {...register('name')} />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
+      
        <div className="space-y-2">
-        <Label htmlFor="rut">RUT (Opcional)</Label>
+        <Label htmlFor="rut">RUT del Proveedor (Opcional, para facturación)</Label>
         <Input id="rut" placeholder="Ej: 76.123.456-7" {...register('rut')} />
       </div>
       <div className="space-y-2">

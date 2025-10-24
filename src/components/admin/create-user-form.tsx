@@ -1,3 +1,4 @@
+
 'use client';
 import React from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -13,19 +14,20 @@ import type { UserRole } from '@/lib/data';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { nanoid } from 'nanoid';
+import { useAppState } from '@/contexts/app-provider';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   email: z.string().email('El correo electrónico no es válido.'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
-  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin'], { required_error: 'Debes seleccionar un rol.' }),
 });
 
 type FormData = z.infer<typeof FormSchema>;
 
 export function CreateUserForm() {
   const { toast } = useToast();
+  const { currentTenantId } = useAppState();
 
   const {
     register,
@@ -42,22 +44,17 @@ export function CreateUserForm() {
       role: 'worker',
     }
   });
-  
-  const getRoleDisplayName = (role: UserRole) => {
-    switch (role) {
-        case 'admin': return 'Jefe de Bodega';
-        case 'supervisor': return 'Supervisor';
-        case 'worker': return 'Colaborador';
-        case 'operations': return 'Administrador de Obra';
-        case 'apr': return 'APR';
-        case 'guardia': return 'Guardia';
-        case 'finance': return 'Jefe de Adm. y Finanzas';
-        default: return 'Usuario';
-    }
-  }
-
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
+    if (!currentTenantId) {
+        toast({
+            variant: 'destructive',
+            title: 'Error de Inquilino',
+            description: 'No hay un inquilino seleccionado para asignar a este usuario.',
+        });
+        return;
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const authUser = userCredential.user;
@@ -69,6 +66,7 @@ export function CreateUserForm() {
           name: data.name,
           email: data.email,
           role: data.role,
+          tenantId: currentTenantId,
           qrCode: qrCode,
       });
 
@@ -104,7 +102,7 @@ export function CreateUserForm() {
         <Input id="email" type="email" placeholder="ej: m.rodriguez@ferroactiva.cl" {...register('email')} />
         {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
       </div>
-
+      
        <div className="space-y-2">
         <Label htmlFor="password">Contraseña</Label>
         <Input id="password" type="password" placeholder="Mínimo 6 caracteres" {...register('password')} />

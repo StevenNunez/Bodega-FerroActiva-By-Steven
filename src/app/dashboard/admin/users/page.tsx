@@ -2,8 +2,9 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { useAppState } from "@/contexts/app-provider";
+import { useAppState, useAuth } from "@/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateUserForm } from "@/components/admin/create-user-form";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -12,31 +13,16 @@ import { Badge } from "@/components/ui/badge";
 import type { User, UserRole } from "@/lib/data";
 import { MoreHorizontal, Trash2, Edit, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EditUserForm } from "@/components/admin/edit-user-form";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { QRCodeSVG } from "qrcode.react";
-import Link from "next/link";
 
 
 export default function AdminUsersPage() {
     const { users, deleteUser } = useAppState();
+    const { user: authUser } = useAuth();
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const { toast } = useToast();
 
@@ -54,12 +40,14 @@ export default function AdminUsersPage() {
             case 'apr': return 'APR';
             case 'guardia': return 'Guardia';
             case 'finance': return 'Jefe de Adm. y Finanzas';
+            case 'super-admin': return 'Super Administrador';
             default: return 'Usuario';
         }
     }
     
     const getRoleBadgeVariant = (role: UserRole): "default" | "secondary" | "destructive" | "outline" => {
         switch (role) {
+            case 'super-admin':
             case 'admin': return 'destructive';
             case 'operations': return 'default';
             case 'supervisor': return 'secondary';
@@ -84,15 +72,17 @@ export default function AdminUsersPage() {
             });
         }
     }
+    
+    const canManageUsers = authUser?.role === 'admin' || authUser?.role === 'super-admin';
 
     return (
         <div className="flex flex-col gap-8">
             <PageHeader
                 title="Gestión de Usuarios"
-                description="Crea nuevos usuarios y visualiza todos los perfiles registrados en el sistema."
+                description="Crea, visualiza y gestiona todos los perfiles registrados en el sistema."
             />
 
-            {editingUser && (
+            {editingUser && canManageUsers && (
                 <EditUserForm 
                     user={editingUser}
                     isOpen={!!editingUser}
@@ -101,18 +91,20 @@ export default function AdminUsersPage() {
             )}
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-                <div className="lg:col-span-1">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Crear Nuevo Usuario</CardTitle>
-                            <CardDescription>Añade nuevos miembros al sistema y asígnales un rol.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <CreateUserForm />
-                        </CardContent>
-                    </Card>
-                </div>
-                <div className="lg:col-span-2">
+                {canManageUsers && (
+                    <div className="lg:col-span-1">
+                         <Card>
+                            <CardHeader>
+                                <CardTitle>Crear Nuevo Usuario</CardTitle>
+                                <CardDescription>Añade nuevos miembros al sistema y asígnales un rol.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <CreateUserForm />
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+                <div className={canManageUsers ? "lg:col-span-2" : "lg:col-span-3"}>
                      <Card>
                         <CardHeader>
                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -120,12 +112,14 @@ export default function AdminUsersPage() {
                                     <CardTitle>Lista de Usuarios</CardTitle>
                                     <CardDescription>Todos los usuarios registrados en el sistema.</CardDescription>
                                 </div>
-                                <Button asChild>
-                                    <Link href="/dashboard/admin/users/print-qrs">
-                                        <QrCode className="mr-2 h-4 w-4" />
-                                        Imprimir Credenciales
-                                    </Link>
-                                </Button>
+                                {canManageUsers && (
+                                    <Button asChild>
+                                        <Link href="/dashboard/admin/users/print-qrs">
+                                            <QrCode className="mr-2 h-4 w-4" />
+                                            Imprimir Credenciales
+                                        </Link>
+                                    </Button>
+                                )}
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -152,45 +146,47 @@ export default function AdminUsersPage() {
                                                       <QRCodeSVG value={user.qrCode} size={48} />
                                                     </div>
                                                 )}
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" className="h-8 w-8 p-0">
-                                                        <span className="sr-only">Abrir menu</span>
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem onClick={() => setEditingUser(user)}>
-                                                            <Edit className="mr-2 h-4 w-4"/>
-                                                            <span>Editar Perfil</span>
-                                                        </DropdownMenuItem>
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                                    <Trash2 className="mr-2 h-4 w-4 text-destructive"/>
-                                                                    <span className="text-destructive">Eliminar</span>
-                                                                </DropdownMenuItem>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>¿Estás seguro de eliminar a {user.name}?</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        Esta acción no se puede deshacer. Se eliminará permanentemente al usuario
-                                                                        de la base de datos. La cuenta de autenticación permanecerá.
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                                    <AlertDialogAction 
-                                                                        className="bg-destructive hover:bg-destructive/90"
-                                                                        onClick={() => handleDeleteUser(user.id, user.name)}>
-                                                                        Sí, eliminar usuario
-                                                                    </AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                                                {canManageUsers && (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                                            <span className="sr-only">Abrir menu</span>
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuItem onClick={() => setEditingUser(user)}>
+                                                                <Edit className="mr-2 h-4 w-4"/>
+                                                                <span>Editar Perfil</span>
+                                                            </DropdownMenuItem>
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                                        <Trash2 className="mr-2 h-4 w-4 text-destructive"/>
+                                                                        <span className="text-destructive">Eliminar</span>
+                                                                    </DropdownMenuItem>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>¿Estás seguro de eliminar a {user.name}?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            Esta acción no se puede deshacer. Se eliminará permanentemente al usuario
+                                                                            de la base de datos. La cuenta de autenticación permanecerá.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                        <AlertDialogAction 
+                                                                            className="bg-destructive hover:bg-destructive/90"
+                                                                            onClick={() => handleDeleteUser(user.id, user.name)}>
+                                                                            Sí, eliminar usuario
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
                                             </div>
                                         </div>
                                     ))}

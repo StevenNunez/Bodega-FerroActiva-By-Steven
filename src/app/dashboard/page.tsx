@@ -36,6 +36,7 @@ export default function DashboardHubPage() {
     worker: '/dashboard/worker',
     operations: '/dashboard/operations',
     apr: '/dashboard/apr',
+    'super-admin': '/dashboard/admin'
   };
   
   // Special case for 'guardia' to redirect directly to the attendance module
@@ -57,11 +58,13 @@ export default function DashboardHubPage() {
   const paymentsPath = '/dashboard/payments';
   const safetyPath = '/dashboard/safety';
   const reportsPath = '/dashboard/reports/stats';
+  const subscriptionsPath = '/dashboard/subscriptions';
   
-  const canSeeAttendance = ['admin', 'operations'].includes(user.role);
-  const canSeePayments = ['admin', 'operations', 'finance'].includes(user.role);
-  const canSeeSafety = ['admin', 'apr', 'supervisor', 'operations'].includes(user.role);
-  const canSeeReports = ['admin', 'operations'].includes(user.role);
+  const canSeeAttendance = ['admin', 'operations', 'super-admin'].includes(user.role);
+  const canSeePayments = ['admin', 'operations', 'finance', 'super-admin'].includes(user.role);
+  const canSeeSafety = ['admin', 'apr', 'supervisor', 'operations', 'super-admin'].includes(user.role);
+  const canSeeReports = ['admin', 'operations', 'apr', 'super-admin'].includes(user.role);
+  const canSeeSubscriptions = user.role === 'super-admin';
 
 
   return (
@@ -102,6 +105,24 @@ export default function DashboardHubPage() {
                       <CardTitle>Módulo de Bodega</CardTitle>
                       <CardDescription className="mt-1">
                         Gestiona inventario, herramientas, solicitudes y compras.
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )}
+
+            {canSeeSubscriptions && (
+              <Link href={subscriptionsPath} className="group">
+                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
+                  <CardHeader className="flex flex-row items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <DollarSign className="h-8 w-8 transition-transform group-hover:scale-110" />
+                    </div>
+                    <div>
+                      <CardTitle>Módulo de Suscripciones</CardTitle>
+                      <CardDescription className="mt-1">
+                        Gestiona los inquilinos (clientes) de la plataforma.
                       </CardDescription>
                     </div>
                   </CardHeader>

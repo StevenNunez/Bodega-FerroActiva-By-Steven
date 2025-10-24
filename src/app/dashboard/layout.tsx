@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth, useAppState } from "@/contexts/app-provider";
 import { Sidebar } from "@/components/sidebar";
-import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList } from "lucide-react";
+import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -27,46 +27,42 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, authLoading } = useAuth();
-  const { requests, purchaseRequests, supplierPayments, suppliers } = useAppState();
+  const { 
+    requests, 
+    purchaseRequests, 
+    supplierPayments, 
+    suppliers,
+    tenants, 
+    currentTenantId, 
+    setCurrentTenantId
+  } = useAppState();
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(false);
 
-  // Determine if the current page should have a sidebar.
   const showSidebar = pathname !== "/dashboard";
-
-  // --- Notification Calculations ---
   const today = startOfDay(new Date());
 
-  const overduePayments = React.useMemo(() => {
-    return supplierPayments.filter(p => {
-      if (p.status === 'paid') return false;
-      const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
-      return differenceInDays(dueDate, today) < 0;
-    });
-  }, [supplierPayments, today]);
+  const overduePayments = React.useMemo(() => supplierPayments.filter(p => {
+    if (p.status === 'paid') return false;
+    const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
+    return differenceInDays(dueDate, today) < 0;
+  }), [supplierPayments, today]);
 
-  const dueSoonPayments = React.useMemo(() => {
-    return supplierPayments.filter(p => {
-      if (p.status === 'paid') return false;
-      const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
-      const daysLeft = differenceInDays(dueDate, today);
-      return daysLeft >= 0 && daysLeft <= 7;
-    });
-  }, [supplierPayments, today]);
+  const dueSoonPayments = React.useMemo(() => supplierPayments.filter(p => {
+    if (p.status === 'paid') return false;
+    const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
+    const daysLeft = differenceInDays(dueDate, today);
+    return daysLeft >= 0 && daysLeft <= 7;
+  }), [supplierPayments, today]);
 
-  const pendingMaterialRequests = React.useMemo(() => {
-    return (requests || []).filter((r) => r.status === "pending").length;
-  }, [requests]);
-
-  const pendingPurchaseRequests = React.useMemo(() => {
-    return (purchaseRequests || []).filter((pr) => pr.status === "pending").length;
-  }, [purchaseRequests]);
-
+  const pendingMaterialRequests = React.useMemo(() => (requests || []).filter((r) => r.status === "pending").length, [requests]);
+  const pendingPurchaseRequests = React.useMemo(() => (purchaseRequests || []).filter((pr) => pr.status === "pending").length, [purchaseRequests]);
+  
   const totalNotifications = React.useMemo(() => {
     let count = 0;
-    if (user?.role === 'admin') {
+    if (user?.role === 'admin' || user?.role === 'super-admin') {
       count = pendingMaterialRequests + pendingPurchaseRequests + overduePayments.length + dueSoonPayments.length;
     } else if (user?.role === 'operations') {
       count = pendingPurchaseRequests + overduePayments.length + dueSoonPayments.length;
@@ -80,57 +76,36 @@ export default function DashboardLayout({
   
   const playNotificationSound = React.useCallback(() => {
     if (isMuted || typeof window === 'undefined') return;
-
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) {
-      console.warn("Web Audio API no es soportada por este navegador.");
-      return;
-    }
+    if (!AudioContext) return;
     const audioContext = new AudioContext();
-
     function playTone(frequency: number, startTime: number, duration: number) {
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
-
         oscillator.connect(gainNode);
         gainNode.connect(audioContext.destination);
-
         oscillator.type = 'triangle';
         oscillator.frequency.setValueAtTime(frequency, startTime);
-        
         gainNode.gain.setValueAtTime(0, startTime);
         gainNode.gain.linearRampToValueAtTime(0.6, startTime + 0.05);
         gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
         oscillator.start(startTime);
         oscillator.stop(startTime + duration);
     }
-    
     const now = audioContext.currentTime;
     playTone(980, now, 0.15);
     playTone(780, now + 0.2, 0.15);
-
   }, [isMuted]);
 
   React.useEffect(() => {
-    if (totalNotifications > 0) {
-      playNotificationSound();
-    }
-    
+    if (totalNotifications > 0) playNotificationSound();
     if ('setAppBadge' in navigator) {
-      if (totalNotifications > 0) {
-        (navigator as any).setAppBadge(totalNotifications);
-      } else {
-        (navigator as any).clearAppBadge();
-      }
+      (navigator as any).setAppBadge(totalNotifications).catch((e: any) => console.error("Error setting app badge:", e));
     }
-    
   }, [totalNotifications, playNotificationSound]);
 
   React.useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace("/login");
-    }
+    if (!authLoading && !user) router.replace("/login");
   }, [user, authLoading, router]);
 
   if (authLoading || !user) {
@@ -161,12 +136,7 @@ export default function DashboardLayout({
           {showSidebar && (
             <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
               <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0 md:hidden"
-                  aria-label="Abrir menú de navegación"
-                >
+                <Button variant="outline" size="icon" className="shrink-0 md:hidden" aria-label="Abrir menú de navegación">
                   <Menu className="h-5 w-5" />
                   <span className="sr-only">Abrir menú de navegación</span>
                 </Button>
@@ -181,6 +151,31 @@ export default function DashboardLayout({
           <div className="flex-1" />
 
           <div className="flex items-center gap-4">
+             {user.role === 'super-admin' && (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            <span className="truncate max-w-[150px]">
+                                Viendo a: {tenants.find(t => t.id === currentTenantId)?.name || "Todos"}
+                            </span>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuLabel>Cambiar de Inquilino</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setCurrentTenantId(null)}>
+                            Ver Todos los Inquilinos
+                        </DropdownMenuItem>
+                        {tenants.map(tenant => (
+                            <DropdownMenuItem key={tenant.id} onSelect={() => setCurrentTenantId(tenant.id)}>
+                                {tenant.name}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+             )}
+
              <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)}>
                   {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                   <span className="sr-only">{isMuted ? 'Activar sonido' : 'Silenciar'}</span>
@@ -205,7 +200,7 @@ export default function DashboardLayout({
                     <DropdownMenuItem disabled className="text-muted-foreground">No hay notificaciones nuevas.</DropdownMenuItem>
                 ) : (
                   <>
-                    {(user.role === 'admin' || user.role === 'operations') && pendingPurchaseRequests > 0 && (
+                    {(user.role === 'admin' || user.role === 'operations' || user.role === 'super-admin') && pendingPurchaseRequests > 0 && (
                       <Link href="/dashboard/operations">
                         <DropdownMenuItem>
                           <ShoppingCart className="mr-2 h-4 w-4 text-cyan-500" />
@@ -213,7 +208,7 @@ export default function DashboardLayout({
                         </DropdownMenuItem>
                       </Link>
                     )}
-                    {user.role === 'admin' && pendingMaterialRequests > 0 && (
+                    {(user.role === 'admin' || user.role === 'super-admin') && pendingMaterialRequests > 0 && (
                       <Link href="/dashboard/admin/requests">
                          <DropdownMenuItem>
                           <ClipboardList className="mr-2 h-4 w-4 text-purple-500"/>
@@ -221,7 +216,7 @@ export default function DashboardLayout({
                         </DropdownMenuItem>
                       </Link>
                     )}
-                    {(user.role === 'admin' || user.role === 'operations' || user.role === 'finance') && overduePayments.length > 0 && (
+                    {(user.role === 'admin' || user.role === 'operations' || user.role === 'finance' || user.role === 'super-admin') && overduePayments.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel className="text-red-500">Pagos Vencidos</DropdownMenuLabel>
@@ -235,7 +230,7 @@ export default function DashboardLayout({
                         ))}
                       </>
                     )}
-                     {(user.role === 'admin' || user.role === 'operations' || user.role === 'finance') && dueSoonPayments.length > 0 && (
+                     {(user.role === 'admin' || user.role === 'operations' || user.role === 'finance' || user.role === 'super-admin') && dueSoonPayments.length > 0 && (
                        <>
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel className="text-amber-500">Pagos por Vencer</DropdownMenuLabel>
@@ -253,11 +248,8 @@ export default function DashboardLayout({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-
            </div>
-
         </header>
-
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">{children}</main>
       </div>
     </div>
