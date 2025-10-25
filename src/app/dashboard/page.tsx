@@ -1,9 +1,10 @@
+
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/app-provider';
-import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, ShieldCheck, BarChart3 } from 'lucide-react';
+import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, ShieldCheck, BarChart3, ListChecks } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
 import { UserCredentialCard } from '@/components/user-credential-card';
@@ -32,6 +33,7 @@ export default function DashboardHubPage() {
   // Define role-specific warehouse dashboard paths
   const warehouseDashboardPaths: { [key: string]: string } = {
     admin: '/dashboard/admin',
+    'bodega-admin': '/dashboard/admin',
     supervisor: '/dashboard/supervisor',
     worker: '/dashboard/worker',
     operations: '/dashboard/operations',
@@ -59,12 +61,16 @@ export default function DashboardHubPage() {
   const safetyPath = '/dashboard/safety';
   const reportsPath = '/dashboard/reports/stats';
   const subscriptionsPath = '/dashboard/subscriptions';
+  const usersPath = '/dashboard/users';
+  const permissionsPath = '/dashboard/admin/permissions';
   
   const canSeeAttendance = ['admin', 'operations', 'super-admin'].includes(user.role);
   const canSeePayments = ['admin', 'operations', 'finance', 'super-admin'].includes(user.role);
   const canSeeSafety = ['admin', 'apr', 'supervisor', 'operations', 'super-admin'].includes(user.role);
   const canSeeReports = ['admin', 'operations', 'apr', 'super-admin'].includes(user.role);
   const canSeeSubscriptions = user.role === 'super-admin';
+  const canSeeUsers = ['admin', 'bodega-admin', 'apr', 'super-admin'].includes(user.role);
+  const canManagePermissions = user.role === 'super-admin' || user.role === 'operations';
 
 
   return (
@@ -105,6 +111,24 @@ export default function DashboardHubPage() {
                       <CardTitle>Módulo de Bodega</CardTitle>
                       <CardDescription className="mt-1">
                         Gestiona inventario, herramientas, solicitudes y compras.
+                      </CardDescription>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )}
+
+            {canSeeUsers && (
+              <Link href={usersPath} className="group">
+                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
+                  <CardHeader className="flex flex-row items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <UserIcon className="h-8 w-8 transition-transform group-hover:scale-110" />
+                    </div>
+                    <div>
+                      <CardTitle>Módulo de Usuarios</CardTitle>
+                      <CardDescription className="mt-1">
+                        Gestiona los perfiles y roles de los trabajadores.
                       </CardDescription>
                     </div>
                   </CardHeader>
@@ -195,6 +219,24 @@ export default function DashboardHubPage() {
                         <CardTitle>Módulo de Estadísticas y Reportes</CardTitle>
                         <CardDescription className="mt-1">
                          Analiza el consumo de materiales y genera informes detallados.
+                        </CardDescription>
+                    </div>
+                    </CardHeader>
+                </Card>
+                </Link>
+            )}
+
+             {canManagePermissions && (
+                <Link href={permissionsPath} className="group">
+                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
+                    <CardHeader className="flex flex-row items-center gap-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <ListChecks className="h-8 w-8 transition-transform group-hover:scale-110" />
+                    </div>
+                    <div>
+                        <CardTitle>Gestión de Permisos</CardTitle>
+                        <CardDescription className="mt-1">
+                         Define y ajusta lo que cada rol puede hacer en la plataforma.
                         </CardDescription>
                     </div>
                     </CardHeader>

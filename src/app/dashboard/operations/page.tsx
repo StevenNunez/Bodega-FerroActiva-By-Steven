@@ -940,23 +940,6 @@ export default function OperationsPage() {
             setSearchTerm={setRequestSearchTerm}
           />
         </div>
-        {/* Sección de Resumen de Inventario */}
-        <div className="space-y-4">
-          <h2 className="text-2xl font-semibold text-foreground" aria-label="Resumen de Inventario">
-            Resumen de Inventario
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-            <LowStockCard materials={materials} />
-            <MostUsedMaterialsCard requests={requests as CompatibleMaterialRequest[]} materialMap={materialMap} />
-            <RecentApprovedRequestsCard
-              requests={requests as CompatibleMaterialRequest[]}
-              users={users}
-              materialMap={materialMap}
-              formatDate={formatDate}
-            />
-            <RecentReceivedCard purchaseRequests={purchaseRequests} users={users} formatDate={formatDate} />
-          </div>
-        </div>
       </div>
     </div>
   );

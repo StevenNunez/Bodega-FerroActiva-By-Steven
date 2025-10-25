@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAppState } from '@/contexts/app-provider';
+import { useAppState, useAuth } from '@/contexts/app-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,8 +30,12 @@ type FormData = z.infer<typeof FormSchema>;
 
 export function CreateMaterialForm() {
   const { addMaterial, suppliers, materialCategories, units } = useAppState();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
+  
+  const canSetInitialStock = user?.role === 'operations' || user?.role === 'super-admin';
+
 
   const {
     register,
@@ -54,7 +58,7 @@ export function CreateMaterialForm() {
   const stockWatcher = watch('stock');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
-    if (data.stock > 0 && !data.justification) {
+    if (data.stock > 0 && !data.justification && canSetInitialStock) {
         toast({
             variant: 'destructive',
             title: 'Justificación Requerida',
@@ -65,6 +69,7 @@ export function CreateMaterialForm() {
     try {
       await addMaterial({
           ...data,
+          stock: canSetInitialStock ? data.stock : 0, // Force stock to 0 if user is not authorized
           supplierId: data.supplierId === 'ninguno' ? null : data.supplierId
       });
       toast({
@@ -92,7 +97,8 @@ export function CreateMaterialForm() {
        <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
                 <Label htmlFor="stock">Stock Inicial</Label>
-                <Input id="stock" type="number" placeholder="Ej: 500" {...register('stock')} />
+                <Input id="stock" type="number" placeholder="Ej: 500" {...register('stock')} disabled={!canSetInitialStock} />
+                {!canSetInitialStock && <p className="text-xs text-muted-foreground">El stock inicial es 0. Use 'Ingreso Manual' para añadir stock.</p>}
                 {errors.stock && <p className="text-xs text-destructive">{errors.stock.message}</p>}
             </div>
             <div className="space-y-2">
@@ -151,7 +157,7 @@ export function CreateMaterialForm() {
             </div>
        </div>
         
-        {stockWatcher > 0 && (
+        {stockWatcher > 0 && canSetInitialStock && (
              <div className="space-y-2">
                 <Label htmlFor="justification">Justificación del Ingreso Inicial</Label>
                 <Textarea id="justification" placeholder="Ej: Inventario inicial, sobrante de obra X..." {...register('justification')} />
@@ -215,7 +221,7 @@ export function CreateMaterialForm() {
         ) : (
           <PackagePlus className="mr-2 h-4 w-4" />
         )}
-        Crear Material y Registrar Ingreso
+        Crear Material
       </Button>
     </form>
   );

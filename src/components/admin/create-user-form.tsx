@@ -20,7 +20,7 @@ const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   email: z.string().email('El correo electrónico no es válido.'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
-  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin'], { required_error: 'Debes seleccionar un rol.' }),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -120,8 +120,9 @@ export function CreateUserForm() {
                         <SelectValue placeholder="Selecciona un rol" />
                     </SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="admin">Administrador de App</SelectItem>
                         <SelectItem value="operations">Administrador de Obra</SelectItem>
-                        <SelectItem value="admin">Jefe de Bodega</SelectItem>
+                        <SelectItem value="bodega-admin">Jefe de Bodega</SelectItem>
                         <SelectItem value="finance">Jefe de Adm. y Finanzas</SelectItem>
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="apr">APR</SelectItem>

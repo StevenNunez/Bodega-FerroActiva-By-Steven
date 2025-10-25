@@ -24,7 +24,7 @@ import { Timestamp } from 'firebase/firestore';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  role: z.enum(['admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin'], { required_error: 'Debes seleccionar un rol.' }),
   rut: z.string().optional(),
   cargo: z.string().optional(),
   fechaIngreso: z.date().optional(),
@@ -62,7 +62,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
             role: user.role,
             rut: user.rut || '',
             cargo: user.cargo || '',
-            fechaIngreso: user.fechaIngreso ? (user.fechaIngreso as Timestamp).toDate() : undefined,
+            fechaIngreso: user.fechaIngreso ? new Date(user.fechaIngreso as any) : undefined,
             afp: user.afp || '',
             tipoSalud: user.tipoSalud,
             cargasFamiliares: user.cargasFamiliares || 0,
@@ -72,7 +72,8 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
   
   const getRoleDisplayName = (role: UserRole) => {
     switch (role) {
-        case 'admin': return 'Jefe de Bodega';
+        case 'admin': return 'Administrador de App';
+        case 'bodega-admin': return 'Jefe de Bodega';
         case 'supervisor': return 'Supervisor';
         case 'worker': return 'Colaborador';
         case 'operations': return 'Administrador de Obra';
@@ -130,8 +131,9 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                                         <SelectValue placeholder="Selecciona un rol" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="admin">Administrador de App</SelectItem>
                                         <SelectItem value="operations">Administrador de Obra</SelectItem>
-                                        <SelectItem value="admin">Jefe de Bodega</SelectItem>
+                                        <SelectItem value="bodega-admin">Jefe de Bodega</SelectItem>
                                         <SelectItem value="finance">Jefe de Adm. y Finanzas</SelectItem>
                                         <SelectItem value="supervisor">Supervisor</SelectItem>
                                         <SelectItem value="apr">APR</SelectItem>

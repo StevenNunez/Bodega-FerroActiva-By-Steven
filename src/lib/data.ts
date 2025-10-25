@@ -2,7 +2,7 @@
 
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin" | "bodega-admin";
 
 export interface Tenant {
   id: string;

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAppState } from '@/contexts/app-provider';
+import { useAppState, useAuth } from '@/contexts/app-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -37,8 +37,12 @@ interface EditMaterialFormProps {
 
 export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialFormProps) {
   const { updateMaterial, suppliers, materialCategories, units } = useAppState();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
+
+  const canEditStock = user?.role === 'admin' || user?.role === 'operations' || user?.role === 'super-admin';
+
 
   const {
     register,
@@ -107,12 +111,13 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="stock">Stock</Label>
-                        <Input id="stock" type="number" placeholder="Ej: 500" {...register('stock')} />
+                        <Input id="stock" type="number" placeholder="Ej: 500" {...register('stock')} disabled={!canEditStock}/>
+                        {!canEditStock && <p className="text-xs text-muted-foreground">Solo Admins de Obra pueden editar stock.</p>}
                         {errors.stock && <p className="text-xs text-destructive">{errors.stock.message}</p>}
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="unit">Unidad</Label>
-                        <Controller
+                         <Controller
                           name="unit"
                           control={control}
                           render={({ field }) => (
@@ -249,3 +254,5 @@ export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialForm
     </Dialog>
   );
 }
+
+    

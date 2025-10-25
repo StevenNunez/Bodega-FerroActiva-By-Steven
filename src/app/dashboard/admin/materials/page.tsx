@@ -65,6 +65,10 @@ export default function AdminMaterialsPage() {
       </div>
     );
   }
+  
+  const canCreate = authUser.role === 'admin' || authUser.role === 'bodega-admin' || authUser.role === 'operations' || authUser.role === 'super-admin';
+  const canDelete = authUser.role === 'admin' || authUser.role === 'super-admin';
+
 
   // Estado de carga
   if (isLoading) {
@@ -288,7 +292,7 @@ export default function AdminMaterialsPage() {
                                         <span>Archivar</span>
                                     </DropdownMenuItem>
                                   )}
-                                  <AlertDialog>
+                                  {canDelete && <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
                                         <Trash2 className="mr-2 h-4 w-4" />
@@ -312,7 +316,7 @@ export default function AdminMaterialsPage() {
                                         </AlertDialogAction>
                                       </AlertDialogFooter>
                                     </AlertDialogContent>
-                                  </AlertDialog>
+                                  </AlertDialog>}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
@@ -354,17 +358,17 @@ export default function AdminMaterialsPage() {
           </Card>
         </div>
         <div className="space-y-8">
-          <Card>
+          {canCreate && <Card>
             <CardHeader>
               <CardTitle>Añadir Nuevo Material</CardTitle>
               <CardDescription>
-                Agrega nuevos tipos de materiales al inventario. Cada ingreso quedará registrado en el historial de movimientos.
+                Agrega nuevos tipos de materiales al inventario.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <CreateMaterialForm />
             </CardContent>
-          </Card>
+          </Card>}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

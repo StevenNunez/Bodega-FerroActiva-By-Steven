@@ -34,6 +34,7 @@ import {
   ShieldAlert,
   ClipboardPaste,
   BarChart3,
+  QrCode,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -54,7 +55,6 @@ const adminNavItems = [
   { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
   { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
   { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
-  { href: '/dashboard/admin/users', icon: Users, label: 'Usuarios' },
 ];
 
 const supervisorNavItems = [
@@ -97,7 +97,6 @@ const superAdminNavItems = [
   { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Supervisor Resumen' },
   { href: '/dashboard/apr', icon: LayoutDashboard, label: 'APR Resumen' },
   { href: '/dashboard/worker', icon: Wrench, label: 'Colaborador Panel' },
-  { href: '/dashboard/admin/users', icon: Users, label: 'Gestión de Usuarios' },
   { href: '/dashboard/admin/tools', icon: Wrench, label: 'Gestión de Herramientas' },
   { href: '/dashboard/admin/materials', icon: Package, label: 'Gestión de Materiales' },
   { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
@@ -115,10 +114,16 @@ const mainNavItemsByRole = {
   apr: aprNavItems,
   finance: financeNavItems,
   'super-admin': superAdminNavItems, 
+  'bodega-admin': adminNavItems, // Jefe de Bodega uses the same nav as admin
   guardia: [{ href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' }], 
 };
 
 // --- Sub-Module Navigation Definitions ---
+const usersNavItems = [
+    { href: '/dashboard/users', icon: Users, label: 'Lista de Usuarios' },
+    { href: '/dashboard/users/print-qrs', icon: QrCode, label: 'Imprimir Credenciales' },
+];
+
 const attendanceNavItems = [
     { href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' },
     { href: '/dashboard/attendance/report', icon: BookOpen, label: 'Reporte Semanal' },
@@ -140,6 +145,10 @@ const reportsNavItems = [
 const subscriptionsNavItems = [
     { href: '/dashboard/subscriptions', icon: Users, label: 'Gestión de Inquilinos' },
 ];
+
+const permissionsNavItems = [
+    { href: '/dashboard/permissions', icon: ListChecks, label: 'Gestión de Permisos' },
+]
 
 const safetyNavItems = (role: string) => {
     const items = [
@@ -203,7 +212,8 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
 
   const getRoleDisplayName = (role: string) => {
     switch (role) {
-      case 'admin': return 'Jefe de Bodega';
+      case 'admin': return 'Administrador de App';
+      case 'bodega-admin': return 'Jefe de Bodega';
       case 'supervisor': return 'Supervisor';
       case 'worker': return 'Colaborador';
       case 'operations': return 'Administrador de Obra';
@@ -226,6 +236,12 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
 
     const roleNav = mainNavItemsByRole[user.role as keyof typeof mainNavItemsByRole] || [];
     
+    if (pathname.startsWith('/dashboard/users')) {
+        return { currentNavItems: usersNavItems, isSubModule: true, moduleTitle: 'Módulo de Usuarios' };
+    }
+     if (pathname.startsWith('/dashboard/permissions')) {
+        return { currentNavItems: permissionsNavItems, isSubModule: true, moduleTitle: 'Módulo de Permisos' };
+    }
     if (pathname.startsWith('/dashboard/attendance')) {
         return { currentNavItems: attendanceNavItems, isSubModule: true, moduleTitle: 'Módulo de Asistencia' };
     }

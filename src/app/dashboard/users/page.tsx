@@ -33,7 +33,8 @@ export default function AdminUsersPage() {
     
     const getRoleDisplayName = (role: UserRole) => {
         switch (role) {
-            case 'admin': return 'Jefe de Bodega';
+            case 'admin': return 'Administrador de App';
+            case 'bodega-admin': return 'Jefe de Bodega';
             case 'supervisor': return 'Supervisor';
             case 'worker': return 'Colaborador';
             case 'operations': return 'Administrador de Obra';
@@ -50,6 +51,7 @@ export default function AdminUsersPage() {
             case 'super-admin':
             case 'admin': return 'destructive';
             case 'operations': return 'default';
+            case 'bodega-admin': return 'secondary';
             case 'supervisor': return 'secondary';
             case 'apr': return 'secondary';
             case 'worker': return 'outline';
@@ -73,7 +75,7 @@ export default function AdminUsersPage() {
         }
     }
     
-    const canManageUsers = authUser?.role === 'admin' || authUser?.role === 'super-admin';
+    const canManageUsers = ['admin', 'bodega-admin', 'apr', 'super-admin'].includes(authUser?.role || '');
 
     return (
         <div className="flex flex-col gap-8">
@@ -114,7 +116,7 @@ export default function AdminUsersPage() {
                                 </div>
                                 {canManageUsers && (
                                     <Button asChild>
-                                        <Link href="/dashboard/admin/users/print-qrs">
+                                        <Link href="/dashboard/users/print-qrs">
                                             <QrCode className="mr-2 h-4 w-4" />
                                             Imprimir Credenciales
                                         </Link>
