@@ -23,7 +23,8 @@ import {
   SupplierPayment,
   Checklist,
   BehaviorObservation,
-  Tenant
+  Tenant,
+  ReturnRequest
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -42,7 +43,8 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
-  type QueryConstraint,
+  enableIndexedDbPersistence,
+  type Query,
 } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
@@ -53,6 +55,8 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/use-permissions";
+import { ROLES as ROLES_DEFAULT, Permission, getPermissionsForRole } from "@/lib/permissions";
 
 // Helper to convert Firestore Timestamps to JS Date objects
 const convertTimestamps = (data: any) => {
@@ -97,6 +101,7 @@ interface AppStateContextType {
   materialCategories: MaterialCategory[];
   units: Unit[];
   requests: MaterialRequest[];
+  returnRequests: ReturnRequest[];
   toolLogs: ToolLog[];
   attendanceLogs: AttendanceLog[];
   purchaseRequests: PurchaseRequest[];
@@ -109,8 +114,11 @@ interface AppStateContextType {
   safetyInspections: SafetyInspection[];
   behaviorObservations: BehaviorObservation[];
   tenants: Tenant[];
+  roles: typeof ROLES_DEFAULT;
   currentTenantId: string | null;
   setCurrentTenantId: (tenantId: string | null) => void;
+  can: (permission: Permission) => boolean;
+  updateRolePermissions: (role: keyof typeof ROLES_DEFAULT, permission: string, checked: boolean) => Promise<void>;
   addTenant: (tenantData: { tenantName: string; tenantId: string; adminName: string; adminEmail: string; }) => Promise<void>;
   deleteTenant: (tenantId: string) => Promise<void>;
   addTool: (toolName: string) => Promise<void>;
@@ -121,7 +129,9 @@ interface AppStateContextType {
   updateUser: (userId: string, data: Partial<Omit<User, "id" | "email" | "qrCode">>) => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
   addRequest: (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => Promise<void>;
+  addReturnRequest: (request: Omit<ReturnRequest, "id" | "status" | "createdAt">) => Promise<void>;
   approveRequest: (requestId: string) => Promise<void>;
+  approveReturnRequest: (requestId: string) => Promise<void>;
   checkoutTool: (toolId: string, workerId: string, supervisorId: string) => Promise<void>;
   returnTool: (logId: string, condition: "ok" | "damaged", notes?: string) => Promise<void>;
   findActiveLogForTool: (toolId: string) => Promise<ToolLog | null>;
@@ -183,6 +193,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [materialCategories, setMaterialCategories] = React.useState<MaterialCategory[]>([]);
   const [units, setUnits] = React.useState<Unit[]>([]);
   const [requests, setRequests] = React.useState<MaterialRequest[]>([]);
+  const [returnRequests, setReturnRequests] = React.useState<ReturnRequest[]>([]);
   const [toolLogs, setToolLogs] = React.useState<ToolLog[]>([]);
   const [attendanceLogs, setAttendanceLogs] = React.useState<AttendanceLog[]>([]);
   const [purchaseRequests, setPurchaseRequests] = React.useState<PurchaseRequest[]>([]);
@@ -195,12 +206,13 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [behaviorObservations, setBehaviorObservations] = React.useState<BehaviorObservation[]>([]);
   const [manualLots, setManualLots] = React.useState<string[]>([]);
   const [tenants, setTenants] = React.useState<Tenant[]>([]);
+  const [roles, setRoles] = React.useState<typeof ROLES_DEFAULT>(ROLES_DEFAULT);
   const [currentTenantId, setCurrentTenantId] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const { user: authUser } = useAuth();
   const { toast } = useToast();
-  
+  const { can } = usePermissions(authUser?.role);
 
   React.useEffect(() => {
     if (authUser && authUser.role !== 'super-admin' && authUser.tenantId && !currentTenantId) {
@@ -220,7 +232,14 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     [toast]
   );
   
- React.useEffect(() => {
+  const getTenantId = React.useCallback(() => {
+    if (authUser?.role === 'super-admin') {
+        return currentTenantId;
+    }
+    return authUser?.tenantId || null;
+  }, [authUser, currentTenantId]);
+
+  React.useEffect(() => {
     setLoading(true);
     setError(null);
   
@@ -228,6 +247,23 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
+
+    const unsubRoles = onSnapshot(collection(db, "roles"), (snapshot) => {
+        if (snapshot.empty) {
+            const batch = writeBatch(db);
+            Object.entries(ROLES_DEFAULT).forEach(([roleId, roleData]) => {
+                const roleRef = doc(db, "roles", roleId);
+                batch.set(roleRef, roleData);
+            });
+            batch.commit().then(() => setRoles(ROLES_DEFAULT));
+        } else {
+            const fetchedRoles = snapshot.docs.reduce((acc, doc) => {
+                acc[doc.id] = doc.data();
+                return acc;
+            }, {} as any);
+            setRoles(fetchedRoles);
+        }
+    });
 
     const collectionsToLoad = [
         { name: 'users', setter: setUsers },
@@ -237,6 +273,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: 'units', setter: setUnits },
         { name: 'suppliers', setter: setSuppliers },
         { name: 'requests', setter: setRequests },
+        { name: 'returnRequests', setter: setReturnRequests },
         { name: 'toolLogs', setter: setToolLogs },
         { name: 'attendanceLogs', setter: setAttendanceLogs },
         { name: 'purchaseRequests', setter: setPurchaseRequests },
@@ -248,7 +285,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         { name: 'behaviorObservations', setter: setBehaviorObservations },
     ];
     
-    const unsubTenants = onSnapshot(query(collection(db, "tenants"), orderBy("name")), (snapshot) => {
+    const unsubTenants = onSnapshot(query(collection(db, "tenants")), (snapshot) => {
         const tenantsList = snapshot.docs.map(doc => convertTimestamps({ ...doc.data(), id: doc.id })) as Tenant[];
         const ferroActivaTenant = {
             id: FERROACTIVA_TENANT_ID, 
@@ -259,80 +296,104 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (!tenantsList.some(t => t.id === FERROACTIVA_TENANT_ID)) {
             tenantsList.unshift(ferroActivaTenant);
         }
+        tenantsList.sort((a,b) => a.name.localeCompare(b.name));
         setTenants(tenantsList);
     });
 
-    const unsubscribers = collectionsToLoad.map(({ name, setter }) => {
-        const collRef = collection(db, name);
-        let q: any;
+    const setupListener = (collectionName: string, setter: (data: any) => void): () => void => {
+        const collRef = collection(db, collectionName);
+        let q: Query;
+    
+        const tenantIdForQuery = getTenantId();
 
-        // Determine the effective tenantId for the query
-        let tenantIdForQuery: string | null = null;
-        if (authUser.role === 'super-admin') {
-            tenantIdForQuery = currentTenantId; // This can be null (all), 'ferroactiva', or a specific tenant ID
-        } else {
-            tenantIdForQuery = authUser.tenantId || FERROACTIVA_TENANT_ID; // Default non-super-admins to their tenant or FerroActiva
-        }
-
-        // Build query based on tenantId
-        if (tenantIdForQuery === FERROACTIVA_TENANT_ID) {
-            // Genesis users/data might have `tenantId` as `null` or non-existent
-            q = query(collRef, where('tenantId', '==', null));
-        } else if (tenantIdForQuery) {
-            // Specific tenant
-            q = query(collRef, where('tenantId', '==', tenantIdForQuery));
-        } else {
-            // super-admin with "all" selected (tenantIdForQuery is null)
+        if (!tenantIdForQuery && authUser.role === 'super-admin') {
             q = query(collRef);
+        } else {
+            q = query(collRef, where('tenantId', '==', tenantIdForQuery));
         }
 
         return onSnapshot(q, (snapshot) => {
-            const docs = snapshot.docs.map(doc => convertTimestamps({ ...doc.data(), id: doc.id }));
-            
-            // Client-side sorting
-            if (['users', 'tools', 'materials', 'materialCategories', 'units', 'suppliers'].includes(name)) {
-                docs.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-            } else if (['requests', 'purchaseRequests', 'purchaseOrders', 'checklistTemplates', 'assignedChecklists', 'safetyInspections', 'behaviorObservations'].includes(name)) {
-                docs.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
-            } else if (name === 'toolLogs') {
-                docs.sort((a, b) => (b.checkoutDate?.getTime() || 0) - (a.checkoutDate?.getTime() || 0));
-            } else if (name === 'attendanceLogs') {
-                docs.sort((a, b) => (b.timestamp?.getTime() || 0) - (a.timestamp?.getTime() || 0));
-            }
-            
-            setter(docs as any);
+          const docs = snapshot.docs.map(doc => convertTimestamps({ ...doc.data(), id: doc.id }));
+          setter(docs);
         }, (error) => {
-            console.error(`[Firestore Error] Collection: ${name}`, error);
-            setError(`Error al cargar ${name}`);
+          console.error(`[Firestore Error] Collection: ${collectionName}`, error);
+          setError(`Error al cargar ${collectionName}`);
         });
+    };
+
+    const loadAllData = async () => {
+      const unsubscribers = collectionsToLoad.map(({ name, setter }) => setupListener(name, setter));
+      
+      const firstLoadPromise = Promise.all(
+        collectionsToLoad.map(({ name }) => {
+            const tenantIdForQuery = getTenantId();
+            let q: Query;
+            const collRef = collection(db, name);
+            if (!tenantIdForQuery && authUser.role === 'super-admin') {
+                q = query(collRef);
+            } else {
+                q = query(collRef, where('tenantId', '==', tenantIdForQuery));
+            }
+            return getDocs(q);
+        })
+      );
+    
+      try {
+        await firstLoadPromise;
+      } catch (error) {
+        console.error("Error during initial data fetch:", error);
+        setError("Error de conexión al cargar datos iniciales.");
+      } finally {
+        setLoading(false);
+      }
+
+      return () => {
+        unsubscribers.forEach(unsub => unsub());
+        unsubTenants();
+        unsubRoles();
+      };
+    };
+    
+    let cleanup = () => {
+        unsubTenants();
+        unsubRoles();
+    };
+    loadAllData().then(unsubFunc => {
+      if(unsubFunc) cleanup = unsubFunc;
     });
 
-    setLoading(false);
+    return () => cleanup();
 
-    return () => {
-      unsubscribers.forEach(unsub => unsub());
-      unsubTenants();
-    };
-}, [authUser, currentTenantId]);
+}, [authUser, currentTenantId, getTenantId]);
+  
+  const updateRolePermissions = async (role: keyof typeof ROLES_DEFAULT, permission: string, checked: boolean) => {
+      if (!can('permissions:manage')) throw new Error("No tienes permiso para gestionar permisos.");
+      const roleRef = doc(db, "roles", role);
+      
+      const docSnap = await getDoc(roleRef);
+      if (!docSnap.exists()) {
+          throw new Error("El rol especificado no existe en la base de datos.");
+      }
 
-  const checkAuthAndRole = (allowedRoles: string[]) => {
-    if (!authUser) throw new Error("Acción no autorizada: usuario no autenticado.");
-    if (!allowedRoles.includes(authUser.role)) {
-      throw new Error(`Acción no autorizada: se requiere rol ${allowedRoles.join(" o ")}.`);
-    }
-  };
+      const currentCapabilities: string[] = docSnap.data().capabilities || [];
+      let newCapabilities: string[];
 
-  const getTenantId = () => {
-    if (authUser?.role === 'super-admin') {
-      if (currentTenantId === FERROACTIVA_TENANT_ID) return null;
-      return currentTenantId;
-    }
-    return authUser?.tenantId || null;
+      if (checked) {
+          if (!currentCapabilities.includes(permission)) {
+              newCapabilities = [...currentCapabilities, permission];
+          } else {
+              return; // No changes needed
+          }
+      } else {
+          newCapabilities = currentCapabilities.filter(p => p !== permission);
+      }
+
+      await updateDoc(roleRef, { capabilities: newCapabilities });
   };
 
 
   const addTenant = async (tenantData: { tenantName: string; tenantId: string; adminName: string; adminEmail: string; }) => {
-    checkAuthAndRole(['super-admin']);
+    if (!can('tenants:create')) throw new Error('No tienes permiso para crear suscriptores.');
     
     const tenantQuery = query(collection(db, 'tenants'), where('tenantId', '==', tenantData.tenantId));
     const existingTenants = await getDocs(tenantQuery);
@@ -379,7 +440,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const deleteTenant = async (tenantId: string) => {
-    checkAuthAndRole(['super-admin']);
+    if (!can('tenants:delete')) throw new Error('No tienes permiso para eliminar suscriptores.');
     try {
         if (!tenantId) throw new Error("Tenant ID is required.");
         const tenantRef = doc(db, "tenants", tenantId);
@@ -393,7 +454,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const addTool = async (toolName: string) => {
-    checkAuthAndRole(["admin", "bodega-admin"]);
+    if (!can('tools:create')) throw new Error('No tienes permiso para crear herramientas.');
     const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "tools"));
@@ -412,7 +473,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateTool = async (toolId: string, data: Partial<Omit<Tool, "id" | "qrCode">>) => {
-    checkAuthAndRole(["admin", "bodega-admin"]);
+    if (!can('tools:edit')) throw new Error('No tienes permiso para editar herramientas.');
     try {
       if (!toolId) throw new Error("Tool ID is required");
       const toolRef = doc(db, "tools", toolId);
@@ -425,7 +486,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteTool = async (toolId: string) => {
-    checkAuthAndRole(["admin", "bodega-admin"]);
+    if (!can('tools:delete')) throw new Error('No tienes permiso para eliminar herramientas.');
     try {
       if (!toolId) throw new Error("Tool ID is required");
       const isToolInUse = toolLogs.some((log) => log.toolId === toolId && log.returnDate === null);
@@ -442,7 +503,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateUser = async (userId: string, data: Partial<Omit<User, "id" | "email" | "qrCode">>) => {
-    checkAuthAndRole(["admin", "super-admin", "bodega-admin", "apr"]);
+    if (!can('users:edit')) throw new Error('No tienes permiso para editar usuarios.');
     try {
       if (!userId) throw new Error("User ID is required");
       const userRef = doc(db, "users", userId);
@@ -455,7 +516,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteUser = async (userId: string) => {
-    checkAuthAndRole(["admin", "super-admin", "bodega-admin", "apr"]);
+    if (!can('users:delete')) throw new Error('No tienes permiso para eliminar usuarios.');
     try {
       if (!userId) throw new Error("User ID is required");
       const userRef = doc(db, "users", userId);
@@ -468,7 +529,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addMaterial = async (material: Omit<Material, "id"> & { justification?: string }) => {
-    checkAuthAndRole(["admin", "operations", "bodega-admin"]);
+    if (!can('materials:create')) throw new Error('No tienes permiso para crear materiales.');
     const tenantId = getTenantId();
     try {
       const batch = writeBatch(db);
@@ -512,7 +573,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateMaterial = async (materialId: string, data: Partial<Omit<Material, "id">>) => {
-    checkAuthAndRole(["admin", "operations", "bodega-admin"]);
+    if (!can('materials:edit')) throw new Error('No tienes permiso para editar materiales.');
     const tenantId = getTenantId();
     try {
         const batch = writeBatch(db);
@@ -547,7 +608,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteMaterial = async (materialId: string) => {
-    checkAuthAndRole(["admin", "bodega-admin"]);
+    if (!can('materials:delete')) throw new Error('No tienes permiso para eliminar materiales.');
     const tenantId = getTenantId();
     try {
         if (!materialId) throw new Error("ID de material requerido.");
@@ -587,7 +648,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addManualStockEntry = async (materialId: string, quantity: number, justification: string) => {
-    checkAuthAndRole(["admin", "operations", "bodega-admin"]);
+    if (!can('stock:add_manual')) throw new Error('No tienes permiso para agregar stock manualmente.');
     const tenantId = getTenantId();
     try {
       if (!authUser) throw new Error("Acción no autorizada.");
@@ -626,7 +687,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addMaterialCategory = async (name: string) => {
-    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin", "bodega-admin"]);
+    if (!can('categories:create')) throw new Error('No tienes permiso para crear categorías.');
     const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "materialCategories"));
@@ -639,7 +700,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateMaterialCategory = async (id: string, name: string) => {
-    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin", "bodega-admin"]);
+    if (!can('categories:edit')) throw new Error('No tienes permiso para editar categorías.');
     try {
       const categoryRef = doc(db, "materialCategories", id);
       await updateDoc(categoryRef, { name });
@@ -651,7 +712,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteMaterialCategory = async (id: string) => {
-    checkAuthAndRole(["admin", "super-admin", "bodega-admin"]);
+    if (!can('categories:delete')) throw new Error('No tienes permiso para eliminar categorías.');
     const tenantId = getTenantId();
     try {
       const categoryRef = doc(db, "materialCategories", id);
@@ -681,7 +742,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addUnit = async (name: string) => {
-    checkAuthAndRole(["admin", "operations", "supervisor", "apr", "super-admin", "bodega-admin"]);
+    if (!can('units:create')) throw new Error('No tienes permiso para crear unidades.');
     const tenantId = getTenantId();
     try {
         const unitExists = units.some(u => u.name.toLowerCase() === name.toLowerCase());
@@ -699,7 +760,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const deleteUnit = async (id: string) => {
-    checkAuthAndRole(["admin", "operations", "super-admin", "bodega-admin"]);
+    if (!can('units:delete')) throw new Error('No tienes permiso para eliminar unidades.');
     const tenantId = getTenantId();
     try {
         const unitRef = doc(db, "units", id);
@@ -721,7 +782,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const addRequest = async (request: Omit<MaterialRequest, "id" | "status" | "createdAt">) => {
-    checkAuthAndRole(["supervisor", "worker", "admin", "apr", "operations", "super-admin", "bodega-admin"]);
+    if (!can('material_requests:create')) throw new Error('No tienes permiso para crear solicitudes de material.');
     const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "requests"));
@@ -738,9 +799,28 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       throw err;
     }
   };
+  
+  const addReturnRequest = async (request: Omit<ReturnRequest, "id" | "status" | "createdAt">) => {
+    if (!can('material_requests:create')) throw new Error('No tienes permiso para crear devoluciones.'); // Assuming same permission for now
+    const tenantId = getTenantId();
+    try {
+      const newDocRef = doc(collection(db, "returnRequests"));
+      await setDoc(newDocRef, {
+        ...request,
+        id: newDocRef.id,
+        status: "pending",
+        createdAt: Timestamp.now(),
+        tenantId,
+      });
+      notify("Solicitud de devolución enviada para confirmación.", "success");
+    } catch (err: any) {
+      notify("Error al enviar la solicitud de devolución: " + err.message, "destructive");
+      throw err;
+    }
+  };
 
   const approveRequest = async (requestId: string) => {
-    checkAuthAndRole(["admin", "super-admin", "bodega-admin"]);
+    if (!can('material_requests:approve')) throw new Error('No tienes permiso para aprobar solicitudes de material.');
     try {
         const requestRef = doc(db, "requests", requestId);
         const requestDoc = await getDoc(requestRef);
@@ -771,10 +851,39 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         throw err;
     }
   };
+  
+  const approveReturnRequest = async (requestId: string) => {
+    if (!can('stock:add_manual')) throw new Error('No tienes permiso para confirmar devoluciones.'); // Re-using stock add permission
+    try {
+        const requestRef = doc(db, "returnRequests", requestId);
+        const requestDoc = await getDoc(requestRef);
+        if (!requestDoc.exists()) throw new Error("Solicitud de devolución no encontrada");
+        const request = requestDoc.data() as ReturnRequest;
+
+        const batch = writeBatch(db);
+
+        for (const item of request.items) {
+            const materialRef = doc(db, "materials", item.materialId);
+            const materialDoc = await getDoc(materialRef);
+            if (!materialDoc.exists()) throw new Error(`Material con ID ${item.materialId} no encontrado.`);
+            
+            const material = materialDoc.data() as Material;
+            const newStock = material.stock + item.quantity;
+            batch.update(materialRef, { stock: newStock });
+        }
+
+        batch.update(requestRef, { status: "approved", approvedAt: Timestamp.now(), approvedBy: authUser?.id });
+        await batch.commit();
+        notify("Devolución confirmada exitosamente. El stock ha sido actualizado.", "success");
+    } catch (err: any) {
+        notify("Error al confirmar la devolución: " + err.message, "destructive");
+        throw err;
+    }
+  };
 
 
   const checkoutTool = async (toolId: string, workerId: string, supervisorId: string) => {
-    checkAuthAndRole(["admin", "supervisor", "apr", "operations", "super-admin", "bodega-admin"]);
+    if (!can('tools:checkout')) throw new Error('No tienes permiso para entregar herramientas.');
     const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "toolLogs"));
@@ -795,7 +904,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const returnTool = async (logId: string, condition: "ok" | "damaged" = "ok", notes: string = "") => {
-    checkAuthAndRole(["admin", "supervisor", "apr", "operations", "super-admin", "bodega-admin"]);
+    if (!can('tools:return')) throw new Error('No tienes permiso para devolver herramientas.');
     try {
       const logRef = doc(db, "toolLogs", logId);
       await updateDoc(logRef, {
@@ -834,7 +943,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleAttendanceScan = async (userId: string) => {
-    checkAuthAndRole(["admin", "guardia", "operations", "supervisor", "apr", "super-admin", "bodega-admin"]);
+    if (!can('attendance:register')) throw new Error('No tienes permiso para registrar asistencia.');
     const tenantId = getTenantId();
     try {
         const userRef = doc(db, "users", userId);
@@ -878,7 +987,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const saveAttendanceLog = async (logData: Partial<AttendanceLog> & { forDate?: Date; forUser?: User }) => {
-    checkAuthAndRole(['admin', 'operations', 'super-admin']);
+    if (!can('attendance:edit')) throw new Error('No tienes permiso para editar la asistencia.');
     if (!authUser) throw new Error('Usuario no autenticado.');
 
     const isEditing = Boolean(logData.id);
@@ -928,7 +1037,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addManualAttendance = async (userId: string, forDate: Date, time: string, type: 'in' | 'out') => {
-    checkAuthAndRole(["admin", "operations", "super-admin"]);
+    if (!can('attendance:edit')) throw new Error('No tienes permiso para añadir registros manuales.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     const tenantId = getTenantId();
     
@@ -960,7 +1069,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const updateAttendanceLog = async (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => {
-    checkAuthAndRole(["admin", "operations", "super-admin"]);
+    if (!can('attendance:edit')) throw new Error('No tienes permiso para editar la asistencia.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     
     try {
@@ -980,7 +1089,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const deleteAttendanceLog = async (logId: string) => {
-    checkAuthAndRole(["admin", "operations", "super-admin"]);
+    if (!can('attendance:delete')) throw new Error('No tienes permiso para eliminar registros.');
     try {
       if (!logId) throw new Error("Log ID is required");
       const logRef = doc(db, "attendanceLogs", logId);
@@ -993,7 +1102,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addPurchaseRequest = async (request: Omit<PurchaseRequest, "id" | "status" | "createdAt" | "receivedAt" | "lotId">) => {
-    checkAuthAndRole(["supervisor", "worker", "admin", "operations", "apr", "super-admin"]);
+    if (!can('purchase_requests:create')) throw new Error('No tienes permiso para crear solicitudes de compra.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     const tenantId = getTenantId();
     try {
@@ -1033,7 +1142,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     status: PurchaseRequestStatus,
     data?: Partial<Pick<PurchaseRequest, "materialName" | "quantity" | "unit" | "notes" | "justification">>
   ) => {
-    checkAuthAndRole(["operations", "admin", "super-admin"]);
+    if (!can('purchase_requests:approve')) throw new Error('No tienes permiso para aprobar/rechazar solicitudes.');
     if (!authUser) throw new Error("Acción no autorizada.");
     const tenantId = getTenantId();
     try {
@@ -1072,7 +1181,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const deletePurchaseRequest = async (id: string) => {
-    checkAuthAndRole(['operations', 'admin', 'super-admin']);
+    if (!can('purchase_requests:delete')) throw new Error('No tienes permiso para eliminar solicitudes.');
     try {
         const reqRef = doc(db, "purchaseRequests", id);
         await deleteDoc(reqRef);
@@ -1085,7 +1194,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
  const receivePurchaseRequest = async (purchaseRequestId: string, receivedQuantity: number, existingMaterialId?: string) => {
-    checkAuthAndRole(["admin", "super-admin"]);
+    if (!can('stock:receive_order')) throw new Error('No tienes permiso para recibir órdenes.');
     const tenantId = getTenantId();
     try {
         const reqRef = doc(db, "purchaseRequests", purchaseRequestId);
@@ -1161,7 +1270,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
  const generatePurchaseOrder = async (requests: PurchaseRequest[], supplierId: string) => {
-    checkAuthAndRole(["operations", "super-admin"]);
+    if (!can('orders:create')) throw new Error('No tienes permiso para crear órdenes de compra.');
     const tenantId = getTenantId();
     try {
         const batch = writeBatch(db);
@@ -1208,7 +1317,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 
 
   const cancelPurchaseOrder = async (orderId: string) => {
-    checkAuthAndRole(["operations", "super-admin"]);
+    if (!can('orders:cancel')) throw new Error('No tienes permiso para anular órdenes de compra.');
     try {
       const orderRef = doc(db, "purchaseOrders", orderId);
       const orderDoc = await getDoc(orderRef);
@@ -1238,7 +1347,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addSupplier = async (data: Partial<Omit<Supplier, 'id'>>) => {
-    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin"]);
+    if (!can('suppliers:create')) throw new Error('No tienes permiso para crear proveedores.');
     const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "suppliers"));
@@ -1252,7 +1361,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSupplier = async (supplierId: string, data: Partial<Omit<Supplier, "id">>) => {
-    checkAuthAndRole(["admin", "operations", "supervisor", "super-admin"]);
+    if (!can('suppliers:edit')) throw new Error('No tienes permiso para editar proveedores.');
     try {
       if (!supplierId) throw new Error("Supplier ID is required");
       const supplierRef = doc(db, "suppliers", supplierId);
@@ -1265,7 +1374,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteSupplier = async (supplierId: string) => {
-    checkAuthAndRole(["admin", "super-admin"]);
+    if (!can('suppliers:delete')) throw new Error('No tienes permiso para eliminar proveedores.');
     const tenantId = getTenantId();
     try {
       if (!supplierId) throw new Error("Supplier ID is required");
@@ -1283,7 +1392,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
  const addChecklistTemplate = async (template: Omit<ChecklistTemplate, "id" | "createdAt" | "createdBy">) => {
-    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
+    if (!can('safety_templates:create')) throw new Error('No tienes permiso para crear plantillas.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     const tenantId = getTenantId();
     try {
@@ -1303,7 +1412,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteChecklistTemplate = async (templateId: string) => {
-    checkAuthAndRole(["admin", "super-admin"]);
+    if (!can('safety_templates:delete')) throw new Error('No tienes permiso para eliminar plantillas.');
     try {
         if (!templateId) throw new Error("ID de plantilla requerido.");
         const templateRef = doc(db, "checklistTemplates", templateId);
@@ -1316,7 +1425,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
  const assignChecklistToSupervisors = async (template: ChecklistTemplate, supervisorIds: string[], work: string) => {
-    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
+    if (!can('safety_checklists:assign')) throw new Error('No tienes permiso para asignar checklists.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     const tenantId = getTenantId();
     try {
@@ -1356,7 +1465,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 };
 
   const completeAssignedChecklist = async (checklistData: AssignedChecklist) => {
-    checkAuthAndRole(["supervisor", "admin", "operations", "apr", "super-admin"]);
+    if (!can('safety_checklists:complete')) throw new Error('No tienes permiso para completar checklists.');
     try {
       const checklistRef = doc(db, "assignedChecklists", checklistData.id);
       await updateDoc(checklistRef, {
@@ -1372,7 +1481,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const reviewAssignedChecklist = async (checklistId: string, status: 'approved' | 'rejected', notes: string, signature: string) => {
-    checkAuthAndRole(["apr", "admin", "super-admin"]);
+    if (!can('safety_checklists:review')) throw new Error('No tienes permiso para revisar checklists.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
       const checklistRef = doc(db, "assignedChecklists", checklistId);
@@ -1394,7 +1503,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteAssignedChecklist = async (checklistId: string) => {
-    checkAuthAndRole(["admin", "super-admin"]);
+    if (!can('safety_checklists:delete')) throw new Error('No tienes permiso para eliminar checklists asignados.');
     try {
         if (!checklistId) throw new Error("ID de checklist asignado requerido.");
         const checklistRef = doc(db, "assignedChecklists", checklistId);
@@ -1407,7 +1516,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addChecklist = async (checklist: Omit<Checklist, "id" | "createdBy">) => {
-      checkAuthAndRole(["apr", "admin", "super-admin"]);
+      if (!can('safety_checklists:create')) throw new Error('No tienes permiso para crear checklists.');
       if (!authUser) throw new Error("Usuario no autenticado.");
       const tenantId = getTenantId();
       try {
@@ -1426,7 +1535,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const addSafetyInspection = async (inspection: Omit<SafetyInspection, "id" | "status" | "createdAt" | "createdBy">) => {
-    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
+    if (!can('safety_inspections:create')) throw new Error('No tienes permiso para crear inspecciones.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     const tenantId = getTenantId();
     try {
@@ -1448,7 +1557,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const completeSafetyInspection = async (inspectionId: string, completionData: Pick<SafetyInspection, 'completionNotes' | 'completionSignature' | 'completionExecutor' | 'completionPhotos'>) => {
-    checkAuthAndRole(["supervisor", "admin", "operations", "apr", "super-admin"]);
+    if (!can('safety_inspections:complete')) throw new Error('No tienes permiso para completar inspecciones.');
     try {
         const inspectionRef = doc(db, "safetyInspections", inspectionId);
         await updateDoc(inspectionRef, {
@@ -1464,7 +1573,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
   const reviewSafetyInspection = async (inspectionId: string, status: 'approved' | 'rejected', notes: string, signature: string) => {
-    checkAuthAndRole(["apr", "admin", "super-admin"]);
+    if (!can('safety_inspections:review')) throw new Error('No tienes permiso para revisar inspecciones.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     try {
       const inspectionRef = doc(db, "safetyInspections", inspectionId);
@@ -1486,7 +1595,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
   
    const addSupplierPayment = async (payment: Omit<SupplierPayment, "id" | "createdAt" | "status">) => {
-    checkAuthAndRole(["admin", "operations", "finance", "super-admin"]);
+    if (!can('payments:create')) throw new Error('No tienes permiso para registrar pagos.');
     const tenantId = getTenantId();
     try {
       const newDocRef = doc(collection(db, "supplierPayments"));
@@ -1505,7 +1614,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSupplierPaymentStatus = async (id: string, status: 'paid', details: { paymentDate: Date; paymentMethod: string }) => {
-    checkAuthAndRole(["admin", "operations", "finance", "super-admin"]);
+    if (!can('payments:update')) throw new Error('No tienes permiso para actualizar pagos.');
     try {
       const paymentRef = doc(db, "supplierPayments", id);
       await updateDoc(paymentRef, { 
@@ -1521,7 +1630,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSupplierPayment = async (id: string, data: Partial<Pick<SupplierPayment, 'work' | 'purchaseOrderNumber'>>) => {
-      checkAuthAndRole(["admin", "operations", "finance", "super-admin"]);
+      if (!can('payments:edit')) throw new Error('No tienes permiso para editar facturas.');
       try {
         const paymentRef = doc(db, "supplierPayments", id);
         await updateDoc(paymentRef, data);
@@ -1533,7 +1642,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addBehaviorObservation = async (observation: Omit<BehaviorObservation, 'id' | 'observerId' | 'observerName' | 'createdAt'>) => {
-    checkAuthAndRole(["apr", "admin", "operations", "super-admin"]);
+    if (!can('safety_observations:create')) throw new Error('No tienes permiso para crear observaciones de conducta.');
     if (!authUser) throw new Error("Usuario no autenticado.");
     const tenantId = getTenantId();
     try {
@@ -1554,7 +1663,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const batchApprovedRequests = async (requestIds: string[], options: { mode: "category" | "supplier" }) => {
-    checkAuthAndRole(["operations", "super-admin"]);
+    if (!can('lots:create')) throw new Error('No tienes permiso para crear lotes.');
     try {
       const batch = writeBatch(db);
       const relevantRequests = purchaseRequests.filter((pr) => requestIds.includes(pr.id));
@@ -1599,7 +1708,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeRequestFromLot = async (requestId: string) => {
-    checkAuthAndRole(["operations", "super-admin"]);
+    if (!can('lots:edit')) throw new Error('No tienes permiso para editar lotes.');
     try {
       const requestRef = doc(db, "purchaseRequests", requestId);
       await updateDoc(requestRef, { lotId: null, status: "approved" });
@@ -1611,7 +1720,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addRequestToLot = async (requestId: string, lotId: string) => {
-    checkAuthAndRole(["operations", "super-admin"]);
+    if (!can('lots:edit')) throw new Error('No tienes permiso para editar lotes.');
     try {
       const requestRef = doc(db, "purchaseRequests", requestId);
       await updateDoc(requestRef, { lotId, status: "batched" });
@@ -1623,7 +1732,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createLot = async (lotName: string) => {
-    checkAuthAndRole(["operations", "super-admin"]);
+    if (!can('lots:create')) throw new Error('No tienes permiso para crear lotes.');
     try {
       const newLotId = `manual-${lotName.replace(/\s/g, "-").toLowerCase()}-${nanoid(4)
         }`;
@@ -1639,7 +1748,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   };
 
  const deleteLot = async (lotId: string) => {
-    checkAuthAndRole(["operations", "super-admin"]);
+    if (!can('lots:delete')) throw new Error('No tienes permiso para eliminar lotes.');
     try {
         const batch = writeBatch(db);
         
@@ -1672,6 +1781,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     materialCategories,
     units,
     requests,
+    returnRequests,
     toolLogs,
     attendanceLogs,
     purchaseRequests,
@@ -1684,8 +1794,11 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     safetyInspections,
     behaviorObservations,
     tenants,
+    roles,
     currentTenantId,
     setCurrentTenantId,
+    can,
+    updateRolePermissions,
     addTenant,
     deleteTenant,
     addTool,
@@ -1696,7 +1809,9 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateUser,
     deleteUser,
     addRequest,
+    addReturnRequest,
     approveRequest,
+    approveReturnRequest,
     checkoutTool,
     returnTool,
     findActiveLogForTool,
@@ -1749,7 +1864,7 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
 }
 
 const AuthContext = React.createContext<{
-  user: (User & { fb: FirebaseAuthUser }) | null;
+  user: (User & { fb: FirebaseAuthUser, permissions: Permission[] }) | null;
   authLoading: boolean;
   login: (email: string, pass: string) => Promise<any>;
   logout: () => Promise<any>;
@@ -1759,7 +1874,7 @@ const AuthContext = React.createContext<{
 } | null>(null);
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = React.useState<(User & { fb: FirebaseAuthUser }) | null>(null);
+  const [user, setUser] = React.useState<(User & { fb: FirebaseAuthUser, permissions: Permission[] }) | null>(null);
   const [authLoading, setAuthLoading] = React.useState(true);
   const { toast } = useToast();
 
@@ -1770,20 +1885,27 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         if (firebaseUser) {
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userDoc = await getDoc(userDocRef);
+
           if (userDoc.exists()) {
-            // If the user document has a temporary ID, update it with the real auth UID
-            if (userDoc.data().id !== firebaseUser.uid) {
+            const userData = userDoc.data() as User;
+            const rolesRef = collection(db, "roles");
+            const rolesSnapshot = await getDocs(rolesRef);
+            const rolesData = rolesSnapshot.docs.reduce((acc, doc) => {
+              acc[doc.id] = doc.data();
+              return acc;
+            }, {} as any);
+            const permissions = rolesData[userData.role]?.capabilities || [];
+
+            if (userData.id !== firebaseUser.uid) {
                 await updateDoc(userDocRef, { id: firebaseUser.uid, qrCode: `USER-${firebaseUser.uid}` });
             }
-            setUser({ ...(userDoc.data() as User), id: firebaseUser.uid, fb: firebaseUser });
+            setUser({ ...userData, id: firebaseUser.uid, fb: firebaseUser, permissions });
           } else {
-             // This can happen if an invited user is completing registration
              const userQuery = query(collection(db, "users"), where("email", "==", firebaseUser.email));
              const userSnapshot = await getDocs(userQuery);
              if (!userSnapshot.empty) {
                  const invitedUserDoc = userSnapshot.docs[0];
                  const invitedUserRef = doc(db, "users", invitedUserDoc.id);
-                 // We need to delete the old doc and create a new one with the correct ID (auth UID)
                  const batch = writeBatch(db);
                  batch.delete(invitedUserRef);
                  
@@ -1792,12 +1914,19 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
                  batch.set(newUserRef, { ...userData, id: firebaseUser.uid, qrCode: `USER-${firebaseUser.uid}` });
                  
                  await batch.commit();
-                 setUser({ ...(userData as User), id: firebaseUser.uid, fb: firebaseUser });
+                 const rolesRef = collection(db, "roles");
+                 const rolesSnapshot = await getDocs(rolesRef);
+                 const rolesData = rolesSnapshot.docs.reduce((acc, doc) => {
+                   acc[doc.id] = doc.data();
+                   return acc;
+                 }, {} as any);
+                 const permissions = rolesData[userData.role]?.capabilities || [];
+                 setUser({ ...(userData as User), id: firebaseUser.uid, fb: firebaseUser, permissions });
 
              } else {
                 setUser(null);
                 console.error("No user document found in Firestore for UID:", firebaseUser.uid);
-                await signOut(auth); // Sign out if no user profile
+                await signOut(auth);
              }
           }
         } else {
@@ -1805,11 +1934,21 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err: any) {
         console.error("Auth state change error:", err);
-        toast({
-          variant: "destructive",
-          title: "Error de autenticación",
-          description: "No se pudo verificar tu sesión. " + err.message,
-        });
+        if (err.code === 'unavailable') {
+            toast({
+              variant: "destructive",
+              title: "Error de Conexión",
+              description: "No se pudo conectar a la base de datos. Revisa tu conexión a internet.",
+              duration: 10000,
+            });
+        } else {
+            toast({
+              variant: "destructive",
+              title: "Error de autenticación",
+              description: "No se pudo verificar tu sesión. " + err.message,
+            });
+        }
+        setUser(null); // Ensure user is logged out on error
       } finally {
         setAuthLoading(false);
       }
@@ -1844,6 +1983,16 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 function AppProviders({ children }: { children: React.ReactNode }) {
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
+    return null; // or a basic loading skeleton
+  }
+
   return (
     <AuthProvider>
       <AppStateProvider>{children}</AppStateProvider>

@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import dynamic from 'next/dynamic';
 import { useAppState } from "@/contexts/app-provider";
 import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/page-header";
@@ -16,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Table,
   TableBody,
@@ -50,6 +50,7 @@ import type { SupplierPayment, Supplier } from "@/lib/data";
 import { MarkAsPaidDialog } from "@/components/admin/mark-as-paid-dialog";
 import { EditPaymentForm } from "@/components/admin/edit-payment-form";
 
+const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 type PaymentStatus = "pending" | "paid" | "overdue";
 

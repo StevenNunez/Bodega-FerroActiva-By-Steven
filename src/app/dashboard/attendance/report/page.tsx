@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
+import dynamic from 'next/dynamic';
 import { PageHeader } from "@/components/page-header";
 import {
   Card,
@@ -26,7 +27,7 @@ import {
   Check,
   PlusCircle,
 } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
+
 import {
   format,
   startOfWeek,
@@ -63,6 +64,8 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { EditAttendanceLogDialog } from "@/components/admin/edit-attendance-log-dialog";
+
+const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 interface DailySummary {
   date: string;

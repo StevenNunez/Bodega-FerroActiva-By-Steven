@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -52,7 +51,7 @@ export default function ManualStockEntryPage() {
     try {
       await addManualStockEntry(data.materialId, data.quantity, data.justification);
       toast({ title: "Éxito", description: "El ingreso de stock ha sido registrado correctamente." });
-      reset({ materialId: undefined, quantity: undefined, justification: "" });
+      reset({ materialId: undefined, quantity: 0, justification: "" });
     } catch (error) {
       toast({
         variant: "destructive",
@@ -66,13 +65,13 @@ export default function ManualStockEntryPage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Ingreso Manual de Stock"
-        description="Registra el ingreso de stock para materiales que ya existen en el inventario."
+        description="Registra el ingreso de stock para materiales existentes que no provienen de una orden de compra."
       />
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Registrar Ingreso</CardTitle>
+          <CardTitle>Registrar Ingreso Manual</CardTitle>
           <CardDescription>
-            Selecciona un material, indica la cantidad que ingresa a bodega y una justificación (ej: "sobrante de obra X", "devolución de proveedor Y").
+            Selecciona un material, indica la cantidad que ingresa a bodega y una justificación clara del movimiento.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -148,7 +147,7 @@ export default function ManualStockEntryPage() {
               <Label htmlFor="justification">Justificación del Ingreso</Label>
               <Textarea
                 id="justification"
-                placeholder="Ej: Devolución de obra 'Torre A', excedente de la semana."
+                placeholder="Ej: Ajuste de inventario, encontrado en bodega."
                 {...register("justification")}
               />
               {errors.justification && (

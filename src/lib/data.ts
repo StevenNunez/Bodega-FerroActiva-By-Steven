@@ -71,6 +71,22 @@ export interface MaterialRequest {
   tenantId: string;
 }
 
+export interface ReturnRequest {
+    id: string;
+    items: {
+        materialId: string;
+        quantity: number;
+    }[];
+    justification: string;
+    supervisorId: string;
+    status: "pending" | "approved";
+    createdAt: Date | Timestamp;
+    approvedAt?: Date | Timestamp | null;
+    approvedBy?: string | null;
+    tenantId: string;
+}
+
+
 export type PurchaseRequestStatus = "pending" | "approved" | "rejected" | "received" | "ordered" | "batched";
 
 export const PURCHASE_UNITS = ["un", "kg", "gl", "m", "m2", "m3", "L", "caja", "saco"];

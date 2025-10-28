@@ -1,258 +1,238 @@
 
-'use client';
-import React, { useEffect, useState } from 'react';
-import { useForm, SubmitHandler, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useAppState, useAuth } from '@/contexts/app-provider';
-import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Loader2, Save, ChevronsUpDown, Check } from 'lucide-react';
-import { Material, Supplier, MaterialCategory, Unit } from '@/lib/data';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
-import { cn } from '@/lib/utils';
-import { Switch } from '../ui/switch';
+"use client";
 
-const FormSchema = z.object({
-  name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  stock: z.coerce.number().min(0, 'El stock no puede ser negativo.'),
-  unit: z.string({ required_error: 'La unidad no puede estar vacía.' }).min(1, 'La unidad no puede estar vacía.'),
-  category: z.string({ required_error: 'Debes seleccionar una categoría.' }),
+import React, { useState, useEffect, useCallback } from "react";
+import { useForm, SubmitHandler, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
+import { ChevronsUpDown, Check, Loader2, Save } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useAppState } from "@/contexts/app-provider";
+import { cn } from "@/lib/utils";
+import { Material } from "@/lib/data";
+
+const formSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  unit: z.string().min(1, "Selecciona una unidad"),
+  category: z.string().optional(),
   supplierId: z.string().nullable(),
-  archived: z.boolean(),
 });
 
-type FormData = z.infer<typeof FormSchema>;
+type FormData = z.infer<typeof formSchema>;
 
 interface EditMaterialFormProps {
-    material: Material;
-    isOpen: boolean;
-    onClose: () => void;
+  isOpen: boolean;
+  onClose: () => void;
+  material: Material;
 }
 
-export function EditMaterialForm({ material, isOpen, onClose }: EditMaterialFormProps) {
-  const { updateMaterial, suppliers, materialCategories, units } = useAppState();
-  const { user } = useAuth();
+export function EditMaterialForm({
+  isOpen,
+  onClose,
+  material,
+}: EditMaterialFormProps) {
   const { toast } = useToast();
+  const { updateMaterial, units, materialCategories, suppliers } = useAppState();
   const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
-
-  const canEditStock = user?.role === 'admin' || user?.role === 'operations' || user?.role === 'super-admin';
-
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
     handleSubmit,
+    setValue,
     control,
     reset,
-    watch,
-    setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(FormSchema),
+    resolver: zodResolver(formSchema),
   });
 
   useEffect(() => {
-      if(material) {
-          reset({
-            name: material.name,
-            stock: material.stock,
-            unit: material.unit,
-            category: material.category,
-            supplierId: material.supplierId || null,
-            archived: material.archived || false,
-          });
-      }
-  }, [material, reset]);
-
-  const onSubmit: SubmitHandler<FormData> = async (data) => {
-    try {
-      await updateMaterial(material.id, {
-          ...data,
-          supplierId: data.supplierId === 'ninguno' ? null : data.supplierId
-      });
-      toast({
-        title: 'Material Actualizado',
-        description: `Los datos de ${data.name} han sido guardados.`,
-      });
-      onClose();
-    } catch (error) {
-       toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'No se pudo actualizar el material.',
+    if (material) {
+      reset({
+        name: material.name || "",
+        unit: material.unit || "",
+        category: material.category || "",
+        supplierId: material.supplierId || null,
       });
     }
-  };
-  
-    const categoryWatcher = watch('category');
+  }, [material, reset]);
 
+  const onSubmit: SubmitHandler<FormData> = useCallback(
+    async (data) => {
+      setIsSubmitting(true);
+      try {
+        await updateMaterial(material.id, {
+            ...data,
+            supplierId: data.supplierId === 'ninguno' ? null : data.supplierId,
+        });
+        toast({
+          title: "Material actualizado",
+          description: "Los cambios fueron guardados correctamente.",
+        });
+        onClose();
+      } catch (error) {
+        console.error(error);
+        toast({
+          title: "Error",
+          description: "No se pudo actualizar el material.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [material.id, toast, onClose, updateMaterial]
+  );
+  
+  const handleClose = () => {
+      reset();
+      onClose();
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[480px]" onInteractOutside={(e) => { e.preventDefault(); }}>
-            <DialogHeader>
-                <DialogTitle>Editar Material</DialogTitle>
-                <DialogDescription>
-                    Modifica los detalles del material. Haz clic en guardar cuando termines.
-                </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent
+        className="sm:max-w-md"
+        onInteractOutside={(e) => {
+          if (isSubmitting) e.preventDefault();
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>Editar Material</DialogTitle>
+          <DialogDescription>
+            Modifica los detalles del material. El stock no se puede cambiar aquí.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
+            <div className="space-y-2">
+                <Label htmlFor="name">Nombre</Label>
+                <Input id="name" {...register("name")} />
+                {errors.name && (
+                <p className="text-destructive text-sm mt-1">{errors.name.message}</p>
+                )}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="material-name">Nombre del Material</Label>
-                    <Input id="material-name" placeholder="Ej: Tornillos de 1 pulgada" {...register('name')} />
-                    {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="stock">Stock</Label>
-                        <Input id="stock" type="number" placeholder="Ej: 500" {...register('stock')} disabled={!canEditStock}/>
-                        {!canEditStock && <p className="text-xs text-muted-foreground">Solo Admins de Obra pueden editar stock.</p>}
-                        {errors.stock && <p className="text-xs text-destructive">{errors.stock.message}</p>}
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="unit">Unidad</Label>
-                         <Controller
-                          name="unit"
-                          control={control}
-                          render={({ field }) => (
-                            <Popover open={unitPopoverOpen} onOpenChange={setUnitPopoverOpen}>
-                              <PopoverTrigger asChild>
-                                <Button variant="outline" role="combobox" className="w-full justify-between">
-                                  <span className="truncate">{field.value || "Selecciona..."}</span>
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <Label>Unidad</Label>
+                    <Controller
+                        name="unit"
+                        control={control}
+                        render={({ field }) => (
+                        <Popover open={unitPopoverOpen} onOpenChange={setUnitPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-between"
+                                >
+                                {field.value || "Seleccionar..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                 <Command>
-                                  <CommandInput 
+                                <CommandInput 
                                     placeholder="Buscar o crear unidad..."
-                                    onValueChange={(currentValue) => {
-                                      setValue('unit', currentValue, { shouldValidate: true });
-                                    }}
                                     value={field.value || ''}
-                                  />
-                                  <CommandList>
+                                    onValueChange={(currentValue) => {
+                                        setValue('unit', currentValue, { shouldValidate: true });
+                                    }}
+                                />
+                                <CommandList>
                                     <CommandEmpty>
-                                      <Button className="w-full" variant="outline"
+                                    <Button className="w-full" variant="outline"
                                         onClick={() => {
-                                          setUnitPopoverOpen(false);
+                                        setUnitPopoverOpen(false);
                                         }}>
                                         Usar "{field.value}" como nueva unidad
-                                      </Button>
+                                    </Button>
                                     </CommandEmpty>
-                                    <CommandGroup>
-                                      {units.map((unit) => (
-                                        <CommandItem
-                                          key={unit.id}
-                                          value={unit.name}
-                                          onSelect={() => {
-                                            setValue("unit", unit.name, { shouldValidate: true });
-                                            setUnitPopoverOpen(false);
-                                          }}
-                                        >
-                                          <Check className={cn("mr-2 h-4 w-4", field.value === unit.name ? "opacity-100" : "opacity-0")} />
-                                          {unit.name}
-                                        </CommandItem>
-                                      ))}
-                                    </CommandGroup>
-                                  </CommandList>
+                                    {units.map((unit) => (
+                                    <CommandItem
+                                        key={unit.id}
+                                        value={unit.name}
+                                        onSelect={() => {
+                                        field.onChange(unit.name);
+                                        setUnitPopoverOpen(false);
+                                        }}
+                                    >
+                                        <Check className={cn("mr-2 h-4 w-4", field.value === unit.name ? "opacity-100" : "opacity-0")} />
+                                        {unit.name}
+                                    </CommandItem>
+                                    ))}
+                                </CommandList>
                                 </Command>
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                        />
-                        {errors.unit && <p className="text-xs text-destructive">{errors.unit.message}</p>}
-                    </div>
+                            </PopoverContent>
+                        </Popover>
+                        )}
+                    />
+                    {errors.unit && (
+                        <p className="text-destructive text-sm mt-1">{errors.unit.message}</p>
+                    )}
                 </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="category">Categoría del Material</Label>
-                    <Controller
+                 <div className="space-y-2">
+                    <Label htmlFor="category">Categoría</Label>
+                     <Controller
                         name="category"
                         control={control}
                         render={({ field }) => (
-                            <Select 
-                                onValueChange={(value) => {
-                                    const categoryName = materialCategories.find(c => c.id === value)?.name;
-                                    if(categoryName) {
-                                        field.onChange(categoryName);
-                                    }
-                                }} 
-                                value={materialCategories.find(c => c.name === field.value)?.id || ''}
-                            >
-                                <SelectTrigger id="category">
-                                    <SelectValue placeholder="Selecciona una categoría" />
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {materialCategories.map((cat: MaterialCategory) => (
-                                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                                    {materialCategories.map((cat) => (
+                                        <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         )}
                     />
-                    {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
                 </div>
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="supplierId">Proveedor Preferido (Opcional)</Label>
-                    <Controller
+            <div className="space-y-2">
+                <Label htmlFor="supplierId">Proveedor Preferido</Label>
+                <Controller
                     name="supplierId"
                     control={control}
                     render={({ field }) => (
-                        <Select onValueChange={field.onChange} value={field.value || ''}>
-                            <SelectTrigger id="supplierId">
-                                <SelectValue placeholder="Selecciona un proveedor de la lista" />
+                        <Select onValueChange={field.onChange} value={field.value || 'ninguno'}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar..." />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="ninguno">Ninguno</SelectItem>
-                                {suppliers.map((s: Supplier) => (
-                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                {suppliers.map((sup) => (
+                                    <SelectItem key={sup.id} value={sup.id}>{sup.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     )}
-                    />
-                    {errors.supplierId && <p className="text-xs text-destructive">{errors.supplierId.message}</p>}
-                </div>
-
-                 <div className="flex items-center space-x-2 pt-4">
-                    <Controller
-                        name="archived"
-                        control={control}
-                        render={({ field }) => (
-                            <Switch
-                                id="archived"
-                                checked={field.value}
-                                onCheckedChange={field.onChange}
-                            />
-                        )}
-                    />
-                    <Label htmlFor="archived">Archivado</Label>
-                 </div>
-
-
-                <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-                    <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                        <Save className="mr-2 h-4 w-4" />
-                        )}
-                        Guardar Cambios
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
+                />
+            </div>
+            
+            <DialogFooter className="pt-4">
+                <Button type="button" variant="outline" onClick={handleClose}>
+                    Cancelar
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar Cambios
+                </Button>
+            </DialogFooter>
+        </form>
+      </DialogContent>
     </Dialog>
   );
 }
-
-    

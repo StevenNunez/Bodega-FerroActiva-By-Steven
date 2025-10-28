@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -44,8 +43,7 @@ type CompatibleMaterialRequest = MaterialRequest & {
 };
 
 export default function AdminMaterialsPage() {
-  const { materials, purchaseRequests, users, requests, suppliers, isLoading, deleteMaterial, updateMaterial } = useAppState();
-  const { user: authUser } = useAuth(); // Asumiendo useAuth como en el anterior
+  const { materials, purchaseRequests, users, requests, suppliers, isLoading, deleteMaterial, updateMaterial, can } = useAppState();
   const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,17 +55,18 @@ export default function AdminMaterialsPage() {
   const materialMap = useMemo(() => new Map(materials.map((m) => [m.id, m])), [materials]);
 
   // Verificación de autenticación
-  if (!authUser || !authUser.id) {
-    toast({ variant: "destructive", title: "Error", description: "Usuario no autenticado." });
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <p className="text-destructive">Por favor, inicia sesión para continuar.</p>
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
   
-  const canCreate = authUser.role === 'admin' || authUser.role === 'bodega-admin' || authUser.role === 'operations' || authUser.role === 'super-admin';
-  const canDelete = authUser.role === 'admin' || authUser.role === 'super-admin';
+  const canCreate = can('materials:create');
+  const canEdit = can('materials:edit');
+  const canDelete = can('materials:delete');
+  const canArchive = can('materials:archive');
 
 
   // Estado de carga
@@ -202,7 +201,7 @@ export default function AdminMaterialsPage() {
         description="Administra el inventario de materiales de la bodega."
       />
 
-      {editingMaterial && (
+      {editingMaterial && canEdit && (
         <EditMaterialForm
           material={editingMaterial}
           isOpen={true}
@@ -282,11 +281,11 @@ export default function AdminMaterialsPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => setEditingMaterial(material)}>
+                                  {canEdit && <DropdownMenuItem onClick={() => setEditingMaterial(material)}>
                                     <Edit className="mr-2 h-4 w-4" />
                                     <span>Editar</span>
-                                  </DropdownMenuItem>
-                                  {!material.archived && material.stock === 0 && (
+                                  </DropdownMenuItem>}
+                                  {canArchive && !material.archived && material.stock === 0 && (
                                     <DropdownMenuItem onClick={() => handleArchiveMaterial(material)}>
                                         <Archive className="mr-2 h-4 w-4" />
                                         <span>Archivar</span>
@@ -458,5 +457,3 @@ export default function AdminMaterialsPage() {
     </div>
   );
 }
-
-    

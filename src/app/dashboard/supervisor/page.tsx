@@ -7,6 +7,8 @@ import React, { useState, useMemo } from "react";
 import { Wrench, PackageSearch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function SupervisorPage() {
   const { users, toolLogs, tools } = useAppState();

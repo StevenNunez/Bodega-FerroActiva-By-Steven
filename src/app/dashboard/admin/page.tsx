@@ -36,7 +36,7 @@ const formatCurrency = (value: number) => {
 
 
 export default function AdminPage() {
-  const { requests, users, materials, approveRequest, tools, supplierPayments, suppliers } = useAppState();
+  const { requests, users, materials, approveRequest, tools, supplierPayments, suppliers, can } = useAppState();
   const { toast } = useToast();  
   const materialMap = React.useMemo(() => new Map(materials.map(m => [m.id, m])), [materials]);
   const supplierMap = React.useMemo(() => new Map(suppliers.map(s => [s.id, s.name])), [suppliers]);
@@ -111,7 +111,7 @@ export default function AdminPage() {
                                             </ul>
                                             <p className="text-xs text-muted-foreground">Solicitado por: {supervisor?.name} para {req.area}</p>
                                         </div>
-                                        <Button size="sm" onClick={() => handleApprove(req.id)} className="w-full sm:w-auto self-end sm:self-center">Aprobar</Button>
+                                        {can('material_requests:approve') && <Button size="sm" onClick={() => handleApprove(req.id)} className="w-full sm:w-auto self-end sm:self-center">Aprobar</Button>}
                                     </li>
                                 )
                             })}

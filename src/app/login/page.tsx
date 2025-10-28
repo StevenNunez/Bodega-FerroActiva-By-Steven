@@ -105,13 +105,10 @@ export default function LoginPage() {
     }
   };
 
-  if (authLoading || user) { // Also show loading if user object exists to avoid flash of login page
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background text-foreground">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground mt-4">Cargando sesión...</p>
-      </main>
-    );
+  // If auth is loading, or user is already logged in, the DashboardLayout will show a loader.
+  // This page should just render its content.
+  if (authLoading || user) {
+    return null; // Render nothing, the layout will handle the loader/redirect
   }
 
   return (

@@ -35,6 +35,7 @@ import {
   Edit,
   AlertCircle,
   Search,
+  User,
   ChevronsUpDown,
 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
@@ -193,6 +194,7 @@ export default function AdminPurchaseRequestsPage() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseRequestStatus>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [applicantFilter, setApplicantFilter] = useState("");
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
@@ -237,8 +239,15 @@ export default function AdminPurchaseRequestsPage() {
             req.materialName.toLowerCase().includes(lowercasedTerm)
         );
     }
+    if (applicantFilter) {
+        const lowercasedTerm = applicantFilter.toLowerCase();
+        requests = requests.filter(req => {
+            const supervisorName = supervisorMap.get(req.supervisorId) || '';
+            return supervisorName.toLowerCase().includes(lowercasedTerm);
+        });
+    }
     return requests;
-  }, [purchaseRequests, statusFilter, searchTerm]);
+  }, [purchaseRequests, statusFilter, searchTerm, applicantFilter, supervisorMap]);
 
   const paginatedRequests = filteredRequests.slice(
     (page - 1) * itemsPerPage,
@@ -368,9 +377,23 @@ export default function AdminPurchaseRequestsPage() {
                             id="search-material"
                             type="search"
                             placeholder="Nombre del material..."
-                            className="pl-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
+                            className="pl-8 sm:w-full"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
+                 <div className="flex-grow">
+                  <Label htmlFor="applicant-filter">Filtrar por solicitante</Label>
+                   <div className="relative">
+                        <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            id="applicant-filter"
+                            type="search"
+                            placeholder="Nombre del solicitante..."
+                            className="pl-8 sm:w-full"
+                            value={applicantFilter}
+                            onChange={(e) => setApplicantFilter(e.target.value)}
                         />
                     </div>
                 </div>

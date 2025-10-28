@@ -35,6 +35,7 @@ import {
   ClipboardPaste,
   BarChart3,
   QrCode,
+  Undo2,
 } from 'lucide-react';
 
 import { useAppState, useAuth } from '@/contexts/app-provider';
@@ -43,86 +44,64 @@ import { Button } from '@/components/ui/button';
 import { differenceInDays, startOfDay } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 
-// --- Main Navigation Definitions ---
-const adminNavItems = [
-  { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen' },
-  { href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' },
-  { href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' },
-  { href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' },
-  { href: '/dashboard/admin/units', icon: Ruler, label: 'Unidades' },
-  { href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' },
-  { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes de Materiales', notificationKey: 'pendingMaterialRequests' },
-  { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' },
-  { href: '/dashboard/admin/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
-  { href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' },
+const allModules = [
+    { href: '/dashboard/admin', icon: Warehouse, label: 'Módulo de Bodega', permission: 'module_warehouse:view' },
+    { href: '/dashboard/users', icon: UserIcon, label: 'Módulo de Usuarios', permission: 'module_users:view' },
+    { href: '/dashboard/subscriptions', icon: DollarSign, label: 'Módulo de Suscripciones', permission: 'module_subscriptions:view' },
+    { href: '/dashboard/safety', icon: ShieldCheck, label: 'Módulo de Prevención', permission: 'module_safety:view' },
+    { href: '/dashboard/attendance', icon: CalendarCheck, label: 'Módulo de Asistencia', permission: 'module_attendance:view' },
+    { href: '/dashboard/payments', icon: DollarSign, label: 'Módulo de Pagos', permission: 'module_payments:view' },
+    { href: '/dashboard/reports', icon: BarChart3, label: 'Módulo de Reportes', permission: 'module_reports:view' },
+    { href: '/dashboard/admin/permissions', icon: ListChecks, label: 'Gestión de Permisos', permission: 'module_permissions:view' },
 ];
 
-const supervisorNavItems = [
-  { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Resumen' },
-  { href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' },
-  { href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
-  { href: '/dashboard/supervisor/suppliers', icon: Briefcase, label: 'Proveedores' },
-  { href: '/dashboard/supervisor/categories', icon: FolderTree, label: 'Categorías' },
-];
+const warehouseNavItems = (can: (p: any) => boolean) => {
+    const items = [];
+    // General
+    if(can('module_warehouse:view')) items.push({ href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen Bodega' });
+    // Herramientas
+    if (can('tools:create')) items.push({ href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' });
+    // Materiales
+    if (can('materials:create')) items.push({ href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' });
+    if (can('stock:add_manual')) items.push({ href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' });
+    if (can('stock:add_manual')) items.push({ href: '/dashboard/admin/return-requests', icon: Undo2, label: 'Gestionar Devoluciones', notificationKey: 'pendingReturnRequests' });
+    // Solicitudes
+    if (can('material_requests:view_all')) items.push({ href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes Materiales', notificationKey: 'pendingMaterialRequests' });
+    if (can('purchase_requests:view_all')) items.push({ href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes Compra' });
+    // Compras
+    if (can('lots:create')) items.push({ href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' });
+    if (can('orders:create')) items.push({ href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' });
+    // Config
+    if (can('units:create')) items.push({ href: '/dashboard/admin/units', icon: Ruler, label: 'Unidades' });
+    if (can('categories:create')) items.push({ href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' });
+    if (can('suppliers:create')) items.push({ href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' });
+    
+    // Supervisor specific
+    if (can('material_requests:create')) {
+        items.push({ href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' });
+        items.push({ href: '/dashboard/supervisor/return-request', icon: Undo2, label: 'Devolver Material' });
+    }
+    if (can('purchase_requests:create')) items.push({ href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' });
 
-const aprNavItems = [
-  { href: '/dashboard/apr', icon: LayoutDashboard, label: 'Resumen' },
-  { href: '/dashboard/apr/request', icon: PlusCircle, label: 'Solicitar Materiales' },
-  { href: '/dashboard/apr/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' },
-  { href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' },
-];
+    // Worker specific
+    if (can('tools:view_own')) items.push({ href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' });
 
-const workerNavItems = [
-  { href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' },
-];
-
-const operationsNavItems = [
-    { href: '/dashboard/operations', icon: Briefcase, label: 'Gestión de Compras', notificationKey: 'pendingPurchaseRequests' },
-    { href: '/dashboard/operations/request', icon: PlusCircle, label: 'Solicitar Materiales' },
-    { href: '/dashboard/operations/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' },
-    { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
-    { href: '/dashboard/operations/units', icon: Ruler, label: 'Unidades' },
-    { href: '/dashboard/operations/categories', icon: FolderTree, label: 'Categorías' },
-    { href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' },
-    { href: '/dashboard/operations/suppliers', icon: Briefcase, label: 'Proveedores' },
-];
-
-const financeNavItems = [
-  // This role only sees the Payments module from the main hub
-];
-
-const superAdminNavItems = [
-  { href: '/dashboard/admin', icon: LayoutDashboard, label: 'Admin Resumen' },
-  { href: '/dashboard/operations', icon: Briefcase, label: 'Admin Obra Resumen' },
-  { href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Supervisor Resumen' },
-  { href: '/dashboard/apr', icon: LayoutDashboard, label: 'APR Resumen' },
-  { href: '/dashboard/worker', icon: Wrench, label: 'Colaborador Panel' },
-  { href: '/dashboard/admin/tools', icon: Wrench, label: 'Gestión de Herramientas' },
-  { href: '/dashboard/admin/materials', icon: Package, label: 'Gestión de Materiales' },
-  { href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' },
-  { href: '/dashboard/operations/orders', icon: FileText, label: 'Gestión de Órdenes' },
-  { href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes Materiales' },
-  { href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes Compra' },
-];
+    // Remove duplicates by href
+    const uniqueItems = Array.from(new Map(items.map(item => [item.href, item])).values());
+    return uniqueItems;
+}
 
 
-const mainNavItemsByRole = {
-  admin: adminNavItems,
-  supervisor: supervisorNavItems,
-  worker: workerNavItems,
-  operations: operationsNavItems,
-  apr: aprNavItems,
-  finance: financeNavItems,
-  'super-admin': superAdminNavItems, 
-  'bodega-admin': adminNavItems, // Jefe de Bodega uses the same nav as admin
-  guardia: [{ href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' }], 
+const usersNavItems = (can: (p: any) => boolean) => {
+    const items = [];
+    if(can('users:view')) {
+      items.push({ href: '/dashboard/users', icon: Users, label: 'Lista de Usuarios' });
+    }
+    if(can('users:create')) { // Assuming printing QRs requires creation permission
+       items.push({ href: '/dashboard/users/print-qrs', icon: QrCode, label: 'Imprimir Credenciales' });
+    }
+    return items;
 };
-
-// --- Sub-Module Navigation Definitions ---
-const usersNavItems = [
-    { href: '/dashboard/users', icon: Users, label: 'Lista de Usuarios' },
-    { href: '/dashboard/users/print-qrs', icon: QrCode, label: 'Imprimir Credenciales' },
-];
 
 const attendanceNavItems = [
     { href: '/dashboard/attendance/registry', icon: CalendarCheck, label: 'Registro de Asistencia' },
@@ -131,11 +110,13 @@ const attendanceNavItems = [
     { href: '/dashboard/attendance/overtime', icon: Clock, label: 'Horas Extras' },
 ];
 
-const paymentsNavItems = [
-    { href: '/dashboard/payments', icon: LayoutDashboard, label: 'Resumen de Pagos', notificationKey: 'paymentNotifications' },
-    { href: '/dashboard/payments/pago-facturas', icon: DollarSign, label: 'Pago Facturas' },
-    { href: '/dashboard/payments/suppliers', icon: Briefcase, label: 'Proveedores' },
-];
+const paymentsNavItems = (can: (p:any) => boolean) => {
+    const items = [];
+    if (can('payments:view')) items.push({ href: '/dashboard/payments', icon: LayoutDashboard, label: 'Resumen de Pagos', notificationKey: 'paymentNotifications' });
+    if (can('payments:create')) items.push({ href: '/dashboard/payments/pago-facturas', icon: DollarSign, label: 'Pago Facturas' });
+    if (can('suppliers:view')) items.push({ href: '/dashboard/payments/suppliers', icon: Briefcase, label: 'Proveedores' });
+    return items;
+};
 
 const reportsNavItems = [
     { href: '/dashboard/reports/stats', icon: BarChart3, label: 'Estadísticas de Consumo' },
@@ -147,28 +128,35 @@ const subscriptionsNavItems = [
 ];
 
 const permissionsNavItems = [
-    { href: '/dashboard/permissions', icon: ListChecks, label: 'Gestión de Permisos' },
-]
+    { href: '/dashboard/admin/permissions', icon: ListChecks, label: 'Gestión de Permisos' },
+];
 
-const safetyNavItems = (role: string) => {
-    const items = [
-        { href: '/dashboard/safety', icon: LayoutDashboard, label: 'Resumen' }
-    ];
-    
-    if (['apr', 'admin', 'operations', 'super-admin'].includes(role)) {
-        items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Inspección de Seguridad'});
-        items.push({ href: '/dashboard/safety/behavior-observation', icon: ClipboardPaste, label: 'Observación de Conducta' });
+const safetyNavItems = (can: (p: any) => boolean) => {
+    const items = [];
+    if (can('safety_inspections:create') || can('safety_observations:create')) {
+        items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Nueva Inspección'});
+        items.push({ href: '/dashboard/safety/behavior-observation', icon: ClipboardPaste, label: 'Nueva Observación' });
     }
 
-    if (role === 'apr' || role === 'admin' || role === 'super-admin') {
+    if (can('safety_templates:create')) {
         items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas'});
+    }
+     if (can('safety_checklists:review')) {
         items.push({ href: '/dashboard/safety/review-checklists', icon: ShieldCheck, label: 'Revisar Checklists'});
+     }
+      if (can('safety_inspections:review')) {
         items.push({ href: '/dashboard/safety/review-inspections', icon: ShieldCheck, label: 'Revisar Inspecciones' });
         items.push({ href: '/dashboard/safety/review-observations', icon: ShieldCheck, label: 'Revisar Observaciones' });
-    }
-    if (['admin', 'supervisor', 'operations', 'apr', 'super-admin'].includes(role)) {
+      }
+    if (can('safety_checklists:complete')) {
          items.push({ href: '/dashboard/safety/assigned-checklists', icon: ListChecks, label: 'Mis Checklists' });
-         items.push({ href: '/dashboard/safety/assigned-inspections', icon: ShieldCheck, label: 'Mis Inspecciones' });
+    }
+     if (can('safety_inspections:complete')) {
+        items.push({ href: '/dashboard/safety/assigned-inspections', icon: ShieldCheck, label: 'Mis Inspecciones' });
+    }
+    // Add summary last if there are other items
+    if(items.length > 0) {
+      items.unshift({ href: '/dashboard/safety', icon: LayoutDashboard, label: 'Resumen' });
     }
     return items;
 };
@@ -180,14 +168,13 @@ interface SidebarProps {
 
 export function Sidebar({ onLinkClick }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { user, logout } = useAuth();
-  const { requests, purchaseRequests, supplierPayments } = useAppState();
+  const { user } = useAuth();
+  const { requests, purchaseRequests, supplierPayments, returnRequests, can } = useAppState();
   
   const today = startOfDay(new Date());
 
   const paymentNotifications = React.useMemo(() => {
-    return supplierPayments.filter(p => {
+    return (supplierPayments || []).filter(p => {
         if (p.status === 'paid') return false;
         const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
         const daysLeft = differenceInDays(dueDate, today);
@@ -196,34 +183,16 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
   }, [supplierPayments, today]);
 
 
-  const pendingMaterialRequests = React.useMemo(() => requests.filter(r => r.status === 'pending').length, [requests]);
-  const pendingPurchaseRequests = React.useMemo(() => purchaseRequests.filter(pr => pr.status === 'pending').length, [purchaseRequests]);
+  const pendingMaterialRequests = React.useMemo(() => (requests || []).filter(r => r.status === 'pending').length, [requests]);
+  const pendingReturnRequests = React.useMemo(() => (returnRequests || []).filter(r => r.status === 'pending').length, [returnRequests]);
+  const pendingPurchaseRequests = React.useMemo(() => (purchaseRequests || []).filter(pr => pr.status === 'pending').length, [purchaseRequests]);
   
   const notificationCounts = {
     pendingMaterialRequests,
+    pendingReturnRequests,
     pendingPurchaseRequests,
     paymentNotifications,
   };
-
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
-
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Administrador de App';
-      case 'bodega-admin': return 'Jefe de Bodega';
-      case 'supervisor': return 'Supervisor';
-      case 'worker': return 'Colaborador';
-      case 'operations': return 'Administrador de Obra';
-      case 'apr': return 'APR';
-      case 'guardia': return 'Guardia';
-      case 'finance': return 'Jefe de Adm. y Finanzas';
-      case 'super-admin': return 'Super Administrador';
-      default: return 'Usuario';
-    }
-  }
 
   const handleLinkClick = () => {
     if (onLinkClick) {
@@ -233,34 +202,41 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
   
   const { currentNavItems, isSubModule, moduleTitle } = React.useMemo(() => {
     if (!user) return { currentNavItems: [], isSubModule: false, moduleTitle: '' };
-
-    const roleNav = mainNavItemsByRole[user.role as keyof typeof mainNavItemsByRole] || [];
     
+    let navItems: { href: string; icon: React.ElementType; label: string; notificationKey?: string }[] = [];
+    let title = '';
+    let isModule = true;
+
     if (pathname.startsWith('/dashboard/users')) {
-        return { currentNavItems: usersNavItems, isSubModule: true, moduleTitle: 'Módulo de Usuarios' };
-    }
-     if (pathname.startsWith('/dashboard/permissions')) {
-        return { currentNavItems: permissionsNavItems, isSubModule: true, moduleTitle: 'Módulo de Permisos' };
-    }
-    if (pathname.startsWith('/dashboard/attendance')) {
-        return { currentNavItems: attendanceNavItems, isSubModule: true, moduleTitle: 'Módulo de Asistencia' };
-    }
-    if (pathname.startsWith('/dashboard/safety')) {
-        return { currentNavItems: safetyNavItems(user.role), isSubModule: true, moduleTitle: 'Prevención de Riesgos' };
-    }
-     if (pathname.startsWith('/dashboard/payments')) {
-        return { currentNavItems: paymentsNavItems, isSubModule: true, moduleTitle: 'Módulo de Pagos' };
-    }
-     if (pathname.startsWith('/dashboard/reports')) {
-        return { currentNavItems: reportsNavItems, isSubModule: true, moduleTitle: 'Estadísticas y Reportes' };
-    }
-    if (pathname.startsWith('/dashboard/subscriptions')) {
-        return { currentNavItems: subscriptionsNavItems, isSubModule: true, moduleTitle: 'Módulo de Suscripciones' };
+        navItems = usersNavItems(can);
+        title = 'Módulo de Usuarios';
+    } else if (pathname.startsWith('/dashboard/admin/permissions')) {
+        navItems = permissionsNavItems;
+        title = 'Módulo de Permisos';
+    } else if (pathname.startsWith('/dashboard/attendance')) {
+        navItems = attendanceNavItems;
+        title = 'Módulo de Asistencia';
+    } else if (pathname.startsWith('/dashboard/safety')) {
+        navItems = safetyNavItems(can);
+        title = 'Prevención de Riesgos';
+    } else if (pathname.startsWith('/dashboard/payments')) {
+        navItems = paymentsNavItems(can);
+        title = 'Módulo de Pagos';
+    } else if (pathname.startsWith('/dashboard/reports')) {
+        navItems = reportsNavItems;
+        title = 'Estadísticas y Reportes';
+    } else if (pathname.startsWith('/dashboard/subscriptions')) {
+        navItems = subscriptionsNavItems;
+        title = 'Módulo de Suscripciones';
+    } else {
+        isModule = false;
+        navItems = warehouseNavItems(can);
+        title = 'Portal de Módulos';
     }
     
-    return { currentNavItems: roleNav, isSubModule: false, moduleTitle: '' };
+    return { currentNavItems: navItems, isSubModule: isModule, moduleTitle: title };
 
-  }, [pathname, user]);
+  }, [pathname, user, can]);
   
 
   return (
@@ -269,7 +245,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold" onClick={handleLinkClick}>
              {isSubModule ? <ArrowLeft className="h-6 w-6 text-primary" /> : <Warehouse className="h-6 w-6 text-primary" />}
-            <span className="">{isSubModule ? moduleTitle : "Portal de Módulos"}</span>
+            <span className="">{isSubModule ? moduleTitle : "Módulo Principal"}</span>
           </Link>
         </div>
         <div className="flex-1 overflow-auto py-2">
@@ -298,16 +274,6 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
                 </Link>
             )})}
           </nav>
-        </div>
-        <div className="mt-auto p-4 border-t">
-           <div className='p-2 mb-2 rounded-lg bg-muted'>
-              <p className='text-sm font-semibold'>{user?.name}</p>
-              <p className='text-xs text-muted-foreground'>{user ? getRoleDisplayName(user.role) : ''}</p>
-          </div>
-          <Button variant="ghost" className="w-full justify-start gap-3 px-3" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" />
-            Cerrar Sesión
-          </Button>
         </div>
       </div>
     </>

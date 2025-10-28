@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth, useAppState } from "@/contexts/app-provider";
 import { Sidebar } from "@/components/sidebar";
-import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users } from "lucide-react";
+import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -17,16 +17,22 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal
 } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { differenceInDays, startOfDay } from 'date-fns';
 import { Timestamp } from "firebase/firestore";
+import { UserRole } from "@/lib/data";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, authLoading } = useAuth();
+  const { user, authLoading, logout } = useAuth();
   const { 
     requests, 
     purchaseRequests, 
@@ -40,9 +46,37 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(false);
+  const [isClient, setIsClient] = React.useState(false);
 
   const showSidebar = pathname !== "/dashboard";
   const today = startOfDay(new Date());
+
+  React.useEffect(() => {
+    setIsClient(true);
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [user, authLoading, router]);
+
+  const getInitials = (name: string) => {
+    if (!name) return '??';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  }
+  
+  const getRoleDisplayName = (role: UserRole) => {
+    switch (role) {
+        case 'admin': return 'Administrador de App';
+        case 'bodega-admin': return 'Jefe de Bodega';
+        case 'supervisor': return 'Supervisor';
+        case 'worker': return 'Colaborador';
+        case 'operations': return 'Administrador de Obra';
+        case 'apr': return 'APR';
+        case 'guardia': return 'Guardia';
+        case 'finance': return 'Jefe de Adm. y Finanzas';
+        case 'super-admin': return 'Super Administrador';
+        default: return 'Usuario';
+    }
+  }
 
   const overduePayments = React.useMemo(() => supplierPayments.filter(p => {
     if (p.status === 'paid') return false;
@@ -104,14 +138,10 @@ export default function DashboardLayout({
     }
   }, [totalNotifications, playNotificationSound]);
 
-  React.useEffect(() => {
-    if (!authLoading && !user) router.replace("/login");
-  }, [user, authLoading, router]);
-
-  if (authLoading || !user) {
+  if (!isClient || authLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-2" role="alert">
+        <div className="flex flex-col items-center gap-2" role="status" aria-live="polite">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Cargando sesión...</p>
         </div>
@@ -150,32 +180,7 @@ export default function DashboardLayout({
 
           <div className="flex-1" />
 
-          <div className="flex items-center gap-4">
-             {user.role === 'super-admin' && (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="flex items-center gap-2">
-                            <Users className="h-4 w-4" />
-                            <span className="truncate max-w-[150px]">
-                                Viendo a: {tenants.find(t => t.id === currentTenantId)?.name || "Todos"}
-                            </span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                        <DropdownMenuLabel>Cambiar de Inquilino</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => setCurrentTenantId(null)}>
-                            Ver Todos los Inquilinos
-                        </DropdownMenuItem>
-                        {tenants.map(tenant => (
-                            <DropdownMenuItem key={tenant.id} onSelect={() => setCurrentTenantId(tenant.id)}>
-                                {tenant.name}
-                            </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-             )}
-
+          <div className="flex items-center gap-2">
              <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)}>
                   {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
                   <span className="sr-only">{isMuted ? 'Activar sonido' : 'Silenciar'}</span>
@@ -248,6 +253,57 @@ export default function DashboardLayout({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" size="icon" className="rounded-full">
+                  <Avatar>
+                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                  </Avatar>
+                  <span className="sr-only">Toggle user menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>
+                  <p className="font-semibold">{user.name}</p>
+                  <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
+                  <p className="text-xs text-primary font-medium pt-1">{getRoleDisplayName(user.role)}</p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                 {user.role === 'super-admin' && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Users className="mr-2 h-4 w-4" />
+                        <span>Cambiar Inquilino</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                           <DropdownMenuItem onSelect={() => setCurrentTenantId(null)}>
+                              Ver Todos los Inquilinos
+                          </DropdownMenuItem>
+                          {tenants.map(tenant => (
+                              <DropdownMenuItem key={tenant.id} onSelect={() => setCurrentTenantId(tenant.id)}>
+                                  {tenant.name}
+                              </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+                 )}
+                 <DropdownMenuItem asChild>
+                   <Link href="/dashboard/profile">
+                      <Users className="mr-2 h-4 w-4" />
+                      <span>Mi Perfil</span>
+                   </Link>
+                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Cerrar Sesión</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
            </div>
         </header>
         <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">{children}</main>

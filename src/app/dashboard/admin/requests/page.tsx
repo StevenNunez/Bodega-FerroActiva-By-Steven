@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, memo, useRef } from "react";
+import dynamic from 'next/dynamic';
 import { PageHeader } from "@/components/page-header";
 import { useAppState, useAuth } from "@/contexts/app-provider";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +22,8 @@ import { cn } from "@/lib/utils";
 import { debounce } from "lodash";
 import { format, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar } from "@/components/ui/calendar";
+
+const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 
 // Interfaces
@@ -150,7 +152,7 @@ const MaterialSelector = memo(
 
 // Componente principal
 export default function AdminRequestsPage() {
-  const { requests, materials, users, approveRequest, addRequest, loading } = useAppState();
+  const { requests, materials, users, approveRequest, addRequest, loading, can } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -210,14 +212,6 @@ export default function AdminRequestsPage() {
   // Aprobar solicitud
   const handleApprove = useCallback(
     async (requestId: string) => {
-      if (authUser?.role !== "admin") {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Solo los administradores pueden aprobar solicitudes.",
-        });
-        return;
-      }
       const req = requests.find((r) => r.id === requestId);
       if (req) {
         for (const item of req.items) {
@@ -235,7 +229,7 @@ export default function AdminRequestsPage() {
       setApprovingRequestId(requestId);
       setShowConfirmDialog(true);
     },
-    [authUser, requests, materialMap, toast]
+    [requests, materialMap, toast]
   );
 
   // Confirmar aprobación
@@ -249,7 +243,7 @@ export default function AdminRequestsPage() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.message || "No se pudo aprobar la solicitud.",
+        description: error.message || "No se pudo aprobar la solicitud.",
       });
     } finally {
       setIsSubmitting(false);
@@ -332,14 +326,6 @@ export default function AdminRequestsPage() {
           variant: "destructive",
           title: "Error",
           description: "Añade al menos un material y una justificación.",
-        });
-        return;
-      }
-      if (authUser.role !== "admin") {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Solo los administradores pueden registrar salidas.",
         });
         return;
       }
@@ -437,268 +423,266 @@ export default function AdminRequestsPage() {
         title="Gestión de Solicitudes de Materiales"
         description="Revisa y aprueba las solicitudes, o crea una nueva para justificar salidas de bodega."
       />
-      <div className="grid grid-cols-1 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Formulario de solicitud */}
-        <div>
-          <Card className="max-w-full rounded-lg shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Send className="h-5 w-5 text-primary" aria-hidden="true" />
-                Registrar Salida de Bodega
-              </CardTitle>
-              <CardDescription>Crea una solicitud con uno o más materiales para registrar su salida.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <form onSubmit={handleRequestSubmit}>
-                <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
-                  <h4 className="font-medium text-center">Añadir Material a la Solicitud</h4>
-                  {availableMaterials.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center text-muted-foreground py-4">
-                      <Package className="h-8 w-8 mb-2" aria-hidden="true" />
-                      <p className="text-sm">No hay materiales disponibles.</p>
-                    </div>
-                  ) : (
-                    <>
-                      <MaterialSelector
-                        materials={availableMaterials}
-                        currentMaterialId={currentMaterialId}
-                        setCurrentMaterialId={setCurrentMaterialId}
-                        isSubmitting={isSubmitting}
-                        popoverOpen={popoverOpen}
-                        setPopoverOpen={setPopoverOpen}
-                      />
-                      <div className="space-y-2">
-                        <Label htmlFor="quantity">Cantidad</Label>
-                        <Input
-                          id="quantity"
-                          type="number"
-                          placeholder="Ej: 10"
-                          value={currentQuantity}
-                          onChange={(e) => debouncedSetQuantity(e.target.value)}
-                          disabled={isSubmitting || !currentMaterialId}
-                          aria-describedby="quantity-error"
-                        />
-                        <span id="quantity-error" className="text-sm text-destructive hidden" aria-live="polite">
-                          Ingresa una cantidad válida mayor que 0.
-                        </span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-full"
-                        onClick={handleAddItemToCart}
-                        disabled={isSubmitting || !currentMaterialId || !currentQuantity}
-                        aria-label="Añadir material a la solicitud"
-                      >
-                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Añadir a la Solicitud
-                      </Button>
-                    </>
-                  )}
-                </div>
-
-                {cart.length > 0 && (
-                  <div className="space-y-2 mt-4">
-                    <div className="flex justify-between items-center">
-                      <Label>Materiales en la Solicitud</Label>
-                      <Badge variant="outline">
-                        {cartSummary.totalItems} ítems, {cartSummary.totalQuantity} unidades
-                      </Badge>
-                    </div>
-                    <ScrollArea
-                      className="h-40 w-full rounded-lg border p-2"
-                      role="region"
-                      aria-label="Lista de materiales en la solicitud"
-                    >
-                      <div className="space-y-2">
-                        {cart.map((item) => (
-                          <CartItemRow
-                            key={item.materialId}
-                            item={item}
-                            onRemove={handleRemoveItemFromCart}
-                          />
-                        ))}
-                      </div>
-                    </ScrollArea>
+        {can('material_requests:create') && (
+        <Card className="max-w-full rounded-lg shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Send className="h-5 w-5 text-primary" aria-hidden="true" />
+              Registrar Salida de Bodega
+            </CardTitle>
+            <CardDescription>Crea una solicitud con uno o más materiales para registrar su salida.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <form onSubmit={handleRequestSubmit}>
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/10">
+                <h4 className="font-medium text-center">Añadir Material a la Solicitud</h4>
+                {availableMaterials.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center text-muted-foreground py-4">
+                    <Package className="h-8 w-8 mb-2" aria-hidden="true" />
+                    <p className="text-sm">No hay materiales disponibles.</p>
                   </div>
-                )}
-
-                <div className="space-y-2 mt-4">
-                  <Label htmlFor="area">Área / Justificación General</Label>
-                  <Input
-                    id="area"
-                    placeholder="Ej: Reparaciones varias en taller"
-                    value={area}
-                    onChange={(e) => setArea(e.target.value)}
-                    disabled={isSubmitting}
-                    aria-describedby="area-error"
-                  />
-                  <span id="area-error" className="text-sm text-destructive hidden" aria-live="polite">
-                    Ingresa una justificación válida para la solicitud.
-                  </span>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full mt-4"
-                  disabled={isSubmitting || cart.length === 0}
-                  aria-label={`Registrar salida con ${cart.length} ítems`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      Registrando...
-                    </>
-                  ) : (
-                    `Registrar Salida (${cart.length} Ítems)`
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Historial de solicitudes */}
-        <div>
-          <Card className="max-w-full rounded-lg shadow-sm">
-            <CardHeader>
-              <CardTitle>Historial de Solicitudes</CardTitle>
-              <CardDescription>
-                Lista de todas las solicitudes de materiales, tanto pendientes como gestionadas.
-              </CardDescription>
-              <div className="flex flex-col sm:flex-row justify-end mt-2 gap-2">
-                 <Input 
-                    placeholder="Buscar por solicitante o área..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="max-w-sm"
-                 />
-                 <Popover>
-                    <PopoverTrigger asChild>
-                        <Button
-                            variant={"outline"}
-                            className={cn(
-                            "w-[280px] justify-start text-left font-normal",
-                            !selectedDate && "text-muted-foreground"
-                            )}
-                        >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, "PPP", {locale: es}) : <span>Selecciona una fecha</span>}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                        <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={setSelectedDate}
-                            initialFocus
-                        />
-                    </PopoverContent>
-                 </Popover>
-                <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | "pending" | "approved" | "rejected")}>
-                  <SelectTrigger className="w-[180px]" aria-label="Filtrar por estado">
-                    <SelectValue placeholder="Filtrar por estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="pending">Pendiente</SelectItem>
-                    <SelectItem value="approved">Aprobado</SelectItem>
-                    <SelectItem value="rejected">Rechazado</SelectItem>
-                  </SelectContent>
-                </Select>
-                {(filterStatus !== "all" || searchTerm !== "") && (
-                  <Button
-                    variant="outline"
-                    onClick={handleClearFilter}
-                    aria-label="Limpiar filtro de estado"
-                    className="flex items-center gap-2"
-                  >
-                    <XCircle className="h-4 w-4" aria-hidden="true" />
-                    Limpiar
-                  </Button>
+                ) : (
+                  <>
+                    <MaterialSelector
+                      materials={availableMaterials}
+                      currentMaterialId={currentMaterialId}
+                      setCurrentMaterialId={setCurrentMaterialId}
+                      isSubmitting={isSubmitting}
+                      popoverOpen={popoverOpen}
+                      setPopoverOpen={setPopoverOpen}
+                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="quantity">Cantidad</Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        placeholder="Ej: 10"
+                        value={currentQuantity}
+                        onChange={(e) => debouncedSetQuantity(e.target.value)}
+                        disabled={isSubmitting || !currentMaterialId}
+                        aria-describedby="quantity-error"
+                      />
+                      <span id="quantity-error" className="text-sm text-destructive hidden" aria-live="polite">
+                        Ingresa una cantidad válida mayor que 0.
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-full"
+                      onClick={handleAddItemToCart}
+                      disabled={isSubmitting || !currentMaterialId || !currentQuantity}
+                      aria-label="Añadir material a la solicitud"
+                    >
+                      <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Añadir a la Solicitud
+                    </Button>
+                  </>
                 )}
               </div>
-            </CardHeader>
-             <CardContent className="p-0">
-               <div className="overflow-x-auto">
-                 <Table className="min-w-[900px]">
-                  <TableHeader className="sticky top-0 bg-card z-10">
-                    <TableRow>
-                      <TableHead className="w-[280px] whitespace-nowrap">Ítems</TableHead>
-                      <TableHead className="w-[180px] whitespace-nowrap">Área/Proyecto</TableHead>
-                      <TableHead className="w-[160px] whitespace-nowrap">Solicitante</TableHead>
-                      <TableHead className="w-[120px] whitespace-nowrap">Fecha</TableHead>
-                      <TableHead className="w-[120px] whitespace-nowrap">Estado</TableHead>
-                      <TableHead className="w-[140px] text-right whitespace-nowrap">Acción</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredRequests.length > 0 ? (
-                        filteredRequests.map((req) => {
-                            const itemsToShow = (Array.isArray(req.items) && req.items.length > 0)
-                                ? req.items
-                                : (req.materialId && req.quantity ? [{ materialId: req.materialId, quantity: req.quantity }] : []);
 
-                            return (
-                          <TableRow
-                            key={req.id}
-                            data-testid={`request-row-${req.id}`}
-                            className="hover:bg-muted/50 transition-all duration-200"
-                          >
-                            <TableCell className="font-medium align-top whitespace-nowrap">
-                                <ul className="list-disc list-inside space-y-1">
-                                  {itemsToShow.map((item) => (
-                                    <li key={item.materialId} className="text-sm">
-                                      {item.quantity}x{" "}
-                                      {materialMap.get(item.materialId)?.name || "Material no encontrado"}
-                                    </li>
-                                  ))}
-                                </ul>
-                            </TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">{req.area || "N/A"}</TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">
-                              {userMap.get(req.supervisorId) || "Usuario no encontrado"}
-                            </TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">{formatTableDate(req.createdAt)}</TableCell>
-                            <TableCell className="whitespace-nowrap">{getStatusBadge(req.status)}</TableCell>
-                            <TableCell className="text-right whitespace-nowrap">
-                              {req.status === "pending" ? (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleApprove(req.id)}
-                                  disabled={isSubmitting && approvingRequestId === req.id}
-                                  aria-label={`Aprobar solicitud ${req.id}`}
-                                >
-                                  {isSubmitting && approvingRequestId === req.id ? (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                                  ) : (
-                                    "Aprobar"
-                                  )}
-                                </Button>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">Gestionada</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        )})
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} className="h-24 text-center">
-                            <div className="flex flex-col items-center justify-center text-muted-foreground">
-                              <Package className="h-8 w-8 mb-2" aria-hidden="true" />
-                              <p>
-                                No hay solicitudes que coincidan con los filtros.
-                              </p>
-                            </div>
+              {cart.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  <div className="flex justify-between items-center">
+                    <Label>Materiales en la Solicitud</Label>
+                    <Badge variant="outline">
+                      {cartSummary.totalItems} ítems, {cartSummary.totalQuantity} unidades
+                    </Badge>
+                  </div>
+                  <ScrollArea
+                    className="h-40 w-full rounded-lg border p-2"
+                    role="region"
+                    aria-label="Lista de materiales en la solicitud"
+                  >
+                    <div className="space-y-2">
+                      {cart.map((item) => (
+                        <CartItemRow
+                          key={item.materialId}
+                          item={item}
+                          onRemove={handleRemoveItemFromCart}
+                        />
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
+              <div className="space-y-2 mt-4">
+                <Label htmlFor="area">Área / Justificación General</Label>
+                <Input
+                  id="area"
+                  placeholder="Ej: Reparaciones varias en taller"
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                  disabled={isSubmitting}
+                  aria-describedby="area-error"
+                />
+                <span id="area-error" className="text-sm text-destructive hidden" aria-live="polite">
+                  Ingresa una justificación válida para la solicitud.
+                </span>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full mt-4"
+                disabled={isSubmitting || cart.length === 0}
+                aria-label={`Registrar salida con ${cart.length} ítems`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    Registrando...
+                  </>
+                ) : (
+                  `Registrar Salida (${cart.length} Ítems)`
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+        )}
+
+        {/* Historial de solicitudes */}
+        <Card className={`max-w-full rounded-lg shadow-sm ${!can('material_requests:create') ? 'lg:col-span-2' : ''}`}>
+          <CardHeader>
+            <CardTitle>Historial de Solicitudes</CardTitle>
+            <CardDescription>
+              Lista de todas las solicitudes de materiales, tanto pendientes como gestionadas.
+            </CardDescription>
+            <div className="flex flex-col sm:flex-row justify-end mt-2 gap-2">
+               <Input 
+                  placeholder="Buscar por solicitante o área..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-sm"
+               />
+               <Popover>
+                  <PopoverTrigger asChild>
+                      <Button
+                          variant={"outline"}
+                          className={cn(
+                          "w-[280px] justify-start text-left font-normal",
+                          !selectedDate && "text-muted-foreground"
+                          )}
+                      >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedDate ? format(selectedDate, "PPP", {locale: es}) : <span>Selecciona una fecha</span>}
+                      </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                      <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={setSelectedDate}
+                          initialFocus
+                      />
+                  </PopoverContent>
+               </Popover>
+              <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | "pending" | "approved" | "rejected")}>
+                <SelectTrigger className="w-[180px]" aria-label="Filtrar por estado">
+                  <SelectValue placeholder="Filtrar por estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="approved">Aprobado</SelectItem>
+                  <SelectItem value="rejected">Rechazado</SelectItem>
+                </SelectContent>
+              </Select>
+              {(filterStatus !== "all" || searchTerm !== "") && (
+                <Button
+                  variant="outline"
+                  onClick={handleClearFilter}
+                  aria-label="Limpiar filtro de estado"
+                  className="flex items-center gap-2"
+                >
+                  <XCircle className="h-4 w-4" aria-hidden="true" />
+                  Limpiar
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+           <CardContent className="p-0">
+             <div className="overflow-x-auto">
+               <Table className="min-w-[900px]">
+                <TableHeader className="sticky top-0 bg-card z-10">
+                  <TableRow>
+                    <TableHead className="w-[280px] whitespace-nowrap">Ítems</TableHead>
+                    <TableHead className="w-[180px] whitespace-nowrap">Área/Proyecto</TableHead>
+                    <TableHead className="w-[160px] whitespace-nowrap">Solicitante</TableHead>
+                    <TableHead className="w-[120px] whitespace-nowrap">Fecha</TableHead>
+                    <TableHead className="w-[120px] whitespace-nowrap">Estado</TableHead>
+                    <TableHead className="w-[140px] text-right whitespace-nowrap">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRequests.length > 0 ? (
+                      filteredRequests.map((req) => {
+                          const itemsToShow = (Array.isArray(req.items) && req.items.length > 0)
+                              ? req.items
+                              : (req.materialId && req.quantity ? [{ materialId: req.materialId, quantity: req.quantity }] : []);
+
+                          return (
+                        <TableRow
+                          key={req.id}
+                          data-testid={`request-row-${req.id}`}
+                          className="hover:bg-muted/50 transition-all duration-200"
+                        >
+                          <TableCell className="font-medium align-top whitespace-nowrap">
+                              <ul className="list-disc list-inside space-y-1">
+                                {itemsToShow.map((item) => (
+                                  <li key={item.materialId} className="text-sm">
+                                    {item.quantity}x{" "}
+                                    {materialMap.get(item.materialId)?.name || "Material no encontrado"}
+                                  </li>
+                                ))}
+                              </ul>
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{req.area || "N/A"}</TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {userMap.get(req.supervisorId) || "Usuario no encontrado"}
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">{formatTableDate(req.createdAt)}</TableCell>
+                          <TableCell className="whitespace-nowrap">{getStatusBadge(req.status)}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            {req.status === "pending" && can('material_requests:approve') ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleApprove(req.id)}
+                                disabled={isSubmitting && approvingRequestId === req.id}
+                                aria-label={`Aprobar solicitud ${req.id}`}
+                              >
+                                {isSubmitting && approvingRequestId === req.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                                ) : (
+                                  "Aprobar"
+                                )}
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Gestionada</span>
+                            )}
                           </TableCell>
                         </TableRow>
-                      )}
-                  </TableBody>
-                 </Table>
-               </div>
-            </CardContent>
-          </Card>
-        </div>
+                      )})
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-24 text-center">
+                          <div className="flex flex-col items-center justify-center text-muted-foreground">
+                            <Package className="h-8 w-8 mb-2" aria-hidden="true" />
+                            <p>
+                              No hay solicitudes que coincidan con los filtros.
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                </TableBody>
+               </Table>
+             </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Diálogo de confirmación */}

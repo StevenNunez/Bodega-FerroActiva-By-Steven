@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -29,12 +28,11 @@ const FormSchema = z.object({
 type FormData = z.infer<typeof FormSchema>;
 
 export function CreateMaterialForm() {
-  const { addMaterial, suppliers, materialCategories, units } = useAppState();
-  const { user } = useAuth();
+  const { addMaterial, suppliers, materialCategories, units, can } = useAppState();
   const { toast } = useToast();
   const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
   
-  const canSetInitialStock = user?.role === 'operations' || user?.role === 'super-admin';
+  const canSetInitialStock = can('stock:add_manual');
 
 
   const {

@@ -1,16 +1,41 @@
-
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/app-provider';
+import { useAuth, useAppState } from '@/contexts/app-provider';
 import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, ShieldCheck, BarChart3, ListChecks } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
 import { UserCredentialCard } from '@/components/user-credential-card';
+import type { Permission } from '@/lib/permissions';
+
+interface ModuleCardProps {
+  href: string;
+  icon: React.ElementType;
+  title: string;
+  description: string;
+}
+
+const ModuleCard: React.FC<ModuleCardProps> = ({ href, icon: Icon, title, description }) => (
+  <Link href={href} className="group">
+    <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
+      <CardHeader className="flex flex-row items-center gap-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-8 w-8 transition-transform group-hover:scale-110" />
+        </div>
+        <div>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription className="mt-1">{description}</CardDescription>
+        </div>
+      </CardHeader>
+    </Card>
+  </Link>
+);
+
 
 export default function DashboardHubPage() {
   const { user, authLoading } = useAuth();
+  const { can } = useAppState();
   const router = useRouter();
 
   React.useEffect(() => {
@@ -30,17 +55,6 @@ export default function DashboardHubPage() {
     );
   }
 
-  // Define role-specific warehouse dashboard paths
-  const warehouseDashboardPaths: { [key: string]: string } = {
-    admin: '/dashboard/admin',
-    'bodega-admin': '/dashboard/admin',
-    supervisor: '/dashboard/supervisor',
-    worker: '/dashboard/worker',
-    operations: '/dashboard/operations',
-    apr: '/dashboard/apr',
-    'super-admin': '/dashboard/admin'
-  };
-  
   // Special case for 'guardia' to redirect directly to the attendance module
   if (user.role === 'guardia') {
       router.replace('/dashboard/attendance/registry');
@@ -54,24 +68,29 @@ export default function DashboardHubPage() {
       );
   }
 
+  const warehouseDashboardPaths: { [key: string]: string } = {
+    admin: '/dashboard/admin',
+    'bodega-admin': '/dashboard/admin',
+    supervisor: '/dashboard/supervisor',
+    worker: '/dashboard/worker',
+    operations: '/dashboard/operations',
+    apr: '/dashboard/apr',
+    'super-admin': '/dashboard/admin'
+  };
   const warehousePath = warehouseDashboardPaths[user.role];
-  const attendancePath = '/dashboard/attendance/registry';
-  const profilePath = '/dashboard/profile';
-  const paymentsPath = '/dashboard/payments';
-  const safetyPath = '/dashboard/safety';
-  const reportsPath = '/dashboard/reports/stats';
-  const subscriptionsPath = '/dashboard/subscriptions';
-  const usersPath = '/dashboard/users';
-  const permissionsPath = '/dashboard/admin/permissions';
-  
-  const canSeeAttendance = ['admin', 'operations', 'super-admin'].includes(user.role);
-  const canSeePayments = ['admin', 'operations', 'finance', 'super-admin'].includes(user.role);
-  const canSeeSafety = ['admin', 'apr', 'supervisor', 'operations', 'super-admin'].includes(user.role);
-  const canSeeReports = ['admin', 'operations', 'apr', 'super-admin'].includes(user.role);
-  const canSeeSubscriptions = user.role === 'super-admin';
-  const canSeeUsers = ['admin', 'bodega-admin', 'apr', 'super-admin'].includes(user.role);
-  const canManagePermissions = user.role === 'super-admin' || user.role === 'operations';
 
+  const allModules: (ModuleCardProps & { permission: Permission })[] = [
+    { href: warehousePath, icon: Warehouse, title: "Módulo de Bodega", description: "Gestiona inventario, herramientas y solicitudes.", permission: 'module_warehouse:view' },
+    { href: '/dashboard/users', icon: UserIcon, title: "Módulo de Usuarios", description: "Gestiona los perfiles y roles de los trabajadores.", permission: 'module_users:view' },
+    { href: '/dashboard/subscriptions', icon: DollarSign, title: "Módulo de Suscripciones", description: "Gestiona los inquilinos (clientes) de la plataforma.", permission: 'module_subscriptions:view' },
+    { href: '/dashboard/safety', icon: ShieldCheck, title: "Módulo de Prevención", description: "Gestión de checklists, plantillas y revisiones de seguridad.", permission: 'module_safety:view' },
+    { href: '/dashboard/attendance', icon: CalendarCheck, title: "Módulo de Asistencia", description: "Control de entrada/salida de personal y reportes.", permission: 'module_attendance:view' },
+    { href: '/dashboard/payments', icon: DollarSign, title: "Módulo de Pagos", description: "Gestiona las facturas y pagos a proveedores.", permission: 'module_payments:view' },
+    { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza el consumo de materiales y genera informes.", permission: 'module_reports:view' },
+    { href: '/dashboard/admin/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'module_permissions:view' },
+  ];
+
+  const visibleModules = allModules.filter(module => can(module.permission));
 
   return (
     <div className="flex flex-col gap-8">
@@ -81,168 +100,12 @@ export default function DashboardHubPage() {
       />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-            
             <UserCredentialCard />
-
-            <Link href={profilePath} className="group">
-              <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <UserIcon className="h-8 w-8 transition-transform group-hover:scale-110" />
-                  </div>
-                  <div>
-                    <CardTitle>Módulo de Perfil</CardTitle>
-                    <CardDescription className="mt-1">
-                      Consulta tu información personal y de planilla.
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
+            <ModuleCard href="/dashboard/profile" icon={UserIcon} title="Mi Perfil" description="Consulta tu información personal y de planilla." />
             
-            {warehousePath && (
-              <Link href={warehousePath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                  <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Warehouse className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                      <CardTitle>Módulo de Bodega</CardTitle>
-                      <CardDescription className="mt-1">
-                        Gestiona inventario, herramientas, solicitudes y compras.
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                </Card>
-              </Link>
-            )}
-
-            {canSeeUsers && (
-              <Link href={usersPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                  <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <UserIcon className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                      <CardTitle>Módulo de Usuarios</CardTitle>
-                      <CardDescription className="mt-1">
-                        Gestiona los perfiles y roles de los trabajadores.
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                </Card>
-              </Link>
-            )}
-
-            {canSeeSubscriptions && (
-              <Link href={subscriptionsPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                  <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <DollarSign className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                      <CardTitle>Módulo de Suscripciones</CardTitle>
-                      <CardDescription className="mt-1">
-                        Gestiona los inquilinos (clientes) de la plataforma.
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                </Card>
-              </Link>
-            )}
-            
-            {canSeeSafety && (
-                <Link href={safetyPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <ShieldCheck className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Módulo de Prevención de Riesgos</CardTitle>
-                        <CardDescription className="mt-1">
-                        Gestión de checklists, plantillas y revisiones de seguridad.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
-            
-            {canSeeAttendance && (
-                <Link href={attendancePath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <CalendarCheck className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Módulo de Asistencia</CardTitle>
-                        <CardDescription className="mt-1">
-                        Control de entrada y salida de personal, y reportes.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
-
-            {canSeePayments && (
-                <Link href={paymentsPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <DollarSign className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Módulo de Pagos</CardTitle>
-                        <CardDescription className="mt-1">
-                         Gestiona las facturas y pagos a proveedores.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
-
-            {canSeeReports && (
-                <Link href={reportsPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <BarChart3 className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Módulo de Estadísticas y Reportes</CardTitle>
-                        <CardDescription className="mt-1">
-                         Analiza el consumo de materiales y genera informes detallados.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
-
-             {canManagePermissions && (
-                <Link href={permissionsPath} className="group">
-                <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <ListChecks className="h-8 w-8 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div>
-                        <CardTitle>Gestión de Permisos</CardTitle>
-                        <CardDescription className="mt-1">
-                         Define y ajusta lo que cada rol puede hacer en la plataforma.
-                        </CardDescription>
-                    </div>
-                    </CardHeader>
-                </Card>
-                </Link>
-            )}
+            {visibleModules.map(module => (
+              <ModuleCard key={module.href} {...module} />
+            ))}
       </div>
     </div>
   );
