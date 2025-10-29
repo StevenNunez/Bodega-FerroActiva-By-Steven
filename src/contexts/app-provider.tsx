@@ -24,7 +24,8 @@ import {
   Checklist,
   BehaviorObservation,
   Tenant,
-  ReturnRequest
+  ReturnRequest,
+  UserRole
 } from "@/lib/data";
 import { nanoid } from "nanoid";
 import { db, auth } from "@/lib/firebase";
@@ -138,8 +139,8 @@ interface AppStateContextType {
   handleAttendanceScan: (userId: string) => Promise<void>;
   addManualAttendance: (userId: string, forDate: Date, time: string, type: 'in' | 'out') => Promise<void>;
   updateAttendanceLog: (logId: string, newTimestamp: Date, newType: 'in' | 'out', originalTimestamp: Date) => Promise<void>;
-  addMaterial: (material: Omit<Material, "id">) => Promise<void>;
-  updateMaterial: (materialId: string, data: Partial<Omit<Material, "id">>) => Promise<void>;
+  addMaterial: (material: Omit<Material, "id" | 'category'> & { categoryId: string; justification?: string }) => Promise<void>;
+  updateMaterial: (materialId: string, data: Partial<Omit<Material, "id" | 'category'> & { categoryId?: string }>) => Promise<void>;
   deleteMaterial: (materialId: string) => Promise<void>;
   addManualStockEntry: (materialId: string, quantity: number, justification: string) => Promise<void>;
   addMaterialCategory: (name: string) => Promise<void>;
@@ -389,6 +390,14 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
 
       await updateDoc(roleRef, { capabilities: newCapabilities });
+      
+      setRoles(prevRoles => ({
+        ...prevRoles,
+        [role]: {
+            ...prevRoles[role],
+            capabilities: newCapabilities,
+        },
+      }));
   };
 
 
@@ -505,13 +514,39 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateUser = async (userId: string, data: Partial<Omit<User, "id" | "email" | "qrCode">>) => {
     if (!can('users:edit')) throw new Error('No tienes permiso para editar usuarios.');
     try {
-      if (!userId) throw new Error("User ID is required");
-      const userRef = doc(db, "users", userId);
-      await updateDoc(userRef, data);
-      notify("Usuario actualizado exitosamente.", "success");
+        if (!userId) throw new Error("User ID is required");
+        const userRef = doc(db, "users", userId);
+        
+        const updateData: { [key: string]: any } = { ...data };
+        
+        if (data.fechaIngreso) {
+            updateData.fechaIngreso = Timestamp.fromDate(new Date(data.fechaIngreso));
+        } else {
+            // If the date is cleared in the form, it might come as undefined or null.
+            // Firestore throws an error for `undefined`, so we should handle it.
+            // One option is to set it to null, which is a valid Firestore type.
+            // Another is to remove it from the update object if we don't want to change it.
+            // Let's ensure we don't send undefined.
+            if ('fechaIngreso' in data && !data.fechaIngreso) {
+                updateData.fechaIngreso = null;
+            } else if (!('fechaIngreso' in data)) {
+                delete updateData.fechaIngreso;
+            }
+        }
+        
+        // Clean any other undefined fields
+        Object.keys(updateData).forEach(key => {
+            if (updateData[key] === undefined) {
+                delete updateData[key];
+            }
+        });
+
+        await updateDoc(userRef, updateData);
+        notify("Usuario actualizado exitosamente.", "success");
     } catch (err: any) {
-      notify("Error al actualizar usuario: " + err.message, "destructive");
-      throw err;
+        console.error("Error updating user:", err);
+        notify("Error al actualizar usuario: " + err.message, "destructive");
+        throw err;
     }
   };
 
@@ -528,84 +563,99 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addMaterial = async (material: Omit<Material, "id"> & { justification?: string }) => {
+  const addMaterial = async (material: Omit<Material, "id" | 'category'> & { categoryId: string; justification?: string }) => {
     if (!can('materials:create')) throw new Error('No tienes permiso para crear materiales.');
     const tenantId = getTenantId();
     try {
-      const batch = writeBatch(db);
-      const newMaterialRef = doc(collection(db, "materials"));
+        const categoryDoc = await getDoc(doc(db, "materialCategories", material.categoryId));
+        if (!categoryDoc.exists()) throw new Error("Categoría no válida.");
+        const categoryName = categoryDoc.data().name;
 
-      // Check if unit exists, if not, create it
-      const unitExists = units.some(u => u.name.toLowerCase() === material.unit.toLowerCase());
-      if (!unitExists) {
-        const newUnitRef = doc(collection(db, "units"));
-        batch.set(newUnitRef, { name: material.unit, id: newUnitRef.id, tenantId });
-      }
+        const batch = writeBatch(db);
+        const newMaterialRef = doc(collection(db, "materials"));
 
-      const { justification, ...materialData } = material;
-      batch.set(newMaterialRef, { ...materialData, id: newMaterialRef.id, tenantId });
+        const unitExists = units.some(u => u.name.toLowerCase() === material.unit.toLowerCase());
+        if (!unitExists) {
+            const newUnitRef = doc(collection(db, "units"));
+            batch.set(newUnitRef, { name: material.unit, id: newUnitRef.id, tenantId });
+        }
 
-      if (material.stock > 0 && authUser) {
-        const newPurchaseRequestRef = doc(collection(db, "purchaseRequests"));
-        batch.set(newPurchaseRequestRef, {
-          id: newPurchaseRequestRef.id,
-          materialName: material.name,
-          quantity: material.stock,
-          unit: material.unit,
-          category: material.category,
-          justification: justification || "Ingreso de stock inicial",
-          area: "Bodega Central",
-          supervisorId: authUser.id,
-          status: "received",
-          createdAt: Timestamp.now(),
-          receivedAt: Timestamp.now(),
-          lotId: null,
-          tenantId,
-        });
-      }
+        const { justification, categoryId, ...materialData } = material;
+        batch.set(newMaterialRef, { ...materialData, category: categoryName, id: newMaterialRef.id, tenantId });
 
-      await batch.commit();
-      notify("Material agregado exitosamente.", "success");
+        if (material.stock > 0 && authUser) {
+            const newPurchaseRequestRef = doc(collection(db, "purchaseRequests"));
+            batch.set(newPurchaseRequestRef, {
+                id: newPurchaseRequestRef.id,
+                materialName: material.name,
+                quantity: material.stock,
+                unit: material.unit,
+                category: categoryName,
+                justification: justification || "Ingreso de stock inicial",
+                area: "Bodega Central",
+                supervisorId: authUser.id,
+                status: "received",
+                createdAt: Timestamp.now(),
+                receivedAt: Timestamp.now(),
+                lotId: null,
+                tenantId,
+            });
+        }
+
+        await batch.commit();
+        notify("Material agregado exitosamente.", "success");
     } catch (err: any) {
-      notify("Error al agregar material: " + err.message, "destructive");
-      throw err;
+        notify("Error al agregar material: " + err.message, "destructive");
+        throw err;
     }
   };
-
-  const updateMaterial = async (materialId: string, data: Partial<Omit<Material, "id">>) => {
+  
+  const updateMaterial = async (materialId: string, data: Partial<Omit<Material, "id" | 'category'> & { categoryId?: string }>) => {
     if (!can('materials:edit')) throw new Error('No tienes permiso para editar materiales.');
     const tenantId = getTenantId();
     try {
         const batch = writeBatch(db);
         const materialRef = doc(db, "materials", materialId);
 
-        // Prepare the data, ensuring supplierId is not undefined
-        const updateData = { ...data };
-        if (updateData.supplierId === undefined) {
-            updateData.supplierId = null;
-        } else if (updateData.supplierId === "ninguno") {
-            updateData.supplierId = null;
-        }
+        const updateData: Partial<Material> = {
+            name: data.name,
+            stock: data.stock,
+            unit: data.unit,
+            supplierId: data.supplierId === 'ninguno' ? null : data.supplierId,
+        };
         
-        // Check if unit exists, if not, create it
-        if (updateData.unit) {
-            const unitExists = units.some(u => u.name.toLowerCase() === updateData.unit!.toLowerCase());
-            if (!unitExists) {
-                const newUnitRef = doc(collection(db, "units"));
-                batch.set(newUnitRef, { name: updateData.unit, id: newUnitRef.id, tenantId });
+        if (!can('stock:add_manual')) {
+            delete updateData.stock;
+        }
+
+        if (data.categoryId) {
+            const categoryDoc = await getDoc(doc(db, "materialCategories", data.categoryId));
+            if (categoryDoc.exists()) {
+                updateData.category = categoryDoc.data().name;
+            } else {
+                throw new Error("Categoría seleccionada no válida.");
             }
         }
 
+        if (data.unit) {
+            const unitExists = units.some(u => u.name.toLowerCase() === data.unit!.toLowerCase());
+            if (!unitExists) {
+                const newUnitRef = doc(collection(db, "units"));
+                batch.set(newUnitRef, { name: data.unit, id: newUnitRef.id, tenantId });
+            }
+        }
+        
         batch.update(materialRef, updateData);
 
         await batch.commit();
         notify("Material actualizado exitosamente.", "success");
     } catch (err: any) {
-        console.error("Error updating material:", err); // Log the full error
+        console.error("Error updating material:", err);
         notify("Error al actualizar material: " + err.message, "destructive");
         throw err;
     }
   };
+
 
   const deleteMaterial = async (materialId: string) => {
     if (!can('materials:delete')) throw new Error('No tienes permiso para eliminar materiales.');

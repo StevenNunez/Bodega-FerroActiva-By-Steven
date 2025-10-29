@@ -68,19 +68,8 @@ export default function DashboardHubPage() {
       );
   }
 
-  const warehouseDashboardPaths: { [key: string]: string } = {
-    admin: '/dashboard/admin',
-    'bodega-admin': '/dashboard/admin',
-    supervisor: '/dashboard/supervisor',
-    worker: '/dashboard/worker',
-    operations: '/dashboard/operations',
-    apr: '/dashboard/apr',
-    'super-admin': '/dashboard/admin'
-  };
-  const warehousePath = warehouseDashboardPaths[user.role];
-
   const allModules: (ModuleCardProps & { permission: Permission })[] = [
-    { href: warehousePath, icon: Warehouse, title: "Módulo de Bodega", description: "Gestiona inventario, herramientas y solicitudes.", permission: 'module_warehouse:view' },
+    { href: '/dashboard/admin', icon: Warehouse, title: "Módulo de Bodega", description: "Gestiona inventario, herramientas y solicitudes.", permission: 'module_warehouse:view' },
     { href: '/dashboard/users', icon: UserIcon, title: "Módulo de Usuarios", description: "Gestiona los perfiles y roles de los trabajadores.", permission: 'module_users:view' },
     { href: '/dashboard/subscriptions', icon: DollarSign, title: "Módulo de Suscripciones", description: "Gestiona los inquilinos (clientes) de la plataforma.", permission: 'module_subscriptions:view' },
     { href: '/dashboard/safety', icon: ShieldCheck, title: "Módulo de Prevención", description: "Gestión de checklists, plantillas y revisiones de seguridad.", permission: 'module_safety:view' },

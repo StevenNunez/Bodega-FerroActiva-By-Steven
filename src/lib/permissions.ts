@@ -133,7 +133,8 @@ export const ROLES: Record<UserRole, RoleConfig> = {
     'bodega-admin': {
         description: 'Responsable del día a día y del flujo de entrada/salida de la bodega.',
         capabilities: [
-            'module_warehouse:view',
+            'module_warehouse:view', 'module_users:view',
+            'users:create', 'users:view', 'users:edit', 'users:delete',
             'tools:create', 'tools:edit', 'tools:delete', 'tools:checkout', 'tools:return',
             'materials:create', 'materials:edit', 'materials:delete',
             'material_requests:create', 'material_requests:approve', 'material_requests:view_all',
@@ -172,7 +173,8 @@ export const ROLES: Record<UserRole, RoleConfig> = {
     apr: {
         description: 'Guardián de la seguridad, enfocado en la prevención.',
         capabilities: [
-            'module_warehouse:view', 'module_safety:view', 'module_reports:view',
+            'module_warehouse:view', 'module_safety:view', 'module_reports:view', 'module_users:view',
+            'users:create', 'users:view', 'users:edit', 'users:delete',
             'material_requests:create',
             'purchase_requests:create',
             'safety_templates:create', 'safety_templates:delete',

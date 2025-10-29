@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -20,7 +21,7 @@ const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   stock: z.coerce.number().min(0, 'El stock no puede ser negativo.'),
   unit: z.string({ required_error: 'La unidad no puede estar vacía.' }).min(1, 'La unidad no puede estar vacía.'),
-  category: z.string({ required_error: 'Debes seleccionar una categoría.' }),
+  categoryId: z.string({ required_error: 'Debes seleccionar una categoría.' }),
   supplierId: z.string().nullable(),
   justification: z.string().optional(),
 });
@@ -164,19 +165,13 @@ export function CreateMaterialForm() {
         )}
 
         <div className="space-y-2">
-            <Label htmlFor="category">Categoría del Material</Label>
-                <Controller
-                name="category"
+            <Label htmlFor="categoryId">Categoría del Material</Label>
+            <Controller
+                name="categoryId"
                 control={control}
                 render={({ field }) => (
-                     <Select 
-                        onValueChange={(value) => {
-                            const categoryName = materialCategories.find(c => c.id === value)?.name;
-                            field.onChange(categoryName);
-                        }} 
-                        value={materialCategories.find(c => c.name === field.value)?.id || ''}
-                    >
-                        <SelectTrigger id="category">
+                     <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger id="categoryId">
                             <SelectValue placeholder="Selecciona una categoría" />
                         </SelectTrigger>
                         <SelectContent>
@@ -187,7 +182,7 @@ export function CreateMaterialForm() {
                     </Select>
                 )}
             />
-            {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
+            {errors.categoryId && <p className="text-xs text-destructive">{errors.categoryId.message}</p>}
         </div>
         
          <div className="space-y-2">

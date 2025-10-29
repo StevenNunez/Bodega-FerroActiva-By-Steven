@@ -14,43 +14,29 @@ const firebaseConfig = {
   "messagingSenderId": "578561199903"
 };
 
-interface FirebaseServices {
-  app: FirebaseApp;
-  db: Firestore;
-  auth: Auth;
-  storage: FirebaseStorage;
+function getFirebaseApp(): FirebaseApp {
+    if (getApps().length === 0) {
+        return initializeApp(firebaseConfig);
+    } else {
+        return getApp();
+    }
 }
 
-let services: FirebaseServices | null = null;
-let persistenceEnabled = false;
+const app: FirebaseApp = getFirebaseApp();
+const db: Firestore = getFirestore(app);
+const auth: Auth = getAuth(app);
+const storage: FirebaseStorage = getStorage(app);
 
-function getFirebaseServices(): FirebaseServices {
-  if (services) {
-    return services;
-  }
-
-  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-  const storage = getStorage(app);
-  
-  if (!persistenceEnabled) {
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('Firestore persistence failed: multiple tabs open?');
-      } else if (err.code === 'unimplemented') {
-        console.warn('Firestore persistence not available in this browser.');
-      }
-    });
-    persistenceEnabled = true;
-  }
-
-  services = { app, db, auth, storage };
-  
-  return services;
+if (typeof window !== 'undefined') {
+    try {
+        enableIndexedDbPersistence(db);
+    } catch (err: any) {
+        if (err.code === 'failed-precondition') {
+            console.warn('Firestore persistence failed: Multiple tabs open?');
+        } else if (err.code === 'unimplemented') {
+            console.warn('Firestore persistence not available in this browser.');
+        }
+    }
 }
-
-// Export singleton instances by calling the function
-const { app, db, auth, storage } = getFirebaseServices();
 
 export { app, db, auth, storage };
