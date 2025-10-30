@@ -519,22 +519,14 @@ function AppStateProvider({ children }: { children: React.ReactNode }) {
         
         const updateData: { [key: string]: any } = { ...data };
         
-        if (data.fechaIngreso) {
+        if ('fechaIngreso' in data) {
+          if (data.fechaIngreso) {
             updateData.fechaIngreso = Timestamp.fromDate(new Date(data.fechaIngreso));
-        } else {
-            // If the date is cleared in the form, it might come as undefined or null.
-            // Firestore throws an error for `undefined`, so we should handle it.
-            // One option is to set it to null, which is a valid Firestore type.
-            // Another is to remove it from the update object if we don't want to change it.
-            // Let's ensure we don't send undefined.
-            if ('fechaIngreso' in data && !data.fechaIngreso) {
-                updateData.fechaIngreso = null;
-            } else if (!('fechaIngreso' in data)) {
-                delete updateData.fechaIngreso;
-            }
+          } else {
+            updateData.fechaIngreso = null;
+          }
         }
         
-        // Clean any other undefined fields
         Object.keys(updateData).forEach(key => {
             if (updateData[key] === undefined) {
                 delete updateData[key];

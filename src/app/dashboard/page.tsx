@@ -39,9 +39,16 @@ export default function DashboardHubPage() {
   const router = useRouter();
 
   React.useEffect(() => {
-    if (!authLoading && !user) {
+    if (authLoading) return;
+    if (!user) {
       router.replace('/login');
+      return;
     }
+
+    if (user.role === 'guardia') {
+        router.replace('/dashboard/attendance/registry');
+    }
+
   }, [user, authLoading, router]);
 
   if (authLoading || !user) {
@@ -53,19 +60,6 @@ export default function DashboardHubPage() {
         </div>
       </div>
     );
-  }
-
-  // Special case for 'guardia' to redirect directly to the attendance module
-  if (user.role === 'guardia') {
-      router.replace('/dashboard/attendance/registry');
-      return (
-        <div className="flex h-full w-full items-center justify-center">
-            <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">Redirigiendo...</p>
-            </div>
-        </div>
-      );
   }
 
   const allModules: (ModuleCardProps & { permission: Permission })[] = [

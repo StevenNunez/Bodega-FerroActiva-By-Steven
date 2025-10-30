@@ -156,7 +156,7 @@ export const ROLES: Record<UserRole, RoleConfig> = {
             'suppliers:create', 'suppliers:edit', 'suppliers:delete',
             'payments:view', 'payments:create', 'payments:update', 'payments:edit',
             'attendance:edit', 'attendance:delete',
-            'safety_checklists:complete',
+            'safety_checklists:complete', 'safety_inspections:complete',
             'reports:view',
         ]
     },
@@ -168,6 +168,7 @@ export const ROLES: Record<UserRole, RoleConfig> = {
             'purchase_requests:create',
             'tools:view_own',
             'safety_checklists:complete',
+            'safety_inspections:complete',
         ]
     },
     apr: {

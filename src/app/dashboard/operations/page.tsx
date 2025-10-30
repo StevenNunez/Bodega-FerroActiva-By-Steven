@@ -797,6 +797,14 @@ export default function OperationsPage() {
       ? jsDate.toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" })
       : "N/A";
   };
+  
+  const sortedPurchaseRequests = useMemo(() => {
+    return [...purchaseRequests].sort((a,b) => {
+        const dateA = a.createdAt ? getDate(a.createdAt)?.getTime() || 0 : 0;
+        const dateB = b.createdAt ? getDate(b.createdAt)?.getTime() || 0 : 0;
+        return dateB - dateA;
+    });
+  }, [purchaseRequests]);
 
   const handleReceive = async (id: string, quantity: number, existingMaterialId?: string) => {
     try {
@@ -925,7 +933,7 @@ export default function OperationsPage() {
             setCategoryFilter={setCategoryFilter}
           />
           <PurchaseRequestTable
-            requests={purchaseRequests}
+            requests={sortedPurchaseRequests}
             supervisorMap={supervisorMap}
             statusFilter={statusFilter}
             searchTerm={requestSearchTerm}
@@ -944,3 +952,4 @@ export default function OperationsPage() {
     </div>
   );
 }
+

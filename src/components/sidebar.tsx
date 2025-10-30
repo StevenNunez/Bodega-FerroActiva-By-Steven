@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -43,51 +42,113 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { differenceInDays, startOfDay } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
+import { UserRole } from '@/lib/data';
+import type { Permission } from '@/lib/permissions';
 
-const allModules = [
-    { href: '/dashboard/admin', icon: Warehouse, label: 'Módulo de Bodega', permission: 'module_warehouse:view' },
-    { href: '/dashboard/users', icon: UserIcon, label: 'Módulo de Usuarios', permission: 'module_users:view' },
-    { href: '/dashboard/subscriptions', icon: DollarSign, label: 'Módulo de Suscripciones', permission: 'module_subscriptions:view' },
-    { href: '/dashboard/safety', icon: ShieldCheck, label: 'Módulo de Prevención', permission: 'module_safety:view' },
-    { href: '/dashboard/attendance', icon: CalendarCheck, label: 'Módulo de Asistencia', permission: 'module_attendance:view' },
-    { href: '/dashboard/payments', icon: DollarSign, label: 'Módulo de Pagos', permission: 'module_payments:view' },
-    { href: '/dashboard/reports', icon: BarChart3, label: 'Módulo de Reportes', permission: 'module_reports:view' },
-    { href: '/dashboard/admin/permissions', icon: ListChecks, label: 'Gestión de Permisos', permission: 'module_permissions:view' },
+const allModules: (ModuleCardProps & { permission: Permission })[] = [
+    { href: '/dashboard/admin', icon: Warehouse, title: "Módulo de Bodega", description: "Gestiona inventario, herramientas y solicitudes.", permission: 'module_warehouse:view' },
+    { href: '/dashboard/users', icon: UserIcon, title: "Módulo de Usuarios", description: "Gestiona los perfiles y roles de los trabajadores.", permission: 'module_users:view' },
+    { href: '/dashboard/subscriptions', icon: DollarSign, title: "Módulo de Suscripciones", description: "Gestiona los inquilinos (clientes) de la plataforma.", permission: 'module_subscriptions:view' },
+    { href: '/dashboard/safety', icon: ShieldCheck, title: "Módulo de Prevención", description: "Gestión de checklists, plantillas y revisiones de seguridad.", permission: 'module_safety:view' },
+    { href: '/dashboard/attendance', icon: CalendarCheck, title: "Módulo de Asistencia", description: "Control de entrada/salida de personal y reportes.", permission: 'module_attendance:view' },
+    { href: '/dashboard/payments', icon: DollarSign, title: "Módulo de Pagos", description: "Gestiona las facturas y pagos a proveedores.", permission: 'module_payments:view' },
+    { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza el consumo de materiales y genera informes.", permission: 'module_reports:view' },
+    { href: '/dashboard/admin/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'module_permissions:view' },
 ];
 
-const warehouseNavItems = (can: (p: any) => boolean) => {
+const getDashboardHomeForRole = (role: UserRole): string => {
+    switch (role) {
+        case 'admin':
+        case 'bodega-admin':
+            return '/dashboard/admin';
+        case 'operations':
+            return '/dashboard/operations';
+        case 'supervisor':
+            return '/dashboard/supervisor';
+        case 'apr':
+            return '/dashboard/apr';
+        case 'worker':
+             return '/dashboard/worker';
+        default:
+            return '/dashboard'; // Fallback for finance, etc.
+    }
+};
+
+interface ModuleCardProps {
+  href: string;
+  icon: React.ElementType;
+  title: string;
+  description: string;
+}
+
+const warehouseNavItems = (can: (p: any) => boolean, userRole: UserRole | null) => {
     const items = [];
+    if (!userRole) return [];
+    
+    const dashboardHome = getDashboardHomeForRole(userRole);
+    
     // General
-    if(can('module_warehouse:view')) items.push({ href: '/dashboard/admin', icon: LayoutDashboard, label: 'Resumen Bodega' });
+    if(can('module_warehouse:view')) items.push({ href: dashboardHome, icon: LayoutDashboard, label: 'Resumen' });
+    
     // Herramientas
     if (can('tools:create')) items.push({ href: '/dashboard/admin/tools', icon: Wrench, label: 'Herramientas' });
+    
     // Materiales
     if (can('materials:create')) items.push({ href: '/dashboard/admin/materials', icon: Package, label: 'Materiales' });
     if (can('stock:add_manual')) items.push({ href: '/dashboard/admin/manual-stock-entry', icon: Edit, label: 'Ingreso Manual' });
     if (can('stock:add_manual')) items.push({ href: '/dashboard/admin/return-requests', icon: Undo2, label: 'Gestionar Devoluciones', notificationKey: 'pendingReturnRequests' });
+    
     // Solicitudes
     if (can('material_requests:view_all')) items.push({ href: '/dashboard/admin/requests', icon: ClipboardList, label: 'Solicitudes Materiales', notificationKey: 'pendingMaterialRequests' });
     if (can('purchase_requests:view_all')) items.push({ href: '/dashboard/admin/purchase-requests', icon: ShoppingCart, label: 'Solicitudes Compra' });
+    
     // Compras
     if (can('lots:create')) items.push({ href: '/dashboard/operations/lots', icon: PackagePlus, label: 'Gestión de Lotes' });
     if (can('orders:create')) items.push({ href: '/dashboard/operations/orders', icon: FileText, label: 'Órdenes de Compra' });
+    
     // Config
     if (can('units:create')) items.push({ href: '/dashboard/admin/units', icon: Ruler, label: 'Unidades' });
     if (can('categories:create')) items.push({ href: '/dashboard/admin/categories', icon: FolderTree, label: 'Categorías' });
     if (can('suppliers:create')) items.push({ href: '/dashboard/admin/suppliers', icon: Briefcase, label: 'Proveedores' });
+
+    // Admin can also create purchase requests
+    if (userRole === 'admin' && can('purchase_requests:create')) {
+        const purchasePath = `/dashboard/operations/purchase-request-form`;
+        if (!items.some(item => item.href === purchasePath)) {
+            items.push({ href: purchasePath, icon: ShoppingCart, label: 'Solicitar Compra' });
+        }
+    }
     
     // Supervisor specific
-    if (can('material_requests:create')) {
-        items.push({ href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' });
-        items.push({ href: '/dashboard/supervisor/return-request', icon: Undo2, label: 'Devolver Material' });
+    if (userRole === 'supervisor' || userRole === 'apr' || userRole === 'operations') {
+        if (can('material_requests:create')) {
+            const requestPath = `/dashboard/${userRole}/request`;
+            if (!items.some(item => item.href === requestPath)) {
+                items.push({ href: requestPath, icon: PlusCircle, label: 'Solicitar Materiales' });
+            }
+            const returnPath = `/dashboard/supervisor/return-request`;
+            if (userRole === 'supervisor' && !items.some(item => item.href === returnPath)) {
+                 items.push({ href: returnPath, icon: Undo2, label: 'Devolver Material' });
+            }
+        }
+        if (can('purchase_requests:create')) {
+             const purchasePath = `/dashboard/${userRole}/purchase-request-form`;
+             if (!items.some(item => item.href === purchasePath)) {
+                items.push({ href: purchasePath, icon: ShoppingCart, label: 'Solicitar Compra' });
+             }
+        }
     }
-    if (can('purchase_requests:create')) items.push({ href: '/dashboard/supervisor/purchase-request', icon: ShoppingCart, label: 'Solicitar Compra' });
 
     // Worker specific
-    if (can('tools:view_own')) items.push({ href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' });
+    if (can('tools:view_own') && userRole === 'worker') {
+        if (!items.some(item => item.href === '/dashboard/worker')) {
+            items.push({ href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' });
+        }
+    }
 
     // Remove duplicates by href
     const uniqueItems = Array.from(new Map(items.map(item => [item.href, item])).values());
+    // Sort logic can be added here if needed, e.g., by label
     return uniqueItems;
 }
 
@@ -133,10 +194,8 @@ const permissionsNavItems = [
 
 const safetyNavItems = (can: (p: any) => boolean) => {
     const items = [];
-    if (can('safety_inspections:create') || can('safety_observations:create')) {
-        items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Nueva Inspección'});
-        items.push({ href: '/dashboard/safety/behavior-observation', icon: ClipboardPaste, label: 'Nueva Observación' });
-    }
+    if (can('safety_inspections:create')) items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Nueva Inspección'});
+    if (can('safety_observations:create')) items.push({ href: '/dashboard/safety/behavior-observation', icon: ClipboardPaste, label: 'Nueva Observación' });
 
     if (can('safety_templates:create')) {
         items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas'});
@@ -200,13 +259,15 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     }
   }
   
-  const { currentNavItems, isSubModule, moduleTitle } = React.useMemo(() => {
-    if (!user) return { currentNavItems: [], isSubModule: false, moduleTitle: '' };
-    
-    let navItems: { href: string; icon: React.ElementType; label: string; notificationKey?: string }[] = [];
-    let title = '';
-    let isModule = true;
+  const { currentNavItems, moduleTitle, isSubModule } = React.useMemo(() => {
+    if (!user) return { currentNavItems: [], moduleTitle: '', isSubModule: false };
 
+    let navItems: { href: string; icon: React.ElementType; label: string; notificationKey?: string; description?: string; permission?: Permission }[] = [];
+    let title = '';
+
+    const warehousePaths = ['/dashboard/admin', '/dashboard/operations', '/dashboard/supervisor', '/dashboard/worker', '/dashboard/profile'];
+    const isDefaultWarehouseView = warehousePaths.some(p => pathname.startsWith(p));
+    
     if (pathname.startsWith('/dashboard/users')) {
         navItems = usersNavItems(can);
         title = 'Módulo de Usuarios';
@@ -228,16 +289,17 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     } else if (pathname.startsWith('/dashboard/subscriptions')) {
         navItems = subscriptionsNavItems;
         title = 'Módulo de Suscripciones';
-    } else {
-        isModule = false;
-        navItems = warehouseNavItems(can);
+    } else if (isDefaultWarehouseView) {
+        navItems = warehouseNavItems(can, user.role);
+        title = 'Módulo Bodega';
+    } else { // This is the main dashboard hub
+        navItems = allModules.filter(module => can(module.permission));
         title = 'Portal de Módulos';
     }
     
-    return { currentNavItems: navItems, isSubModule: isModule, moduleTitle: title };
+    return { currentNavItems: navItems, moduleTitle: title, isSubModule: pathname !== '/dashboard' };
 
   }, [pathname, user, can]);
-  
 
   return (
     <>
@@ -245,7 +307,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
         <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
           <Link href="/dashboard" className="flex items-center gap-2 font-semibold" onClick={handleLinkClick}>
              {isSubModule ? <ArrowLeft className="h-6 w-6 text-primary" /> : <Warehouse className="h-6 w-6 text-primary" />}
-            <span className="">{isSubModule ? moduleTitle : "Módulo Principal"}</span>
+            <span className="">{moduleTitle}</span>
           </Link>
         </div>
         <div className="flex-1 overflow-auto py-2">

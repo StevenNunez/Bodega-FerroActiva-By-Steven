@@ -16,11 +16,11 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuPortal
+  DropdownMenuPortal,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { differenceInDays, startOfDay } from 'date-fns';
@@ -48,7 +48,6 @@ export default function DashboardLayout({
   const [isMuted, setIsMuted] = React.useState(false);
   const [isClient, setIsClient] = React.useState(false);
 
-  const showSidebar = pathname !== "/dashboard";
   const today = startOfDay(new Date());
 
   React.useEffect(() => {
@@ -78,13 +77,13 @@ export default function DashboardLayout({
     }
   }
 
-  const overduePayments = React.useMemo(() => supplierPayments.filter(p => {
+  const overduePayments = React.useMemo(() => (supplierPayments || []).filter(p => {
     if (p.status === 'paid') return false;
     const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
     return differenceInDays(dueDate, today) < 0;
   }), [supplierPayments, today]);
 
-  const dueSoonPayments = React.useMemo(() => supplierPayments.filter(p => {
+  const dueSoonPayments = React.useMemo(() => (supplierPayments || []).filter(p => {
     if (p.status === 'paid') return false;
     const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
     const daysLeft = differenceInDays(dueDate, today);
@@ -106,7 +105,7 @@ export default function DashboardLayout({
     return count;
   }, [user, pendingMaterialRequests, pendingPurchaseRequests, overduePayments, dueSoonPayments]);
   
-  const supplierMap = React.useMemo(() => new Map(suppliers.map(s => [s.id, s.name])), [suppliers]);
+  const supplierMap = React.useMemo(() => new Map((suppliers || []).map(s => [s.id, s.name])), [suppliers]);
   
   const playNotificationSound = React.useCallback(() => {
     if (isMuted || typeof window === 'undefined') return;
@@ -149,34 +148,32 @@ export default function DashboardLayout({
     );
   }
 
-  const layoutClasses = showSidebar
+  const isSubModulePage = pathname !== '/dashboard';
+
+  const layoutClasses = isSubModulePage 
     ? "grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
     : "flex min-h-screen w-full flex-col";
 
   return (
     <div className={layoutClasses}>
-      {showSidebar && (
-        <div className="hidden border-r bg-muted/40 md:block">
-          <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
-        </div>
-      )}
+      <div className={isSubModulePage ? "hidden border-r bg-muted/40 md:block" : "hidden"}>
+        <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
+      </div>
       
       <div className="flex flex-col">
         <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          {showSidebar && (
-            <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="shrink-0 md:hidden" aria-label="Abrir menú de navegación">
-                  <Menu className="h-5 w-5" />
-                  <span className="sr-only">Abrir menú de navegación</span>
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="flex flex-col p-0 transition-transform duration-300">
-                <SheetTitle className="sr-only">Menú de Navegación</SheetTitle>
-                <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
-              </SheetContent>
-            </Sheet>
-          )}
+          <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="shrink-0 md:hidden" aria-label="Abrir menú de navegación">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Abrir menú de navegación</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="flex flex-col p-0 transition-transform duration-300">
+              <SheetTitle className="sr-only">Menú de Navegación</SheetTitle>
+              <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
+            </SheetContent>
+          </Sheet>
 
           <div className="flex-1" />
 
