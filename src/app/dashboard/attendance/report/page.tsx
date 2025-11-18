@@ -1,3 +1,5 @@
+
+
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
@@ -86,7 +88,7 @@ const HOLIDAYS: Date[] = [
 
 export default function AttendanceReportPage() {
   const { users, attendanceLogs } = useAppState();
-  const { user: authUser } = useAuth();
+  const { user: authUser, can } = useAuth();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -95,10 +97,6 @@ export default function AttendanceReportPage() {
   >(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const canEdit = useMemo(
-    () => authUser?.role === "admin" || authUser?.role === "operations",
-    [authUser]
-  );
   const userMap = useMemo(
     () => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])),
     [users]
@@ -536,7 +534,7 @@ export default function AttendanceReportPage() {
                                     </Tooltip>
                                   </TooltipProvider>
                                 )}
-                                {canEdit && (
+                                {can('attendance:edit') && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -551,7 +549,7 @@ export default function AttendanceReportPage() {
                               </div>
                             ))
                           )}
-                          {canEdit && (
+                          {can('attendance:edit') && (
                             <Button
                               variant="outline"
                               size="icon"
@@ -603,3 +601,5 @@ export default function AttendanceReportPage() {
     </div>
   );
 }
+
+    

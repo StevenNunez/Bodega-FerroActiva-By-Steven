@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useRef } from "react";
 import { useForm, Controller, SubmitHandler } from "react-hook-form";
+import dynamic from 'next/dynamic';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
@@ -17,12 +18,13 @@ import { Loader2, Send, Camera, Trash2, Calendar as CalendarIcon } from "lucide-
 import Image from "next/image";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { SafetyInspection, User } from "@/modules/core/lib/data";
 import { Timestamp } from "firebase/firestore";
+
+const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 
 const InspectionSchema = z.object({

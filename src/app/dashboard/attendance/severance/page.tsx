@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import dynamic from 'next/dynamic';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
@@ -14,7 +15,6 @@ import { useToast } from '@/modules/core/hooks/use-toast';
 import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
 import { Loader2, Calculator, ChevronsUpDown, Check, Calendar as CalendarIcon, FileDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
@@ -24,6 +24,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { User } from '@/modules/core/lib/data';
+
+const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 
 const severanceSchema = z.object({

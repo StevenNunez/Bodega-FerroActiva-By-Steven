@@ -405,7 +405,7 @@ export default function PaymentManagementPage() {
                              <TableCell>
                                 {p.work || 'N/A'}
                                 {p.status === 'paid' && p.paymentDate && (
-                                    <div className="text-xs text-muted-foreground">Pagado: {format(p.paymentDate as Date, "dd-MM-yy")} ({p.paymentMethod})</div>
+                                    <div className="text-xs text-muted-foreground">Pagado: {format(p.paymentDate instanceof Timestamp ? p.paymentDate.toDate() : (p.paymentDate as Date), "dd-MM-yy")} ({p.paymentMethod})</div>
                                 )}
                             </TableCell>
                             <TableCell className="text-right flex justify-end gap-2">

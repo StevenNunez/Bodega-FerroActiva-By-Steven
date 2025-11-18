@@ -3,6 +3,7 @@
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import dynamic from 'next/dynamic';
 import { useParams, useRouter } from "next/navigation";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { PageHeader } from "@/components/page-header";
@@ -20,8 +21,9 @@ import { useToast } from "@/modules/core/hooks/use-toast";
 import type { AssignedSafetyTask as AssignedChecklist, ChecklistItem as ChecklistItemType, User } from "@/modules/core/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+
+const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
