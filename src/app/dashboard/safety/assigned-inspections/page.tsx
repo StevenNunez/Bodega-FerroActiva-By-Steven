@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -9,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
-import { UnplannedInspection } from "@/modules/core/lib/data";
+import { type SafetyInspection, type User } from "@/modules/core/lib/data";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
@@ -24,11 +25,11 @@ export default function AssignedInspectionsPage() {
     const myAssignedInspections = useMemo(() => {
         if (!user || !safetyInspections) return [];
         return safetyInspections
-            .filter((c: UnplannedInspection) => c.assignedTo === user.id)
-            .sort((a: UnplannedInspection, b: UnplannedInspection) => (b.date as Timestamp).toMillis() - (a.date as Timestamp).toMillis());
+            .filter((c: SafetyInspection) => c.assignedTo === user.id)
+            .sort((a: SafetyInspection, b: SafetyInspection) => (b.date as Timestamp).toMillis() - (a.date as Timestamp).toMillis());
     }, [safetyInspections, user]);
     
-    const userMap = useMemo(() => new Map((users || []).map((u: any) => [u.id, u.name])), [users]);
+    const userMap = useMemo(() => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])), [users]);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -66,7 +67,7 @@ export default function AssignedInspectionsPage() {
                     <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
                         {myAssignedInspections.length > 0 ? (
                             <div className="space-y-3 p-4">
-                                {myAssignedInspections.map((inspection: UnplannedInspection) => (
+                                {myAssignedInspections.map((inspection: SafetyInspection) => (
                                     <Link 
                                         key={inspection.id} 
                                         href={`/dashboard/safety/assigned-inspections/${inspection.id}`}
@@ -99,3 +100,4 @@ export default function AssignedInspectionsPage() {
         </div>
     );
 }
+

@@ -36,7 +36,7 @@ type CompatibleMaterialRequest = MaterialRequest & {
 };
 
 
-export default function SupervisorRequestPage() {
+export default function OperationsRequestPage() {
   const { materials, addMaterialRequest, requests, isLoading } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
@@ -63,7 +63,7 @@ export default function SupervisorRequestPage() {
     );
   }
 
-  const materialMap = useMemo(() => new Map((materials || []).map((m) => [m.id, m])), [materials]);
+  const materialMap = useMemo<Map<string, Material>>(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
   const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r) => r.supervisorId === authUser?.id), [requests, authUser]);
 
   const filteredRequests = useMemo(() => {
@@ -235,7 +235,7 @@ export default function SupervisorRequestPage() {
                                 <CommandList>
                                 <CommandEmpty>No se encontró el material.</CommandEmpty>
                                 <CommandGroup>
-                                    {(materials || []).map((m) => (
+                                    {(materials || []).map((m: Material) => (
                                     <CommandItem
                                         key={m.id}
                                         value={m.name}
@@ -369,11 +369,14 @@ export default function SupervisorRequestPage() {
                             <TableCell className="font-medium max-w-[350px]">
                                 <ul className="list-disc list-inside">
                                     {req.items && Array.isArray(req.items) ? (
-                                        req.items.map(item => (
-                                            <li key={item.materialId} className="text-xs truncate">
-                                                {item.quantity}x {materialMap.get(item.materialId)?.name || "N/A"}
-                                            </li>
-                                        ))
+                                        req.items.map(item => {
+                                            const material = materialMap.get(item.materialId);
+                                            return (
+                                                <li key={item.materialId} className="text-xs truncate">
+                                                    {item.quantity}x {material?.name || "N/A"}
+                                                </li>
+                                            )
+                                        })
                                     ) : (
                                         <li className="text-xs truncate">
                                             {req.quantity}x {materialMap.get(req.materialId || '')?.name || "N/A"}

@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { SafetyInspection, User } from './data';
+import { SafetyInspection, User } from '@/modules/core/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -132,7 +132,7 @@ function addInspectionInfo(doc: jsPDF, inspection: SafetyInspection, supervisor:
   };
 
   const tableData = [
-    ['Reportado por:', apr.name || 'N/A', 'Fecha Reporte:', formatDate(inspection.createdAt)],
+    ['Reportado por:', apr.name || 'N/A', 'Fecha Reporte:', formatDate(inspection.date)],
     ['Asignado a:', supervisor.name || 'N/A', 'Plazo Cierre:', formatDate(inspection.deadline)],
     ['Ubicación:', inspection.location || 'N/A', 'Estado:', getStatusInSpanish(inspection.status)],
     ['Nivel de Riesgo:', getRiskInSpanish(inspection.riskLevel), '', ''],
@@ -287,6 +287,6 @@ export async function generateInspectionPDF(inspection: SafetyInspection, superv
   await addSignatures(doc, y, inspection, supervisor, apr);
   addFooter(doc);
 
-  const filename = `Inspeccion_${inspection.area.replace(/[^a-zA-Z0-9]/g, '_')}_${formatDate(inspection.createdAt)}.pdf`;
+  const filename = `Inspeccion_${inspection.area.replace(/[^a-zA-Z0-9]/g, '_')}_${formatDate(inspection.date)}.pdf`;
   doc.save(filename);
 }

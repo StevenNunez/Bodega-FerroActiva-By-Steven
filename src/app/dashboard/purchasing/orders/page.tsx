@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from 'react';
@@ -77,7 +78,7 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
                         </SelectTrigger>
                         <SelectContent>
                             {suppliers.length > 0 ? (
-                                suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
+                                suppliers.map((s: Supplier) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)
                             ) : (
                                 <div className="text-center text-sm text-muted-foreground p-4">No hay proveedores registrados.</div>
                             )}
@@ -100,19 +101,19 @@ export default function OrdersPage() {
     const { toast } = useToast();
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
     
-    const getSupplierName = (id: string) => suppliers.find(s => s.id === id)?.name || 'Desconocido';
-    const getSupplier = (id: string): Supplier | undefined => suppliers.find(s => s.id === id);
+    const getSupplierName = (id: string) => (suppliers || []).find((s: Supplier) => s.id === id)?.name || 'Desconocido';
+    const getSupplier = (id: string): Supplier | undefined => (suppliers || []).find((s: Supplier) => s.id === id);
     
     const getDate = (date: Date | Timestamp) => {
         return date instanceof Timestamp ? date.toDate() : date;
     }
     
     const filteredPurchaseOrders = useMemo(() => {
-        return purchaseOrders.filter(order => {
+        return (purchaseOrders || []).filter((order: PurchaseOrderType) => {
             if (!selectedDate) return true;
             const orderDate = getDate(order.createdAt);
             return isSameDay(orderDate, selectedDate);
-        }).sort((a, b) => getDate(b.createdAt).getTime() - getDate(a.createdAt).getTime());
+        }).sort((a: PurchaseOrderType, b: PurchaseOrderType) => getDate(b.createdAt).getTime() - getDate(a.createdAt).getTime());
     }, [purchaseOrders, selectedDate]);
 
 
@@ -194,7 +195,7 @@ export default function OrdersPage() {
                 </CardHeader>
                 <CardContent>
                     <Accordion type="multiple" className="w-full space-y-4">
-                        {filteredPurchaseOrders.length > 0 ? filteredPurchaseOrders.map((order, index) => (
+                        {filteredPurchaseOrders.length > 0 ? filteredPurchaseOrders.map((order: PurchaseOrderType, index: number) => (
                             <AccordionItem value={order.id} key={order.id} className="border rounded-lg bg-card">
                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full p-4">
                                     <AccordionTrigger className="w-full p-0 hover:no-underline text-left flex-grow">
@@ -246,9 +247,9 @@ export default function OrdersPage() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {order.items.map(item => (
-                                                <TableRow key={item.materialName}>
-                                                    <TableCell className="font-medium">{item.materialName}</TableCell>
+                                            {order.items.map((item: { name: string; unit: string; totalQuantity: number; }) => (
+                                                <TableRow key={item.name}>
+                                                    <TableCell className="font-medium">{item.name}</TableCell>
                                                     <TableCell>{item.unit}</TableCell>
                                                     <TableCell className="text-right font-mono">{item.totalQuantity.toLocaleString()} </TableCell>
                                                 </TableRow>

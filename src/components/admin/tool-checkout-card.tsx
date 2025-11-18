@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -6,7 +7,7 @@ import { useAppState } from '@/modules/core/contexts/app-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, User, ArrowRight, X, ScanLine } from 'lucide-react';
-import type { User as UserType, Tool as ToolType } from '@/modules/core/lib/data';
+import type { User as UserType, Tool as ToolType, ToolLog } from '@/modules/core/lib/data';
 import { useToast } from '@/modules/core/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
@@ -45,14 +46,14 @@ export function ToolCheckoutCard() {
   }, [checkoutState]);
 
   const { workers, checkedOutTools, availableTools } = useMemo(() => {
-    const activeWorkers = (users || []).filter(u => u.role !== 'guardia');
+    const activeWorkers = (users || []).filter((u: UserType) => u.role !== 'guardia');
     const checkedOutToolIds = new Set<string>(
-      (toolLogs || []).filter(log => log.returnDate === null).map(log => log.toolId)
+      (toolLogs || []).filter((log: ToolLog) => log.returnDate === null).map((log: ToolLog) => log.toolId)
     );
     return {
       workers: activeWorkers,
-      checkedOutTools: (tools || []).filter(tool => checkedOutToolIds.has(tool.id)),
-      availableTools: (tools || []).filter(tool => !checkedOutToolIds.has(tool.id)),
+      checkedOutTools: (tools || []).filter((tool: ToolType) => checkedOutToolIds.has(tool.id)),
+      availableTools: (tools || []).filter((tool: ToolType) => !checkedOutToolIds.has(tool.id)),
     };
   }, [users, tools, toolLogs]);
 
@@ -66,12 +67,12 @@ export function ToolCheckoutCard() {
 
   const handleToolToCheckout = useCallback((tool: ToolType) => {
     // Check if the tool is already checked out in general
-    if (!availableTools.some(t => t.id === tool.id)) {
+    if (!availableTools.some((t: ToolType) => t.id === tool.id)) {
         toast({ variant: 'destructive', title: 'Herramienta no Disponible', description: `"${tool.name}" ya está en uso.` });
         return;
     }
     // Check if the tool is already in the current checkout cart
-    if (checkoutStateRef.current.tools.some(t => t.id === tool.id)) {
+    if (checkoutStateRef.current.tools.some((t: ToolType) => t.id === tool.id)) {
       toast({ variant: 'destructive', title: 'Error', description: `"${tool.name}" ya está en la lista de entrega.` });
       return;
     }
@@ -79,7 +80,7 @@ export function ToolCheckoutCard() {
   }, [toast, availableTools]);
 
   const handleReturn = useCallback(async (tool: ToolType) => {
-    const isToolCheckedOut = checkedOutTools.some(t => t.id === tool.id);
+    const isToolCheckedOut = checkedOutTools.some((t: ToolType) => t.id === tool.id);
     if (!isToolCheckedOut) {
       toast({
         variant: 'destructive',
@@ -125,24 +126,24 @@ export function ToolCheckoutCard() {
       const up = (s?: string) => (s ? s.trim().toUpperCase() : '');
 
       // 1. Coincidencia exacta por QR
-      const byQr = (tools || []).find((t) => up(t.qrCode) === up(code));
+      const byQr = (tools || []).find((t: ToolType) => up(t.qrCode) === up(code));
       if (byQr) return byQr;
 
       // 2. Normalización de códigos
       const normalize = (s: string) => up(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '-');
       const normalizedCode = normalize(code);
       
-      const byNormalizedQr = (tools || []).find(t => normalize(t.qrCode) === normalizedCode);
+      const byNormalizedQr = (tools || []).find((t: ToolType) => normalize(t.qrCode) === normalizedCode);
       if(byNormalizedQr) return byNormalizedQr;
 
       // 3. Coincidencia exacta por ID
-      const byId = (tools || []).find((t) => up(t.id) === up(code));
+      const byId = (tools || []).find((t: ToolType) => up(t.id) === up(code));
       if (byId) return byId;
       
       // 4. Búsqueda por tokens si falla lo anterior
       const tokens = code.split(/[^a-zA-Z0-9_-]+/);
       for(const token of tokens) {
-          const byTokenId = (tools || []).find(t => up(t.id) === up(token));
+          const byTokenId = (tools || []).find((t: ToolType) => up(t.id) === up(token));
           if(byTokenId) return byTokenId;
       }
       
@@ -153,30 +154,30 @@ export function ToolCheckoutCard() {
 
 
   const findUserFromScanned = useCallback(
-    (finalCode: string) => {
+    (finalCode: string): UserType | null => {
       if (!finalCode) return null;
       // try exact match by qrCode or id
-      const exact = (users || []).find(u => u.qrCode === finalCode || u.id === finalCode);
+      const exact = (users || []).find((u: UserType) => u.qrCode === finalCode || u.id === finalCode);
       if (exact) return exact;
 
       // split by '
       const parts = finalCode.split("'");
       if (parts.length >= 2) {
         const candidateId = parts[1] || parts[0];
-        const byId = (users || []).find(u => u.id === candidateId || (u.qrCode && u.qrCode.includes(candidateId)));
+        const byId = (users || []).find((u: UserType) => u.id === candidateId || (u.qrCode && u.qrCode.includes(candidateId)));
         if (byId) return byId;
       }
 
       // fallback by tokens
       const tokens = finalCode.split(/[^A-Za-z0-9_-]+/).filter(Boolean);
       for (const tok of tokens) {
-        const byId = (users || []).find(u => u.id === tok);
+        const byId = (users || []).find((u: UserType) => u.id === tok);
         if (byId) return byId;
       }
 
       // last resort: partial name match
       const up = finalCode.toUpperCase();
-      const byName = (users || []).find(u => u.name && u.name.toUpperCase().includes(up));
+      const byName = (users || []).find((u: UserType) => u.name && u.name.toUpperCase().includes(up));
       if (byName) return byName;
 
       return null;
@@ -250,7 +251,7 @@ export function ToolCheckoutCard() {
   };
 
   const handleManualWorkerSelect = (workerId: string) => {
-    const worker = users.find(u => u.id === workerId);
+    const worker = (users || []).find((u: UserType) => u.id === workerId);
     if (worker) {
       setCheckoutState({ worker, tools: [] });
       setManualWorkerId(workerId);
@@ -258,13 +259,13 @@ export function ToolCheckoutCard() {
   };
 
   const handleManualToolSelect = () => {
-    const toolToAdd = tools.find(t => t.id === manualToolId);
+    const toolToAdd = (tools || []).find((t: ToolType) => t.id === manualToolId);
     if (toolToAdd) handleToolToCheckout(toolToAdd);
     setManualToolId('');
   };
 
   const handleManualReturn = async () => {
-    const toolToReturn = tools.find(t => t.id === manualToolId);
+    const toolToReturn = (tools || []).find((t: ToolType) => t.id === manualToolId);
     if (toolToReturn) {
       await handleReturn(toolToReturn);
     } else {
@@ -292,7 +293,7 @@ export function ToolCheckoutCard() {
   };
 
   const removeToolFromCart = (toolId: string) =>
-    setCheckoutState(prev => ({ ...prev, tools: prev.tools.filter(t => t.id !== toolId) }));
+    setCheckoutState(prev => ({ ...prev, tools: prev.tools.filter((t: ToolType) => t.id !== toolId) }));
 
   const openScanner = (purpose: ScanPurpose) => {
     setScannerPurpose(purpose);
@@ -348,7 +349,7 @@ export function ToolCheckoutCard() {
                   <Select value={manualWorkerId} onValueChange={handleManualWorkerSelect}>
                     <SelectTrigger><SelectValue placeholder="Elige un trabajador..." /></SelectTrigger>
                     <SelectContent>
-                      {workers.map(w => (
+                      {workers.map((w: UserType) => (
                         <SelectItem key={w.id} value={w.id}>
                           {w.name}
                         </SelectItem>
@@ -362,7 +363,7 @@ export function ToolCheckoutCard() {
                     <Select value={manualToolId} onValueChange={setManualToolId} disabled={!checkoutState.worker}>
                       <SelectTrigger><SelectValue placeholder="Elige una herramienta..." /></SelectTrigger>
                       <SelectContent>
-                        {availableTools.map(t => (
+                        {availableTools.map((t: ToolType) => (
                           <SelectItem key={t.id} value={t.id}>
                             {t.name} {t.qrCode ? `(${t.qrCode})` : ''}
                           </SelectItem>
@@ -382,7 +383,7 @@ export function ToolCheckoutCard() {
                   <Select value={manualToolId} onValueChange={setManualToolId}>
                     <SelectTrigger><SelectValue placeholder="Elige una herramienta..." /></SelectTrigger>
                     <SelectContent>
-                      {checkedOutTools.map(t => (
+                      {checkedOutTools.map((t: ToolType) => (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name} {t.qrCode ? `(${t.qrCode})` : ''}
                         </SelectItem>
@@ -466,7 +467,7 @@ export function ToolCheckoutCard() {
                     <h5 className="font-medium text-sm">Herramientas en Carrito ({checkoutState.tools.length}):</h5>
                     <ScrollArea className="h-32">
                       <ul className="space-y-1 pr-4">
-                        {checkoutState.tools.map(tool => (
+                        {checkoutState.tools.map((tool: ToolType) => (
                           <li
                             key={`cart-${tool.id}`}
                             className="flex items-center justify-between text-sm bg-secondary p-2 rounded-md"
@@ -504,7 +505,7 @@ export function ToolCheckoutCard() {
                   <Checkbox
                     id="damaged"
                     checked={isDamaged}
-                    onCheckedChange={checked => setIsDamaged(checked as boolean)}
+                    onCheckedChange={(checked: boolean) => setIsDamaged(checked)}
                   />
                   <Label htmlFor="damaged" className="text-destructive font-medium">
                     Devuelta con daños
@@ -524,3 +525,5 @@ export function ToolCheckoutCard() {
     </>
   );
 }
+
+    

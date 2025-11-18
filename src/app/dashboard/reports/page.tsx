@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
@@ -9,11 +10,12 @@ import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { StatCard } from '@/components/admin/stat-card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MaterialRequest } from '@/modules/core/lib/data';
+import { MaterialRequest, Material, User } from '@/modules/core/lib/data';
 
 type CompatibleMaterialRequest = MaterialRequest & {
     materialId?: string;
     quantity?: number;
+    items?: { materialId: string; quantity: number }[];
 };
 
 interface ReportCardProps {
@@ -49,16 +51,18 @@ const ReportCard: React.FC<ReportCardProps> = ({ href, icon: Icon, title, descri
 };
 
 export default function ReportsHubPage() {
-  const { can, user, requests, materials, users } = useAppState();
+  const { can } = useAppState();
+  const { user } = useAuth();
+  const { requests, materials, users } = useAppState();
   const router = useRouter();
 
   const approvedRequests = React.useMemo(() => {
-    return (requests || []).filter(req => req.status === 'approved') as CompatibleMaterialRequest[];
+    return (requests || []).filter((req: MaterialRequest) => req.status === 'approved') as CompatibleMaterialRequest[];
   }, [requests]);
 
   const stats = React.useMemo(() => {
-    const safeMaterials = materials || [];
-    const safeUsers = users || [];
+    const safeMaterials: Material[] = materials || [];
+    const safeUsers: User[] = users || [];
 
     if (!approvedRequests.length || !safeMaterials.length || !safeUsers.length) {
       return {
@@ -73,14 +77,14 @@ export default function ReportsHubPage() {
     const materialConsumption = new Map<string, number>();
     const supervisorActivity = new Map<string, number>();
 
-    approvedRequests.forEach(req => {
+    approvedRequests.forEach((req: CompatibleMaterialRequest) => {
       const supervisorId = req.supervisorId;
       if (supervisorId) {
         supervisorActivity.set(supervisorId, (supervisorActivity.get(supervisorId) || 0) + 1);
       }
 
       const items = req.items || (req.materialId ? [{ materialId: req.materialId, quantity: req.quantity || 0 }] : []);
-      items.forEach(item => {
+      items.forEach((item: { materialId: string; quantity: number; }) => {
         materialConsumption.set(item.materialId, (materialConsumption.get(item.materialId) || 0) + item.quantity);
       });
     });
@@ -89,7 +93,7 @@ export default function ReportsHubPage() {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([materialId, quantity]) => ({
-        name: safeMaterials.find(m => m.id === materialId)?.name || 'Desconocido',
+        name: safeMaterials.find((m: Material) => m.id === materialId)?.name || 'Desconocido',
         quantity,
       }));
 
@@ -97,7 +101,7 @@ export default function ReportsHubPage() {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([userId, count]) => ({
-        name: safeUsers.find(u => u.id === userId)?.name || 'Desconocido',
+        name: safeUsers.find((u: User) => u.id === userId)?.name || 'Desconocido',
         count,
       }));
 

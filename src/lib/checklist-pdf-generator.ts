@@ -1,6 +1,8 @@
+
+'use client';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { AssignedSafetyTask as AssignedChecklist, User } from './data';
+import { AssignedSafetyTask, User } from '@/modules/core/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,7 +29,7 @@ const LINE_HEIGHT = 6;
 
 const formatDate = (date: Date | Timestamp | undefined | null, includeTime = false) => {
   if (!date) return 'N/A';
-  const jsDate = date instanceof Timestamp ? date.toDate() : date;
+  const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
   const formatString = includeTime ? "d 'de' MMMM, yyyy HH:mm" : "d 'de' MMMM, yyyy";
   return format(jsDate, formatString, { locale: es });
 };
@@ -48,7 +50,7 @@ async function getBase64FromUrl(url: string): Promise<string> {
   }
 }
 
-function addHeader(doc: jsPDF, checklist: AssignedChecklist, logo?: string) {
+function addHeader(doc: jsPDF, checklist: AssignedSafetyTask, logo?: string) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const logoSize = 25;
   const topY = 8; // Ajustado para que el logo esté más arriba
@@ -108,7 +110,7 @@ function addFooter(doc: jsPDF) {
   }
 }
 
-function addChecklistInfo(doc: jsPDF, checklist: AssignedChecklist, supervisor?: User, apr?: User) {
+function addChecklistInfo(doc: jsPDF, checklist: AssignedSafetyTask, supervisor?: User, apr?: User) {
   let y = 40;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -148,7 +150,7 @@ function addChecklistInfo(doc: jsPDF, checklist: AssignedChecklist, supervisor?:
   return y + info.length * LINE_HEIGHT + 6;
 }
 
-export async function generateChecklistPDF(checklist: AssignedChecklist, users: User[], supervisor?: User, apr?: User) {
+export async function generateChecklistPDF(checklist: AssignedSafetyTask, users: User[], supervisor?: User, apr?: User) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -260,8 +262,8 @@ export async function generateChecklistPDF(checklist: AssignedChecklist, users: 
     doc.text(formatDate(date, true), x + sigWidth / 2, lineY + 8, { align: 'center' });
   };
 
-  await addSignature('Realizado por:', checklist.performedBy?.signature, supervisor?.name || 'N/A', checklist.completedAt, leftX);
-  await addSignature('Revisado por (APR):', (checklist.reviewedBy as any)?.signature, apr?.name || 'N/A', (checklist.reviewedBy as any)?.date, rightX);
+  await addSignature('Realizado por:', checklist.performedBy?.signature, supervisor?.name || 'N/A', checklist.completedAt || null, leftX);
+  await addSignature('Revisado por (APR):', (checklist.reviewedBy as any)?.signature, apr?.name || 'N/A', (checklist.reviewedBy as any)?.date || null, rightX);
 
   addFooter(doc);
 

@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
-import type { MaterialRequest } from "@/modules/core/lib/data";
+import type { MaterialRequest, Material, User } from "@/modules/core/lib/data";
 
 type CompatibleMaterialRequest = MaterialRequest & {
     materialId?: string;
@@ -24,14 +24,14 @@ type CompatibleMaterialRequest = MaterialRequest & {
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
     const jsDate = date instanceof Timestamp ? date.toDate() : date;
-    return jsDate.toLocaleDateString('es-CL');
+    return jsDate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 export default function SupervisorHubPage() {
-    const { requests, materials } = useAppState();
-    const { user, can } = useAuth();
+    const { requests, materials, can } = useAppState();
+    const { user } = useAuth();
 
-    const materialMap = useMemo(() => new Map((materials || []).map(m => [m.id, m])), [materials]);
+    const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 
     const myRequests = useMemo(() => {
         if (!user) return [];
@@ -57,11 +57,15 @@ export default function SupervisorHubPage() {
         const items = request.items || (request.materialId ? [{ materialId: request.materialId, quantity: request.quantity || 0 }] : []);
         return (
             <ul className="list-disc list-inside">
-                {items.map((item, index) => (
-                    <li key={index} className="text-xs truncate">
-                        {item.quantity}x {materialMap.get(item.materialId)?.name || "N/A"}
-                    </li>
-                ))}
+                {items.map((item, index) => {
+                    const material = materialMap.get(item.materialId) as Material | undefined;
+                    const materialName = material ? material.name : "N/A";
+                    return (
+                        <li key={index} className="text-xs truncate">
+                            {item.quantity}x {materialName}
+                        </li>
+                    );
+                })}
             </ul>
         );
     };

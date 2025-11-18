@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Inbox, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Timestamp } from "firebase/firestore";
+import type { SafetyInspection, User } from "@/modules/core/lib/data";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
@@ -19,16 +20,16 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
 export default function ReviewInspectionsPage() {
     const { safetyInspections, users, isLoading } = useAppState();
     
-    const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u.name])), [users]);
+    const userMap = useMemo(() => new Map((users || []).map((u: User) => [u.id, u.name])), [users]);
 
     const inspectionsToReview = useMemo(() => {
         if (!safetyInspections) return [];
-        return safetyInspections
-            .filter(i => i.status === 'completed' || i.status === 'approved' || i.status === 'rejected')
-            .sort((a, b) => {
-                const dateA = (a.completedAt || a.date) as Date;
-                const dateB = (b.completedAt || b.date) as Date;
-                return dateB.getTime() - dateA.getTime();
+        return (safetyInspections as SafetyInspection[])
+            .filter((i: SafetyInspection) => i.status === 'completed' || i.status === 'approved' || i.status === 'rejected')
+            .sort((a: SafetyInspection, b: SafetyInspection) => {
+                const dateA = (a.completedAt || a.date) as Timestamp;
+                const dateB = (b.completedAt || b.date) as Timestamp;
+                return dateB.toMillis() - dateA.toMillis();
             });
     }, [safetyInspections]);
 
@@ -72,7 +73,7 @@ export default function ReviewInspectionsPage() {
                     <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
                         {inspectionsToReview.length > 0 ? (
                             <div className="space-y-3 p-4">
-                                {inspectionsToReview.map(inspection => (
+                                {inspectionsToReview.map((inspection: SafetyInspection) => (
                                     <Link key={inspection.id} href={`/dashboard/safety/review-inspections/${inspection.id}`} >
                                         <div className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-muted/50 transition-colors cursor-pointer">
                                             <div className="flex-grow">

@@ -54,7 +54,7 @@ export default function CategoriesPage() {
                         <CardContent>
                             <ScrollArea className="h-[calc(80vh-10rem)] border rounded-md">
                                 <div className="space-y-4 p-4">
-                                    {materialCategories.map(category => (
+                                    {materialCategories.map((category: MaterialCategory) => (
                                         <div key={category.id} className="flex items-center justify-between p-4 rounded-lg border gap-4">
                                             <p className="font-semibold">{category.name}</p>
                                             <DropdownMenu>

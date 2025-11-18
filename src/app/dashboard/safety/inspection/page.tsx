@@ -1,7 +1,8 @@
+
 "use client";
 
 import React, { useState, useMemo, useRef } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
@@ -20,10 +21,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import type { SafetyInspection, User } from "@/modules/core/lib/data";
+import { Timestamp } from "firebase/firestore";
 
 
 const InspectionSchema = z.object({
-  work: z.string().min(3, "El nombre de la obra es requerido."),
+  area: z.string().min(3, "El nombre de la obra es requerido."),
   location: z.string().optional(),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
   riskLevel: z.enum(['leve', 'grave', 'fatal'], { required_error: "Debes seleccionar un nivel de riesgo." }),
@@ -44,7 +47,8 @@ export default function SafetyInspectionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const assignableUsers = useMemo(() => {
-    return users.filter(u => ['supervisor', 'operations'].includes(u.role));
+    if (!users) return [];
+    return users.filter((u: User) => ['supervisor', 'operations', 'apr'].includes(u.role));
   }, [users]);
   
   const {
@@ -56,7 +60,7 @@ export default function SafetyInspectionPage() {
   } = useForm<InspectionFormData>({
     resolver: zodResolver(InspectionSchema),
     defaultValues: {
-      work: 'File 721', // Default value
+      area: 'File 721', // Default value
     }
   });
 
@@ -98,7 +102,7 @@ export default function SafetyInspectionPage() {
 
                     setEvidencePhotos(prev => [...prev, dataUrl]);
                 };
-                img.src = e.target.result;
+                img.src = e.target.result as string;
             }
         };
         reader.readAsDataURL(file);
@@ -124,6 +128,8 @@ export default function SafetyInspectionPage() {
       try {
           await addSafetyInspection({
               ...data,
+              deadline: data.deadline ? Timestamp.fromDate(data.deadline) : undefined,
+              date: Timestamp.now(),
               evidencePhotos,
               inspectorId: authUser.id,
               inspectorName: authUser.name,
@@ -159,8 +165,8 @@ export default function SafetyInspectionPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="space-y-2">
                             <Label htmlFor="work">Obra</Label>
-                            <Input id="work" {...register('work')} />
-                            {errors.work && <p className="text-xs text-destructive">{errors.work.message}</p>}
+                            <Input id="work" {...register('area')} />
+                            {errors.area && <p className="text-xs text-destructive">{errors.area.message}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="location">Ubicación Específica (Opcional)</Label>
@@ -243,7 +249,7 @@ export default function SafetyInspectionPage() {
                                 <Select onValueChange={field.onChange} value={field.value}>
                                     <SelectTrigger><SelectValue placeholder="Selecciona un responsable..." /></SelectTrigger>
                                     <SelectContent>
-                                        {assignableUsers.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.role === 'operations' ? 'Adm. Obra' : 'Supervisor'})</SelectItem>)}
+                                        {assignableUsers.map((s: User) => <SelectItem key={s.id} value={s.id}>{s.name} ({s.role === 'operations' ? 'Adm. Obra' : s.role === 'apr' ? 'APR' : 'Supervisor'})</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             )}
@@ -267,7 +273,7 @@ export default function SafetyInspectionPage() {
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                        <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus />
                                     </PopoverContent>
                                 </Popover>
                             )}

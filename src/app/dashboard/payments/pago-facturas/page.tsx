@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -52,6 +53,12 @@ import { EditPaymentForm } from "@/components/admin/edit-payment-form";
 const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 type PaymentStatus = "pending" | "paid" | "overdue";
+
+type ProcessedPayment = SupplierPayment & {
+  dueDate: Date;
+  calculatedStatus: PaymentStatus;
+};
+
 
 // === Subcomponente para crear factura ===
 const CreatePaymentForm = ({
@@ -270,7 +277,7 @@ export default function PaymentManagementPage() {
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(value);
   };
 
-  const processedPayments = useMemo(() => {
+  const processedPayments = useMemo((): ProcessedPayment[] => {
     const today = startOfDay(new Date());
     return (supplierPayments || [])
       .map((p: SupplierPayment) => {
@@ -288,11 +295,11 @@ export default function PaymentManagementPage() {
           calculatedStatus: currentStatus,
         };
       })
-      .sort((a: any, b: any) => a.dueDate.getTime() - b.dueDate.getTime());
+      .sort((a: ProcessedPayment, b: ProcessedPayment) => a.dueDate.getTime() - b.dueDate.getTime());
   }, [supplierPayments]);
 
   const filteredPayments = useMemo(() => {
-    return processedPayments.filter(p => {
+    return processedPayments.filter((p: ProcessedPayment) => {
         const statusMatch = filter === 'all' || p.calculatedStatus === filter;
         const ocMatch = !ocFilter || (p.purchaseOrderNumber && p.purchaseOrderNumber.includes(ocFilter));
         const workMatch = workFilter === 'all' || (p.work && p.work.toLowerCase().includes(workFilter.toLowerCase()));
@@ -314,7 +321,7 @@ export default function PaymentManagementPage() {
     );
   }
 
-  const supplierMap = new Map(suppliers.map((s: Supplier) => [s.id, s.name]));
+  const supplierMap = new Map<string, string>((suppliers || []).map((s: Supplier) => [s.id, s.name]));
   const workOptions = [...new Set(supplierPayments.map((p: SupplierPayment) => p.work).filter(Boolean))] as string[];
 
   return (
@@ -331,7 +338,7 @@ export default function PaymentManagementPage() {
             </CardHeader>
             <CardContent>
                 <CreatePaymentForm
-                suppliers={suppliers}
+                suppliers={suppliers || []}
                 addPayment={addSupplierPayment}
                 />
             </CardContent>
@@ -378,7 +385,7 @@ export default function PaymentManagementPage() {
 
                     <TableBody>
                     {filteredPayments.length > 0 ? (
-                        filteredPayments.map((p: any) => (
+                        filteredPayments.map((p: ProcessedPayment) => (
                         <TableRow
                             key={p.id}
                             className={cn(

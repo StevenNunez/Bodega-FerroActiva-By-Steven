@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -6,7 +7,7 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, User, PackageSearch, ChevronsUpDown, Check } from 'lucide-react';
+import { Loader2, User, PackageSearch, ChevronsUpDown, Check, TrendingUp } from 'lucide-react';
 import { MaterialRequest, Material, User as UserType } from '@/modules/core/lib/data';
 import { Label } from '@/components/ui/label';
 import { Timestamp } from 'firebase/firestore';
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils';
 type CompatibleMaterialRequest = MaterialRequest & {
     materialId?: string;
     quantity?: number;
+    items?: { materialId: string; quantity: number }[];
 };
 
 type DeliveryItem = {
@@ -42,12 +44,19 @@ export default function StatsPage() {
     const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
     const [popoverOpen, setPopoverOpen] = useState(false);
 
-    const materialMap = useMemo(() => new Map((materials || []).map(m => [m.id, m])), [materials]);
-    const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u])), [users]);
+    // State for the new query card
+    const [queryMaterialId, setQueryMaterialId] = useState<string | null>(null);
+    const [querySupervisorId, setQuerySupervisorId] = useState<string | null>(null);
+    const [queryMaterialPopover, setQueryMaterialPopover] = useState(false);
+    const [querySupervisorPopover, setQuerySupervisorPopover] = useState(false);
+
+
+    const materialMap = useMemo(() => new Map<string, Material>((materials || []).map((m: Material) => [m.id, m])), [materials]);
+    const userMap = useMemo(() => new Map<string, UserType>((users || []).map((u: UserType) => [u.id, u])), [users]);
 
     const flatDeliveries = useMemo((): DeliveryItem[] => {
         if (!requests) return [];
-        return (requests as CompatibleMaterialRequest[]).filter(req => req.status === 'approved').flatMap(req => {
+        return (requests as CompatibleMaterialRequest[]).filter((req: CompatibleMaterialRequest) => req.status === 'approved').flatMap((req: CompatibleMaterialRequest) => {
             const supervisor = userMap.get(req.supervisorId);
             if (!supervisor) return [];
 
@@ -114,14 +123,90 @@ export default function StatsPage() {
 
     }, [selectedMaterialId, flatDeliveries]);
 
+    const queriedTotal = useMemo(() => {
+        if (!queryMaterialId || !querySupervisorId) return null;
+
+        return flatDeliveries
+            .filter(d => d.materialId === queryMaterialId && d.supervisorId === querySupervisorId)
+            .reduce((total, delivery) => total + delivery.quantity, 0);
+
+    }, [queryMaterialId, querySupervisorId, flatDeliveries]);
+
 
     if (isLoading) {
         return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
 
+    const supervisors = Array.from(userMap.values()).filter(u => u.role === 'supervisor' || u.role === 'apr' || u.role === 'operations');
+
     return (
         <div className="flex flex-col gap-8">
             <PageHeader title="Estadísticas de Consumo" description="Analiza el consumo de materiales, las entregas por persona y el comportamiento de las solicitudes."/>
+            
+             <Card>
+                <CardHeader>
+                    <CardTitle>Consulta de Consumo por Supervisor</CardTitle>
+                    <CardDescription>Selecciona un material y un supervisor para ver el total solicitado.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                             <Label>Material</Label>
+                             <Popover open={queryMaterialPopover} onOpenChange={setQueryMaterialPopover}>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" role="combobox" className="w-full justify-between">
+                                        <span className="truncate">{queryMaterialId ? materialMap.get(queryMaterialId)?.name : "Selecciona un material..."}</span>
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Buscar material..." />
+                                        <CommandList><CommandEmpty>No se encontró.</CommandEmpty><CommandGroup>
+                                            {(materials || []).map((material: Material) => (
+                                                <CommandItem key={material.id} value={material.name} onSelect={() => {setQueryMaterialId(material.id); setQueryMaterialPopover(false);}}>
+                                                    <Check className={cn("mr-2 h-4 w-4", queryMaterialId === material.id ? "opacity-100" : "opacity-0")} />
+                                                    {material.name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup></CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Supervisor</Label>
+                             <Popover open={querySupervisorPopover} onOpenChange={setQuerySupervisorPopover}>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" role="combobox" className="w-full justify-between">
+                                        <span className="truncate">{querySupervisorId ? userMap.get(querySupervisorId)?.name : "Selecciona un supervisor..."}</span>
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Buscar supervisor..." />
+                                        <CommandList><CommandEmpty>No se encontró.</CommandEmpty><CommandGroup>
+                                            {supervisors.map((user: UserType) => (
+                                                <CommandItem key={user.id} value={user.name} onSelect={() => {setQuerySupervisorId(user.id); setQuerySupervisorPopover(false);}}>
+                                                    <Check className={cn("mr-2 h-4 w-4", querySupervisorId === user.id ? "opacity-100" : "opacity-0")} />
+                                                    {user.name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup></CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                    </div>
+                    {queriedTotal !== null && (
+                        <div className="pt-4 text-center">
+                            <p className="text-muted-foreground">Total solicitado:</p>
+                             <p className="text-4xl font-bold text-primary">{queriedTotal.toLocaleString()} <span className="text-xl font-normal">{materialMap.get(queryMaterialId!)?.unit}</span></p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                  <div className="lg:col-span-1">
@@ -166,7 +251,7 @@ export default function StatsPage() {
                                             className="w-full justify-between"
                                         >
                                             {selectedMaterialId
-                                                ? (materials || []).find((m) => m.id === selectedMaterialId)?.name
+                                                ? (materials || []).find((m: Material) => m.id === selectedMaterialId)?.name
                                                 : "Busca y selecciona un material..."}
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
@@ -174,27 +259,29 @@ export default function StatsPage() {
                                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                         <Command>
                                             <CommandInput placeholder="Buscar material..." />
-                                            <CommandEmpty>No se encontró el material.</CommandEmpty>
-                                            <CommandGroup>
-                                                {(materials || []).map((material) => (
-                                                    <CommandItem
-                                                        key={material.id}
-                                                        value={material.name}
-                                                        onSelect={() => {
-                                                            setSelectedMaterialId(material.id);
-                                                            setPopoverOpen(false);
-                                                        }}
-                                                    >
-                                                        <Check
-                                                            className={cn(
-                                                                "mr-2 h-4 w-4",
-                                                                selectedMaterialId === material.id ? "opacity-100" : "opacity-0"
-                                                            )}
-                                                        />
-                                                        {material.name}
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
+                                            <CommandList>
+                                                <CommandEmpty>No se encontró el material.</CommandEmpty>
+                                                <CommandGroup>
+                                                    {(materials || []).map((material: Material) => (
+                                                        <CommandItem
+                                                            key={material.id}
+                                                            value={material.name}
+                                                            onSelect={() => {
+                                                                setSelectedMaterialId(material.id);
+                                                                setPopoverOpen(false);
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    selectedMaterialId === material.id ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            {material.name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
                                         </Command>
                                     </PopoverContent>
                                 </Popover>

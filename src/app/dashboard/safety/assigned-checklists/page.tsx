@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
+import type { AssignedSafetyTask } from "@/modules/core/lib/data";
 
 // Helper para formatear fechas
 const formatDate = (date: Date | Timestamp | undefined | null) => {
@@ -25,8 +26,8 @@ export default function SupervisorAssignedChecklistsPage() {
     const myAssignedChecklists = useMemo(() => {
         if (!user || !assignedChecklists) return [];
         return assignedChecklists
-            .filter(c => c.supervisorId === user.id)
-            .sort((a, b) => {
+            .filter((c: AssignedSafetyTask) => c.supervisorId === user.id)
+            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => {
                 const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt as any).getTime();
                 const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt as any).getTime();
                 return dateB - dateA;
@@ -63,7 +64,7 @@ export default function SupervisorAssignedChecklistsPage() {
                     <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
                         {myAssignedChecklists.length > 0 ? (
                             <div className="space-y-3 p-4">
-                                {myAssignedChecklists.map(checklist => (
+                                {myAssignedChecklists.map((checklist: AssignedSafetyTask) => (
                                     <Link 
                                         key={checklist.id} 
                                         href={`/dashboard/safety/assigned-checklists/${checklist.id}`}

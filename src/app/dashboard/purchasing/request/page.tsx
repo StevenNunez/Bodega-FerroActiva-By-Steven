@@ -1,6 +1,10 @@
-"use client";
 
-import React, { useState, useMemo } from "react";
+'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { useForm, SubmitHandler, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { PageHeader } from "@/components/page-header";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,418 +12,464 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import { Send, Loader2, ChevronsUpDown, Check, Clock, Package, X, Plus, Trash2 } from "lucide-react";
+import {
+  Send,
+  Loader2,
+  Clock,
+  Check,
+  X,
+  PackageCheck,
+  Box,
+  FileText,
+  AlertCircle,
+  ChevronsUpDown,
+} from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { PurchaseRequestStatus, PurchaseRequest, Material, MaterialCategory } from "@/modules/core/lib/data";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Timestamp } from "firebase/firestore";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Timestamp } from "firebase/firestore";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Material, MaterialRequest } from "@/modules/core/lib/data";
 
-interface CartItem {
-    materialId: string;
-    materialName: string;
-    quantity: number;
-    unit: string;
-    stock: number;
-}
+const PURCHASE_UNITS = ["unidad", "caja", "m2", "m3", "litro", "kg", "tonelada"];
 
-// Extend the MaterialRequest type to include old format for compatibility
-type CompatibleMaterialRequest = MaterialRequest & {
-    materialId?: string;
-    quantity?: number;
-    items?: { materialId: string; quantity: number }[];
-};
+const FormSchema = z.object({
+  materialName: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
+  quantity: z.coerce.number().min(1, 'La cantidad debe ser al menos 1.'),
+  unit: z.string({ required_error: 'Debes seleccionar una unidad.' }),
+  justification: z.string().min(10, 'La justificación debe tener al menos 10 caracteres.'),
+  category: z.string({ required_error: 'Debes seleccionar una categoría.' }),
+  area: z.string().min(3, 'El área/proyecto debe tener al menos 3 caracteres.'),
+});
 
+type FormData = z.infer<typeof FormSchema>;
 
-export default function OperationsRequestPage() {
-  const { materials, addMaterialRequest, requests, isLoading } = useAppState();
+export default function PurchaseRequestFormPage() {
+  const { purchaseRequests, materials, addPurchaseRequest, materialCategories } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
-  
-  // State for the new multi-item request form
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [area, setArea] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // State for the temporary item being added to the cart
-  const [currentMaterialId, setCurrentMaterialId] = useState<string | null>(null);
-  const [currentQuantity, setCurrentQuantity] = useState<number | string>("");
+
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
-
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
-  const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
-  const materialMap = useMemo(() => new Map((materials || []).map((m) => [m.id, m])), [materials]);
-  const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r) => r.supervisorId === authUser?.id), [requests, authUser]);
-
-  const filteredRequests = useMemo(() => {
-    if (statusFilter === "all") return myRequests;
-    return myRequests.filter((r) => r.status === statusFilter);
-  }, [myRequests, statusFilter]);
-
-  const paginatedRequests = filteredRequests.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
-  );
-  const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
-    return date instanceof Timestamp ? date.toDate() : date;
+    return date instanceof Timestamp ? date.toDate() : new Date(date as any);
   };
 
-  const formatDate = (date: Date | Timestamp | null | undefined): string => {
-    const jsDate = getDate(date);
-    if (!jsDate) return "N/A";
-    return jsDate.toLocaleDateString("es-CL", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({
+    resolver: zodResolver(FormSchema),
+    defaultValues: {},
+  });
 
-  const getStatusBadge = useMemo(
-    () => (status: "pending" | "approved" | "rejected") => {
-      switch (status) {
-        case "pending":
-          return (
-            <Badge variant="secondary" className="bg-yellow-500 text-white">
-              <Clock className="mr-1 h-3 w-3" />
-              Pendiente
-            </Badge>
-          );
-        case "approved":
-          return (
-            <Badge variant="default" className="bg-green-600 text-white">
-              <Check className="mr-1 h-3 w-3" />
-              Aprobado
-            </Badge>
-          );
-        case "rejected":
-          return (
-            <Badge variant="destructive">
-              <X className="mr-1 h-3 w-3" />
-              Rechazado
-            </Badge>
-          );
-        default:
-          return <Badge variant="outline">Desconocido</Badge>;
+  useEffect(() => {
+    if (selectedMaterialId) {
+      const material = (materials || []).find((m: Material) => m.id === selectedMaterialId);
+      if (material) {
+        setValue("materialName", material.name, { shouldValidate: true });
+        setValue("unit", material.unit, { shouldValidate: true });
+        setValue("category", material.category, { shouldValidate: true });
       }
-    },
-    []
+    }
+  }, [selectedMaterialId, materials, setValue]);
+
+  const displayedRequests = useMemo(() => {
+    if (!authUser) return [];
+    return (purchaseRequests || [])
+      .filter((pr: PurchaseRequest) => pr.supervisorId === authUser.id)
+      .sort((a: PurchaseRequest, b: PurchaseRequest) => {
+        const dateA = getDate(a.createdAt);
+        const dateB = getDate(b.createdAt);
+        if (dateA && dateB) return dateB.getTime() - dateA.getTime();
+        return 0;
+      });
+  }, [purchaseRequests, authUser]);
+
+  const paginatedRequests = displayedRequests.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
-  const handleAddItemToCart = () => {
-    if (!currentMaterialId || !currentQuantity) {
-        toast({ variant: "destructive", title: "Error", description: "Selecciona un material y una cantidad." });
-        return;
-    }
-    const material = materialMap.get(currentMaterialId);
-    if (!material) {
-        toast({ variant: "destructive", title: "Error", description: "Material no encontrado." });
-        return;
-    }
-    const quantity = Number(currentQuantity);
-    if (isNaN(quantity) || quantity <= 0) {
-        toast({ variant: "destructive", title: "Error", description: "La cantidad debe ser un número positivo." });
-        return;
-    }
-    if (quantity > material.stock) {
-        toast({ variant: "destructive", title: "Stock Insuficiente", description: `Solo hay ${material.stock} unidades disponibles.` });
-        return;
-    }
-    if (cart.some(item => item.materialId === currentMaterialId)) {
-        toast({ variant: "destructive", title: "Error", description: "Este material ya está en la solicitud." });
-        return;
-    }
+  const totalPages = Math.ceil(displayedRequests.length / itemsPerPage);
 
-    setCart([...cart, { 
-        materialId: material.id, 
-        materialName: material.name, 
-        quantity,
-        unit: material.unit,
-        stock: material.stock 
-    }]);
-    setCurrentMaterialId(null);
-    setCurrentQuantity("");
-    setPopoverOpen(false);
-  }
-
-  const handleRemoveItemFromCart = (materialId: string) => {
-      setCart(cart.filter(item => item.materialId !== materialId));
-  }
-
-  const handleRequestSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (cart.length === 0 || !area || !authUser) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Añade al menos un material y una justificación.",
-      });
+  const onSubmit: SubmitHandler<FormData> = async (data) => {
+    if (!authUser) {
+      toast({ variant: 'destructive', title: 'Error de autenticación' });
       return;
     }
-
-    setIsSubmitting(true);
     try {
-      await addMaterialRequest({
-        items: cart.map(({materialId, quantity}) => ({materialId, quantity})),
-        area,
+      await addPurchaseRequest({
+        ...data,
         supervisorId: authUser.id,
       });
       toast({
-        title: "Éxito",
-        description: "Tu solicitud de material ha sido enviada.",
+        title: 'Éxito',
+        description: 'Tu solicitud de compra ha sido enviada.',
       });
-      setCart([]);
-      setArea("");
+      reset();
+      setSelectedMaterialId(null);
     } catch (error) {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo enviar la solicitud.",
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudo enviar la solicitud.',
       });
-    } finally {
-      setIsSubmitting(false);
     }
+  };
+
+  const getStatusBadge = (status: PurchaseRequestStatus) => {
+    switch (status) {
+      case 'pending':
+        return (
+          <Badge variant="secondary" className="bg-yellow-500 text-white">
+            <Clock className="mr-1 h-3 w-3" /> Pendiente
+          </Badge>
+        );
+      case 'approved':
+        return (
+          <Badge variant="default" className="bg-green-600 text-white">
+            <Check className="mr-1 h-3 w-3" /> Aprobado
+          </Badge>
+        );
+      case 'rejected':
+        return (
+          <Badge variant="destructive">
+            <X className="mr-1 h-3 w-3" /> Rechazado
+          </Badge>
+        );
+      case 'received':
+        return (
+          <Badge variant="default" className="bg-blue-600 text-white">
+            <PackageCheck className="mr-1 h-3 w-3" /> Recibido
+          </Badge>
+        );
+      case 'batched':
+        return (
+          <Badge variant="default" className="bg-purple-600 text-white">
+            <Box className="mr-1 h-3 w-3" /> En Lote
+          </Badge>
+        );
+      case 'ordered':
+        return (
+          <Badge variant="default" className="bg-cyan-600 text-white">
+            <FileText className="mr-1 h-3 w-3" /> Orden Generada
+          </Badge>
+        );
+      default:
+         return <Badge variant="outline">Desconocido</Badge>
+    }
+  };
+
+  const getChangeTooltip = (req: PurchaseRequest) => {
+    if (req.originalQuantity && req.originalQuantity !== req.quantity) {
+      return `Cantidad original: ${req.originalQuantity}. ${req.notes || ''}`;
+    }
+    if (req.notes) {
+      return req.notes;
+    }
+    return null;
   };
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Solicitud de Materiales para Obra"
-        description="Rellena el formulario para pedir materiales de la bodega central."
+        title="Solicitar Compra de Materiales"
+        description="Pide materiales que no están en el inventario o cuyo stock es bajo."
       />
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 items-start">
-        <Card>
+
+      <div className="flex flex-col gap-8">
+        <Card className="w-full">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Send /> Generar Solicitud de Materiales
-            </CardTitle>
-            <CardDescription>
-              Completa el formulario para solicitar nuevos materiales para la obra. El administrador deberá aprobar tu solicitud.
-            </CardDescription>
+            <CardTitle>Generar Solicitud de Compra</CardTitle>
+            <CardDescription>Completa el formulario para pedir nuevos materiales.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleRequestSubmit} className="space-y-6">
-                <div className="space-y-4 p-4 border rounded-md bg-muted/50">
-                    <h4 className="font-medium text-center">Añadir Material a la Solicitud</h4>
-                    <div className="space-y-2">
-                        <Label htmlFor="material">Material</Label>
-                        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                            <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" className="w-full justify-between" disabled={isSubmitting}>
-                                <span className="truncate">
-                                {currentMaterialId ? materialMap.get(currentMaterialId)?.name : "Selecciona un material..."}
-                                </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
-                                <CommandInput placeholder="Buscar material..." />
-                                <CommandList>
-                                <CommandEmpty>No se encontró el material.</CommandEmpty>
-                                <CommandGroup>
-                                    {(materials || []).map((m) => (
-                                    <CommandItem
-                                        key={m.id}
-                                        value={m.name}
-                                        disabled={m.stock <= 0 || cart.some(item => item.materialId === m.id)}
-                                        onSelect={() => {
-                                            setCurrentMaterialId(m.id);
-                                            setPopoverOpen(false);
-                                        }}
-                                        className="flex justify-between"
-                                    >
-                                        <div className="flex items-center">
-                                        <Check className={cn("mr-2 h-4 w-4", currentMaterialId === m.id ? "opacity-100" : "opacity-0")} />
-                                        {m.name}
-                                        </div>
-                                        <span className="text-xs text-muted-foreground">
-                                        Stock: {m.stock.toLocaleString()}
-                                        </span>
-                                    </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                                </CommandList>
-                            </Command>
-                            </PopoverContent>
-                        </Popover>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="quantity">Cantidad</Label>
-                        <Input id="quantity" type="number" placeholder="Ej: 10" value={currentQuantity} onChange={e => setCurrentQuantity(e.target.value)} disabled={isSubmitting} />
-                    </div>
-                    <Button type="button" variant="secondary" className="w-full" onClick={handleAddItemToCart}><Plus className="mr-2 h-4 w-4"/> Añadir a la Solicitud</Button>
-                </div>
-                
-                {cart.length > 0 && (
-                    <div className="space-y-2">
-                        <Label>Materiales en la Solicitud</Label>
-                        <ScrollArea className="h-40 w-full rounded-md border p-2">
-                            <div className="space-y-2">
-                            {cart.map(item => (
-                                <div key={item.materialId} className="flex items-center justify-between bg-muted p-2 rounded-md">
-                                    <div>
-                                        <p className="text-sm font-medium">{item.materialName}</p>
-                                        <p className="text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
-                                    </div>
-                                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveItemFromCart(item.materialId)}>
-                                        <Trash2 className="h-4 w-4 text-destructive"/>
-                                    </Button>
-                                </div>
-                            ))}
-                            </div>
-                        </ScrollArea>
-                    </div>
-                )}
-                
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Seleccionar material existente (Opcional)</Label>
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between">
+                      <span className="truncate">
+                        {selectedMaterialId
+                          ? (materials || []).find((m: Material) => m.id === selectedMaterialId)?.name
+                          : "Selecciona un material..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar material..." />
+                      <CommandList>
+                        <CommandEmpty>No se encontró el material.</CommandEmpty>
+                        <CommandGroup>
+                          {(materials || []).map((m: Material) => (
+                            <CommandItem
+                              key={m.id}
+                              value={m.name}
+                              onSelect={() => {
+                                setSelectedMaterialId(m.id);
+                                setPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedMaterialId === m.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {m.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="area">Área / Proyecto de Destino</Label>
+                  <Label htmlFor="materialName">Nombre del Material</Label>
                   <Input
-                    id="area"
-                    placeholder="Ej: Torre Norte, Piso 5"
-                    value={area}
-                    onChange={(e) => setArea(e.target.value)}
-                    disabled={isSubmitting}
-                    aria-label="Área o proyecto de destino"
+                    id="materialName"
+                    placeholder="Ej: Cemento Portland 25kg"
+                    {...register('materialName')}
                   />
+                  {errors.materialName && (
+                    <p className="text-xs text-destructive">{errors.materialName.message}</p>
+                  )}
                 </div>
-              <Button type="submit" className="w-full" disabled={isSubmitting || cart.length === 0}>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="quantity">Cantidad</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      placeholder="Ej: 50"
+                      {...register('quantity')}
+                    />
+                    {errors.quantity && (
+                      <p className="text-xs text-destructive">{errors.quantity.message}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="unit">Unidad</Label>
+                    <Controller
+                      name="unit"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger id="unit">
+                            <SelectValue placeholder="Unidad" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PURCHASE_UNITS.map((unit) => (
+                              <SelectItem key={unit} value={unit}>
+                                {unit}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.unit && (
+                      <p className="text-xs text-destructive">{errors.unit.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="area">Área / Proyecto</Label>
+                  <Input id="area" placeholder="Ej: Torre A, Piso 5" {...register('area')} />
+                  {errors.area && (
+                    <p className="text-xs text-destructive">{errors.area.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="category">Categoría del Material</Label>
+                  <Controller
+                    name="category"
+                    control={control}
+                    render={({ field }) => (
+                      <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" role="combobox" className="w-full justify-between">
+                            <span className="truncate">
+                              {field.value
+                                ? (materialCategories || []).find((cat: MaterialCategory) => cat.name === field.value)?.name
+                                : "Selecciona una categoría..."}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                          <Command>
+                            <CommandInput placeholder="Buscar categoría..." />
+                            <CommandList>
+                              <CommandEmpty>No se encontró la categoría.</CommandEmpty>
+                              <CommandGroup>
+                                {(materialCategories || []).map((cat: MaterialCategory) => (
+                                  <CommandItem
+                                    key={cat.id}
+                                    value={cat.name}
+                                    onSelect={() => {
+                                      setValue("category", cat.name, { shouldValidate: true });
+                                      setCategoryPopoverOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        field.value === cat.name ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {cat.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  />
+                  {errors.category && (
+                    <p className="text-xs text-destructive">{errors.category.message}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="justification">Justificación de la Compra</Label>
+                <Textarea
+                  id="justification"
+                  placeholder="Ej: Necesario para la fase 2 de la estructura."
+                  {...register('justification')}
+                />
+                {errors.justification && (
+                  <p className="text-xs text-destructive">{errors.justification.message}</p>
+                )}
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enviando...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...
                   </>
                 ) : (
-                  "Enviar Solicitud"
+                  <>
+                    <Send className="mr-2 h-4 w-4" /> Enviar Solicitud
+                  </>
                 )}
               </Button>
             </form>
           </CardContent>
         </Card>
-        <Card className="!max-w-none">
+
+        <Card className="w-full">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package /> Historial de Solicitudes
-            </CardTitle>
-            <CardDescription>Revisa el estado de tus solicitudes de materiales de bodega.</CardDescription>
+            <CardTitle>Historial de Mis Solicitudes</CardTitle>
+            <CardDescription>El estado de tus solicitudes se actualiza aquí.</CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="p-6 space-y-4">
-              <div className="w-[180px]">
-                <Label htmlFor="status-filter">Filtrar por estado</Label>
-                <Select
-                  value={statusFilter}
-                  onValueChange={(value) => {
-                    setStatusFilter(value as "all" | "pending" | "approved" | "rejected");
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger id="status-filter" aria-describedby="status-filter-description">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="pending">Pendiente</SelectItem>
-                    <SelectItem value="approved">Aprobado</SelectItem>
-                    <SelectItem value="rejected">Rechazado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span id="status-filter-description" className="sr-only">
-                  Filtra solicitudes por estado
-                </span>
-              </div>
-              <div className="relative overflow-x-auto max-w-full">
-                <div className="min-w-[800px]">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-card">
+          <CardContent>
+            <ScrollArea className="h-[calc(80vh-12rem)]">
+              <div className="overflow-x-auto">
+                  <Table className="min-w-[800px]">
+                    <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[350px]">Ítems Solicitados</TableHead>
-                        <TableHead className="w-[150px]">Área</TableHead>
-                        <TableHead className="w-[150px]">Fecha</TableHead>
-                        <TableHead className="w-[150px]">Estado</TableHead>
+                        <TableHead className="min-w-[300px]">Material</TableHead>
+                        <TableHead className="min-w-[120px]">Cant.</TableHead>
+                        <TableHead className="min-w-[150px]">Fecha</TableHead>
+                        <TableHead className="min-w-[150px]">Estado</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
-                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                                </TableCell>
+                      {paginatedRequests.length > 0 ? (
+                        paginatedRequests.map((req: PurchaseRequest) => {
+                          const changeTooltip = getChangeTooltip(req);
+                          return (
+                            <TableRow key={req.id}>
+                              <TableCell className="font-medium min-w-[300px] whitespace-pre-wrap break-words">
+                                {req.materialName}
+                              </TableCell>
+                              <TableCell className="flex items-center gap-2 min-w-[120px]">
+                                {req.quantity} {req.unit}
+                                {changeTooltip && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="max-w-xs">{changeTooltip}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </TableCell>
+                              <TableCell className="min-w-[150px]">
+                                {getDate(req.createdAt)?.toLocaleDateString() ?? 'N/A'}
+                              </TableCell>
+                              <TableCell className="min-w-[150px]">
+                                {getStatusBadge(req.status)}
+                              </TableCell>
                             </TableRow>
-                        ) : paginatedRequests.length > 0 ? (
-                        paginatedRequests.map((req) => (
-                          <TableRow key={req.id}>
-                            <TableCell className="font-medium max-w-[350px]">
-                                <ul className="list-disc list-inside">
-                                    {req.items && Array.isArray(req.items) ? (
-                                        req.items.map(item => (
-                                            <li key={item.materialId} className="text-xs truncate">
-                                                {item.quantity}x {materialMap.get(item.materialId)?.name || "N/A"}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="text-xs truncate">
-                                            {req.quantity}x {materialMap.get(req.materialId || '')?.name || "N/A"}
-                                        </li>
-                                    )}
-                                </ul>
-                            </TableCell>
-                            <TableCell className="max-w-[150px] truncate">{req.area}</TableCell>
-                            <TableCell>{formatDate(req.createdAt)}</TableCell>
-                            <TableCell>{getStatusBadge(req.status)}</TableCell>
-                          </TableRow>
-                        ))
+                          );
+                        })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
-                            No hay solicitudes para el estado seleccionado.
+                          <TableCell colSpan={4} className="h-24 text-center">
+                            No has realizado solicitudes de compra.
                           </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
-                </div>
               </div>
-              {totalPages > 1 && (
-                <div className="flex justify-between items-center mt-4">
-                  <Button
-                    variant="outline"
-                    disabled={page === 1}
-                    onClick={() => setPage((prev) => prev - 1)}
-                    aria-label="Página anterior de solicitudes"
-                  >
-                    Anterior
-                  </Button>
-                  <span>
-                    Página {page} de {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    disabled={page === totalPages}
-                    onClick={() => setPage((prev) => prev + 1)}
-                    aria-label="Página siguiente de solicitudes"
-                  >
-                    Siguiente
-                  </Button>
-                </div>
-              )}
-            </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center mt-4">
+                <Button
+                  variant="outline"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => prev - 1)}
+                >
+                  Anterior
+                </Button>
+                <span>
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((prev) => prev + 1)}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

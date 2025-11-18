@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
@@ -9,13 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, User, Calendar, Camera, Download } from "lucide-react";
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, User as UserIcon, Calendar, Camera, Download } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import SignaturePad from "@/components/signature-pad";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import type { AssignedSafetyTask } from "@/modules/core/lib/data";
+import type { AssignedSafetyTask, User } from "@/modules/core/lib/data";
 import { Badge } from "@/components/ui/badge";
 import { generateChecklistPDF } from "@/lib/checklist-pdf-generator";
 
@@ -39,7 +40,7 @@ export default function AprReviewChecklistPage() {
 
     const checklist = useMemo(() => {
         if (!assignedChecklists) return null;
-        return assignedChecklists.find(c => c.id === checklistId) || null;
+        return assignedChecklists.find((c: AssignedSafetyTask) => c.id === checklistId) || null;
     }, [assignedChecklists, checklistId]);
 
     const [rejectionNotes, setRejectionNotes] = useState("");
@@ -56,12 +57,12 @@ export default function AprReviewChecklistPage() {
 
     const supervisor = useMemo(() => {
         if (!checklist) return null;
-        return users.find(u => u.id === checklist.supervisorId);
+        return (users || []).find((u: User) => u.id === checklist.supervisorId);
     }, [checklist, users]);
     
     const aprUser = useMemo(() => {
         if (!checklist) return null;
-        return users.find(u => u.id === checklist.assignerId);
+        return (users || []).find((u: User) => u.id === checklist.assignerId);
     }, [checklist, users]);
 
     const getStatusBadge = (status: string) => {
@@ -149,7 +150,7 @@ export default function AprReviewChecklistPage() {
                       </CardHeader>
                       <CardContent className="space-y-6">
                           {(checklist.items || []).map((item: any, index: number) => {
-                              const responsibleUser = users.find(u => u.id === item.responsibleUserId);
+                              const responsibleUser = (users || []).find((u: User) => u.id === item.responsibleUserId);
                               return (
                                   <div key={index} className="p-4 border rounded-lg space-y-3 bg-muted/30">
                                       <p className="font-semibold">{index + 1}. {item.element}</p>
@@ -161,7 +162,7 @@ export default function AprReviewChecklistPage() {
                                       </div>
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                            <div className="flex items-center gap-2 text-muted-foreground">
-                                              <User className="h-4 w-4"/>
+                                              <UserIcon className="h-4 w-4"/>
                                               <span>Responsable: <span className="font-semibold text-foreground">{responsibleUser?.name || 'No asignado'}</span></span>
                                           </div>
                                            <div className="flex items-center gap-2 text-muted-foreground">
@@ -192,7 +193,7 @@ export default function AprReviewChecklistPage() {
                       <CardContent>
                           {checklist.evidencePhotos && checklist.evidencePhotos.length > 0 ? (
                               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                  {checklist.evidencePhotos.map((photo, index) => (
+                                  {checklist.evidencePhotos.map((photo: string, index: number) => (
                                       <div key={index} className="relative aspect-video group">
                                           <Image src={photo} alt={`Evidencia ${index + 1}`} layout="fill" className="object-cover rounded-md" />
                                       </div>
@@ -279,3 +280,4 @@ export default function AprReviewChecklistPage() {
         </div>
     );
 }
+

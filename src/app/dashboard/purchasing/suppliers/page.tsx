@@ -54,7 +54,7 @@ export default function SuppliersPage() {
                         <CardContent>
                             <ScrollArea className="h-[calc(80vh-10rem)] border rounded-md">
                                 <div className="space-y-4 p-4">
-                                    {suppliers.map(supplier => (
+                                    {(suppliers || []).map((supplier: Supplier) => (
                                         <div key={supplier.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-4 rounded-lg border gap-4">
                                             <div className="flex items-center gap-4 flex-grow">
                                                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
@@ -63,7 +63,7 @@ export default function SuppliersPage() {
                                                 <div className="flex flex-col gap-1">
                                                     <p className="font-semibold">{supplier.name}</p>
                                                     <div className="flex flex-wrap gap-1">
-                                                        {supplier.categories.map(cat => (
+                                                        {supplier.categories.map((cat: string) => (
                                                             <Badge key={cat} variant="outline" className="text-xs">{cat}</Badge>
                                                         ))}
                                                     </div>
@@ -95,3 +95,4 @@ export default function SuppliersPage() {
         </div>
     );
 }
+

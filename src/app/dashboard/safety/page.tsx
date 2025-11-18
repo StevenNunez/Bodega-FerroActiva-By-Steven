@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from 'react';
@@ -10,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Timestamp } from 'firebase/firestore';
 import { isPast, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
+import type { AssignedSafetyTask, SafetyInspection, User } from '@/modules/core/lib/data';
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
@@ -47,12 +49,12 @@ const getRiskBadge = (level: string) => {
 
 
 export default function SafetyDashboardPage() {
-    const { user, can } = useAuth();
-    const { assignedChecklists, safetyInspections, users } = useAppState();
+    const { user } = useAuth();
+    const { assignedChecklists, safetyInspections, users, can } = useAppState();
 
     const stats = useMemo(() => {
-        const safeChecklists = assignedChecklists || [];
-        const safeInspections = safetyInspections || [];
+        const safeChecklists: AssignedSafetyTask[] = assignedChecklists || [];
+        const safeInspections: SafetyInspection[] = safetyInspections || [];
         const totalChecklists = safeChecklists.length;
         const totalInspections = safeInspections.length;
         
@@ -63,12 +65,12 @@ export default function SafetyDashboardPage() {
             };
         }
 
-        const assigned = safeChecklists.filter(c => c.status === 'assigned').length;
-        const forReview = safeChecklists.filter(c => c.status === 'completed').length;
-        const approved = safeChecklists.filter(c => c.status === 'approved').length;
+        const assigned = safeChecklists.filter((c: AssignedSafetyTask) => c.status === 'assigned').length;
+        const forReview = safeChecklists.filter((c: AssignedSafetyTask) => c.status === 'completed').length;
+        const approved = safeChecklists.filter((c: AssignedSafetyTask) => c.status === 'approved').length;
         
-        const inspectionsOpen = safeInspections.filter(i => i.status === 'open').length;
-        const inspectionsOverdue = safeInspections.filter(i => i.status === 'open' && i.deadline && isPast(i.deadline as Date)).length;
+        const inspectionsOpen = safeInspections.filter((i: SafetyInspection) => i.status === 'open').length;
+        const inspectionsOverdue = safeInspections.filter((i: SafetyInspection) => i.status === 'open' && i.deadline && isPast((i.deadline as Timestamp).toDate())).length;
 
         return { 
             totalChecklists, assigned, forReview, approved,
@@ -78,17 +80,17 @@ export default function SafetyDashboardPage() {
 
     const checklistsForReview = useMemo(() => {
         return (assignedChecklists || [])
-            .filter(c => c.status === 'completed')
-            .sort((a, b) => ((b.completedAt as Date)?.getTime() || 0) - ((a.completedAt as Date)?.getTime() || 0))
+            .filter((c: AssignedSafetyTask) => c.status === 'completed')
+            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => (((b.completedAt as any)?.toMillis() || 0) - ((a.completedAt as any)?.toMillis() || 0)))
             .slice(0, 5);
     }, [assignedChecklists]);
     
     const openInspections = useMemo(() => {
          return (safetyInspections || [])
-            .filter(c => c.status === 'open')
-            .sort((a, b) => {
-                const deadlineA = a.deadline ? (a.deadline as Date).getTime() : Infinity;
-                const deadlineB = b.deadline ? (b.deadline as Date).getTime() : Infinity;
+            .filter((c: SafetyInspection) => c.status === 'open')
+            .sort((a: SafetyInspection, b: SafetyInspection) => {
+                const deadlineA = a.deadline ? (a.deadline as Timestamp).toMillis() : Infinity;
+                const deadlineB = b.deadline ? (b.deadline as Timestamp).toMillis() : Infinity;
                 return deadlineA - deadlineB;
             })
             .slice(0, 5);
@@ -97,19 +99,19 @@ export default function SafetyDashboardPage() {
     const myRecentTasks = useMemo(() => {
         if (!user) return { checklists: [], inspections: [] };
         const myChecklists = (assignedChecklists || [])
-            .filter(c => c.supervisorId === user.id && c.status === 'assigned')
-            .sort((a, b) => ((b.createdAt as Date)?.getTime() || 0) - ((a.createdAt as Date)?.getTime() || 0))
+            .filter((c: AssignedSafetyTask) => c.supervisorId === user.id && c.status === 'assigned')
+            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => (((b.createdAt as any)?.toMillis() || 0) - ((a.createdAt as any)?.toMillis() || 0)))
             .slice(0, 3);
         
         const myInspections = (safetyInspections || [])
-            .filter(i => i.assignedTo === user.id && i.status === 'open')
-            .sort((a,b) => (((a.deadline as Date)?.getTime() || Infinity) - ((b.deadline as Date)?.getTime() || Infinity)))
+            .filter((i: SafetyInspection) => i.assignedTo === user.id && i.status === 'open')
+            .sort((a: SafetyInspection,b: SafetyInspection) => (((a.deadline as any)?.toMillis() || Infinity) - ((b.deadline as any)?.toMillis() || Infinity)))
             .slice(0, 3);
             
         return { checklists: myChecklists, inspections: myInspections };
     }, [assignedChecklists, safetyInspections, user]);
 
-    const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u.name])), [users]);
+    const userMap = useMemo(() => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])), [users]);
 
     const canReview = can('safety_checklists:review') || can('safety_inspections:review');
     const canBeAssigned = can('safety_checklists:complete') || can('safety_inspections:complete');
@@ -174,13 +176,13 @@ export default function SafetyDashboardPage() {
                         <CardContent>
                             {openInspections.length > 0 ? (
                                 <div className="space-y-3">
-                                    {openInspections.map(i => (
+                                    {openInspections.map((i: SafetyInspection) => (
                                         <Link key={i.id} href={`/dashboard/safety/assigned-inspections/${i.id}`} className="p-4 border rounded-lg flex items-center justify-between hover:bg-muted/50 transition-colors">
                                             <div>
                                                 <p className="font-semibold">{i.description}</p>
                                                 <p className="text-sm text-muted-foreground">Asignado a: {userMap.get(i.assignedTo) || 'Desconocido'}</p>
-                                                {i.deadline && <p className={`text-xs ${isPast((i.deadline as Date)) ? 'text-red-500 font-bold' : 'text-amber-500'}`}>
-                                                    Vence {isPast((i.deadline as Date)) ? 'hace' : 'en'} {formatDistanceToNow((i.deadline as Date), { locale: es, addSuffix: true })}
+                                                {i.deadline && <p className={`text-xs ${isPast((i.deadline as Timestamp).toDate()) ? 'text-red-500 font-bold' : 'text-amber-500'}`}>
+                                                    Vence {isPast((i.deadline as Timestamp).toDate()) ? 'hace' : 'en'} {formatDistanceToNow((i.deadline as Timestamp).toDate(), { locale: es, addSuffix: true })}
                                                 </p>}
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -209,7 +211,7 @@ export default function SafetyDashboardPage() {
                         <CardContent>
                             {checklistsForReview.length > 0 ? (
                                 <div className="space-y-3">
-                                    {checklistsForReview.map(c => (
+                                    {checklistsForReview.map((c: AssignedSafetyTask) => (
                                         <Link key={c.id} href={`/dashboard/safety/review-checklists/${c.id}`} className="p-4 border rounded-lg flex items-center justify-between hover:bg-muted/50 transition-colors">
                                             <div>
                                                 <p className="font-semibold">{c.templateTitle}</p>
@@ -243,7 +245,7 @@ export default function SafetyDashboardPage() {
                                 <h4 className="font-semibold mb-2">Checklists por Completar</h4>
                                 {myRecentTasks.checklists.length > 0 ? (
                                     <div className="space-y-2">
-                                        {myRecentTasks.checklists.map(c => (
+                                        {myRecentTasks.checklists.map((c: AssignedSafetyTask) => (
                                             <Link key={c.id} href={`/dashboard/safety/assigned-checklists/${c.id}`} className="p-3 border rounded-md flex items-center justify-between text-sm hover:bg-muted/50">
                                                 <span>{c.templateTitle}</span>
                                                 <ArrowRight className="h-4 w-4"/>
@@ -256,7 +258,7 @@ export default function SafetyDashboardPage() {
                                 <h4 className="font-semibold mb-2">Inspecciones por Resolver</h4>
                                 {myRecentTasks.inspections.length > 0 ? (
                                     <div className="space-y-2">
-                                         {myRecentTasks.inspections.map(i => (
+                                         {myRecentTasks.inspections.map((i: SafetyInspection) => (
                                             <Link key={i.id} href={`/dashboard/safety/assigned-inspections/${i.id}`} className="p-3 border rounded-md flex items-center justify-between text-sm hover:bg-muted/50">
                                                 <span className="truncate">{i.description}</span>
                                                 <ArrowRight className="h-4 w-4"/>

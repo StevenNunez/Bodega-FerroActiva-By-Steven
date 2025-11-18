@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
@@ -9,22 +10,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, User, Calendar, Camera, Download } from "lucide-react";
+import { Loader2, ArrowLeft, ThumbsUp, ThumbsDown, User as UserIcon, Calendar, Camera, Download } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import SignaturePad from "@/components/signature-pad";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import type { UnplannedInspection } from "@/modules/core/lib/data";
+import type { SafetyInspection, User } from "@/modules/core/lib/data";
 import { Badge } from "@/components/ui/badge";
 import { generateInspectionPDF } from "@/lib/inspection-pdf-generator";
 
 
 const formatDate = (date: Date | Timestamp | undefined | null, includeTime = false) => {
-    if (!date) return 'N/A';
-    const jsDate = date instanceof Timestamp ? date.toDate() : date;
-    const formatString = includeTime ? "d 'de' MMMM, yyyy HH:mm" : "d 'de' MMMM, yyyy";
-    return format(jsDate, formatString, { locale: es });
+  if (!date) return 'N/A';
+  const jsDate = date instanceof Timestamp ? date.toDate() : date;
+  const formatString = includeTime ? "d 'de' MMMM, yyyy HH:mm" : "d 'de' MMMM, yyyy";
+  return format(jsDate, formatString, { locale: es });
 };
 
 export default function ReviewInspectionPage() {
@@ -39,7 +40,7 @@ export default function ReviewInspectionPage() {
 
     const inspection = useMemo(() => {
         if (!safetyInspections) return null;
-        return safetyInspections.find(i => i.id === inspectionId) || null;
+        return safetyInspections.find((i: SafetyInspection) => i.id === inspectionId) || null;
     }, [safetyInspections, inspectionId]);
 
     const [rejectionNotes, setRejectionNotes] = useState( (inspection as any)?.rejectionNotes || "");
@@ -48,12 +49,12 @@ export default function ReviewInspectionPage() {
 
     const supervisor = useMemo(() => {
         if (!inspection) return null;
-        return users.find(u => u.id === inspection.assignedTo);
+        return (users || []).find((u: User) => u.id === inspection.assignedTo);
     }, [inspection, users]);
     
     const aprUser = useMemo(() => {
         if (!inspection) return null;
-        return users.find(u => u.id === inspection.inspectorId);
+        return (users || []).find((u: User) => u.id === inspection.inspectorId);
     }, [inspection, users]);
 
     const getStatusBadge = (status: string) => {
@@ -146,7 +147,7 @@ export default function ReviewInspectionPage() {
                            <p><span className="font-semibold">Descripción:</span> {inspection.description}</p>
                            <p><span className="font-semibold">Plan de Acción:</span> {inspection.actionPlan}</p>
                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                               {inspection.evidencePhotoUrl && <Image src={inspection.evidencePhotoUrl} alt="Evidencia" width={200} height={150} className="rounded-md object-cover"/>}
+                               {inspection.evidencePhotos && inspection.evidencePhotos.map((photo: string, i: number) => <Image key={i} src={photo} alt="Evidencia" width={200} height={150} className="rounded-md object-cover"/>)}
                            </div>
                        </CardContent>
                   </Card>
@@ -158,7 +159,7 @@ export default function ReviewInspectionPage() {
                       <CardContent className="space-y-4">
                            <p><span className="font-semibold">Notas de Cierre:</span> {inspection.completionNotes}</p>
                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                               {inspection.completionPhotos?.map((photo, i) => <Image key={i} src={photo} alt="Evidencia de Cierre" width={200} height={150} className="rounded-md object-cover"/>)}
+                               {inspection.completionPhotos?.map((photo: string, i: number) => <Image key={i} src={photo} alt="Evidencia de Cierre" width={200} height={150} className="rounded-md object-cover"/>)}
                            </div>
                             <div className="p-2 border rounded-md bg-white">
                                 {inspection.completionSignature ? (
@@ -241,3 +242,5 @@ export default function ReviewInspectionPage() {
         </div>
     );
 }
+
+    

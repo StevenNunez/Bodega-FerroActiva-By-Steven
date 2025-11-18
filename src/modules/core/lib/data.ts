@@ -1,3 +1,4 @@
+
 "use client";
 import { Timestamp } from "firebase/firestore";
 
@@ -179,6 +180,7 @@ export interface PurchaseOrder {
     items: { id: string; name: string; quantity: number, unit: string, totalQuantity: number }[];
     lotId?: string | null;
     pdfUrl?: string;
+    tenantId?: string;
 }
 
 export interface StockMovement {

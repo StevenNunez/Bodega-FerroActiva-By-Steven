@@ -11,10 +11,10 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { User, UserRole } from "@/modules/core/lib/data";
 
 export default function PrintUserQrPage() {
-  const { users, isLoading } = useAppState();
-  const { can } = useAuth();
+  const { users, isLoading, can } = useAppState();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -23,16 +23,16 @@ export default function PrintUserQrPage() {
   };
   
   const filteredUsers = useMemo(() => {
-    const safeUsers = users || [];
+    const safeUsers: User[] = users || [];
     if (!searchTerm) {
         return safeUsers;
     }
-    return safeUsers.filter(user => 
+    return safeUsers.filter((user: User) => 
         user.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [users, searchTerm]);
   
-  const getRoleDisplayName = (role: string) => {
+  const getRoleDisplayName = (role: UserRole) => {
     switch (role) {
       case 'admin': return 'Administrador de App';
       case 'bodega-admin': return 'Jefe de Bodega';
@@ -97,7 +97,7 @@ export default function PrintUserQrPage() {
                         <div key={i} className="flex flex-col items-center justify-center p-4 border rounded-lg aspect-[54/86] bg-muted animate-pulse" />
                     ))
                 ) : (
-                    filteredUsers.map((user) => (
+                    filteredUsers.map((user: User) => (
                     <div key={user.id} className="flex qr-item flex-col items-center justify-between text-center p-3 border-2 border-dashed rounded-lg aspect-[54/86] break-inside-avoid bg-background">
                         <div className='text-center'>
                             <h3 className="font-bold text-lg leading-tight">{user.name}</h3>

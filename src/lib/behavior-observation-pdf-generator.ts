@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { BehaviorObservation } from './data';
+import { BehaviorObservation } from '@/modules/core/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -27,7 +27,7 @@ const MARGIN = 15;
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
   if (!date) return 'N/A';
-  const jsDate = date instanceof Timestamp ? date.toDate() : date;
+  const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
   return format(jsDate, "d 'de' MMMM, yyyy", { locale: es });
 };
 
@@ -139,13 +139,13 @@ export async function generateBehaviorObservationPDF(observation: BehaviorObserv
   
   y = (doc as any).lastAutoTable.finalY + 10;
   
-  const riskLevels = {
+  const riskLevels: Record<string, string> = {
     aceptable: 'ACEPTABLE',
     leve: 'LEVE',
     grave: 'GRAVE',
     gravisimo: 'GRAVÍSIMO',
   };
-  const riskColors = {
+  const riskColors: Record<string, string> = {
     aceptable: COLORS.green,
     leve: COLORS.amber,
     grave: COLORS.red,

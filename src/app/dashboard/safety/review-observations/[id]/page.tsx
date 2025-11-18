@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -14,10 +15,11 @@ import { es } from "date-fns/locale";
 import { useToast } from "@/modules/core/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { generateBehaviorObservationPDF } from "@/lib/behavior-observation-pdf-generator";
+import type { BehaviorObservation, BehaviorObservationItem } from "@/modules/core/lib/data";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
-    const jsDate = date instanceof Timestamp ? date.toDate() : date;
+    const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
     return format(jsDate, "d 'de' MMMM, yyyy", { locale: es });
 };
 
@@ -29,15 +31,15 @@ export default function BehaviorObservationDetailPage() {
     
     const observationId = params.id as string;
 
-    const observation = useMemo(() => {
+    const observation: BehaviorObservation | null = useMemo(() => {
         if (!behaviorObservations) return null;
-        return behaviorObservations.find(o => o.id === observationId) || null;
+        return behaviorObservations.find((o: BehaviorObservation) => o.id === observationId) || null;
     }, [behaviorObservations, observationId]);
 
     const handleDownloadPDF = async () => {
         if (!observation) return;
         try {
-            await generateBehaviorObservationPDF(observation);
+            await generateBehaviorObservationPDF(observation as any);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error al generar PDF', description: error.message });
         }
@@ -90,7 +92,7 @@ export default function BehaviorObservationDetailPage() {
                           <CardTitle>Detalles de la Observación de Conducta</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-6">
-                          {observation.items.map((item, index) => (
+                          {observation.items.map((item: BehaviorObservationItem, index: number) => (
                               <div key={index} className="p-4 border rounded-lg space-y-3 bg-muted/30">
                                   <p className="font-semibold">{index + 1}. {item.question}</p>
                                   <div className="flex items-center gap-4 text-sm">

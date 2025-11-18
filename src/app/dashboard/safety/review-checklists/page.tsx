@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -21,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import type { User, AssignedSafetyTask } from "@/modules/core/lib/data";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
@@ -32,16 +34,16 @@ export default function ReviewChecklistsPage() {
     const { assignedChecklists, users, isLoading, deleteAssignedChecklist } = useAppState();
     const { user: authUser } = useAuth();
     
-    const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u.name])), [users]);
+    const userMap = useMemo(() => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])), [users]);
 
     const checklistsToReview = useMemo(() => {
         if (!assignedChecklists) return [];
-        return assignedChecklists
-            .filter(c => c.status === 'completed' || c.status === 'approved' || c.status === 'rejected')
-            .sort((a, b) => {
-                const dateA = (a.completedAt || a.createdAt) as Date;
-                const dateB = (b.completedAt || b.createdAt) as Date;
-                return dateB.getTime() - dateA.getTime();
+        return (assignedChecklists as AssignedSafetyTask[])
+            .filter((c: AssignedSafetyTask) => c.status === 'completed' || c.status === 'approved' || c.status === 'rejected')
+            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => {
+                const dateA = (a.completedAt || a.createdAt) as Timestamp;
+                const dateB = (b.completedAt || b.createdAt) as Timestamp;
+                return dateB.toMillis() - dateA.toMillis();
             });
     }, [assignedChecklists]);
 
@@ -84,7 +86,7 @@ export default function ReviewChecklistsPage() {
                     <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
                         {checklistsToReview.length > 0 ? (
                             <div className="space-y-3 p-4">
-                                {checklistsToReview.map(checklist => (
+                                {checklistsToReview.map((checklist: AssignedSafetyTask) => (
                                     <div key={checklist.id} className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                         <Link href={`/dashboard/safety/review-checklists/${checklist.id}`} className="flex-grow hover:bg-muted/50 transition-colors -m-4 p-4 rounded-lg">
                                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

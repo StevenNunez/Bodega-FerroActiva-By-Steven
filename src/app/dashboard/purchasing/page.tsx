@@ -50,6 +50,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Timestamp } from "firebase/firestore";
 
 // --- Receive Dialog Component (Copied for local use) ---
 interface ReceiveRequestDialogProps {
@@ -80,7 +81,7 @@ function ReceiveRequestDialog({
     if (request) {
       setReceivedQuantity(request.quantity);
       const existingMaterial = materials.find(
-        (m) => m.name.toLowerCase() === request.materialName.toLowerCase()
+        (m: Material) => m.name.toLowerCase() === request.materialName.toLowerCase()
       );
       setSelectedMaterialId(existingMaterial?.id);
     }
@@ -110,7 +111,7 @@ function ReceiveRequestDialog({
   if (!request) return null;
 
   const existingMaterial = materials.find(
-    (m) => m.name.toLowerCase() === request.materialName.toLowerCase()
+    (m: Material) => m.name.toLowerCase() === request.materialName.toLowerCase()
   );
 
   return (
@@ -159,7 +160,7 @@ function ReceiveRequestDialog({
                   <SelectItem value="create_new">
                     -- Crear Nuevo Material en Bodega --
                   </SelectItem>
-                  {materials.map((m) => (
+                  {materials.map((m: Material) => (
                     <SelectItem key={m.id} value={m.id}>
                       {m.name}
                     </SelectItem>
@@ -227,7 +228,7 @@ const PendingReceptionCard = ({
 
   const filteredRequests = React.useMemo(() => {
     if (!receptionSearchTerm) return requests;
-    return requests.filter(req =>
+    return requests.filter((req: PurchaseRequest) =>
       req.materialName.toLowerCase().includes(receptionSearchTerm.toLowerCase())
     );
   }, [requests, receptionSearchTerm]);
@@ -263,7 +264,7 @@ const PendingReceptionCard = ({
             </TableHeader>
             <TableBody>
               {filteredRequests.length > 0 ? (
-                filteredRequests.map((req) => (
+                filteredRequests.map((req: PurchaseRequest) => (
                   <TableRow key={req.id}>
                     <TableCell>
                       <p className="font-medium">{req.materialName}</p>
@@ -314,10 +315,10 @@ export default function PurchasingHubPage() {
   const stats = React.useMemo(
     () => ({
       pending: (purchaseRequests || []).filter(
-        (pr) => pr.status === "pending"
+        (pr: PurchaseRequest) => pr.status === "pending"
       ).length,
       approved: (purchaseRequests || []).filter(
-        (pr) => pr.status === "approved" && !pr.lotId
+        (pr: PurchaseRequest) => pr.status === "approved" && !pr.lotId
       ).length,
       lots: (batchedLots || []).length,
       orders: (purchaseOrders || []).length,
@@ -327,27 +328,27 @@ export default function PurchasingHubPage() {
 
   const pendingReceptionRequests = React.useMemo(() => {
     return (purchaseRequests || [])
-      .filter((pr) => ["approved", "batched", "ordered"].includes(pr.status))
-      .sort((a, b) => (b.approvalDate as any) - (a.approvalDate as any));
+      .filter((pr: PurchaseRequest) => ["approved", "batched", "ordered"].includes(pr.status))
+      .sort((a: PurchaseRequest, b: PurchaseRequest) => ((b.approvalDate as any)?.toMillis() || 0) - ((a.approvalDate as any)?.toMillis() || 0));
   }, [purchaseRequests]);
 
-  const categories = React.useMemo(() => {
-    const uniqueCats = [
-      ...new Set((materials || []).map((m) => m.category)),
-    ].filter(Boolean);
+  const categories: string[] = React.useMemo(() => {
+    const uniqueCats: string[] = [
+      ...new Set((materials || []).map((m: Material) => m.category)),
+    ].filter((cat): cat is string => typeof cat === 'string');
     return uniqueCats.sort();
   }, [materials]);
 
   const filteredMaterials = React.useMemo(() => {
-    let filtered = (materials || []).filter((m) => !m.archived);
+    let filtered: Material[] = (materials || []).filter((m: Material) => !m.archived);
     if (searchTerm) {
-      filtered = filtered.filter((material) =>
+      filtered = filtered.filter((material: Material) =>
         material.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     if (categoryFilter !== "all") {
       filtered = filtered.filter(
-        (material) => material.category === categoryFilter
+        (material: Material) => material.category === categoryFilter
       );
     }
     return filtered;
@@ -382,7 +383,7 @@ export default function PurchasingHubPage() {
         isOpen={!!receivingRequest}
         onClose={() => setReceivingRequest(null)}
         onConfirm={handleReceiveConfirm}
-        materials={materials}
+        materials={materials || []}
       />
       <div className="flex flex-col gap-8">
         <PageHeader
@@ -459,7 +460,7 @@ export default function PurchasingHubPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las categorías</SelectItem>
-                  {categories.map((cat) => (
+                  {categories.map((cat: string) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>

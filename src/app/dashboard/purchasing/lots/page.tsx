@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Inbox, PackageMinus, FolderPlus, Trash2, CheckCircle } from "lucide-react";
+import { Inbox, PackageMinus, FolderPlus, CheckCircle } from "lucide-react";
 import { useToast } from "@/modules/core/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -23,27 +23,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CreateLotForm } from "@/components/operations/create-lot-form";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import type { PurchaseRequest } from "@/modules/core/lib/data";
+import type { PurchaseRequest, PurchaseLot } from "@/modules/core/lib/data";
 
-// Tipos
-interface Request extends PurchaseRequest {}
 
 interface Lot {
-  lotId: string;
-  category: string;
-  requests: Request[];
-  totalQuantity: number;
+    lotId: string;
+    category: string;
+    requests: PurchaseRequest[];
+    totalQuantity: number;
 }
 
 // Componente para el estado vacío
@@ -62,7 +49,7 @@ const ApprovedRequestsCard = memo(
     batchedLots,
     handleAddBack,
   }: {
-    approvedRequests: Request[];
+    approvedRequests: PurchaseRequest[];
     batchedLots: Lot[];
     handleAddBack: (requestId: string, lotId: string) => Promise<void>;
   }) => (
@@ -77,7 +64,7 @@ const ApprovedRequestsCard = memo(
         {approvedRequests.length > 0 ? (
           <ScrollArea className="h-[calc(80vh-15rem)]">
             <div className="space-y-3 pr-4">
-              {approvedRequests.map((req) => (
+              {approvedRequests.map((req: PurchaseRequest) => (
                 <div
                   key={req.id}
                   className="p-3 border rounded-lg flex items-center justify-between gap-2 bg-muted/30"
@@ -180,7 +167,7 @@ const ActiveLotsCard = memo(
                  </div>
                 {lot.requests.length > 0 ? (
                   <div className="space-y-2">
-                    {lot.requests.map((req) => (
+                    {lot.requests.map((req: PurchaseRequest) => (
                       <div
                         key={req.id}
                         className="flex items-center justify-between bg-card p-2 rounded-md"

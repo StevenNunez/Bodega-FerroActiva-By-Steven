@@ -27,7 +27,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { PurchaseRequestStatus, PurchaseRequest } from "@/modules/core/lib/data";
+import { PurchaseRequestStatus, PurchaseRequest, Material, MaterialCategory } from "@/modules/core/lib/data";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Timestamp } from "firebase/firestore";
@@ -49,7 +49,7 @@ const FormSchema = z.object({
 
 type FormData = z.infer<typeof FormSchema>;
 
-export default function SupervisorPurchaseRequestFormPage() {
+export default function PurchaseRequestFormPage() {
   const { purchaseRequests, materials, addPurchaseRequest, materialCategories } = useAppState();
   const { user: authUser } = useAuth();
   const { toast } = useToast();
@@ -62,7 +62,7 @@ export default function SupervisorPurchaseRequestFormPage() {
 
   const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
-    return date instanceof Timestamp ? date.toDate() : new Date(date);
+    return date instanceof Timestamp ? date.toDate() : new Date(date as any);
   };
 
   const {
@@ -79,7 +79,7 @@ export default function SupervisorPurchaseRequestFormPage() {
 
   useEffect(() => {
     if (selectedMaterialId) {
-      const material = materials.find((m) => m.id === selectedMaterialId);
+      const material = (materials || []).find((m: Material) => m.id === selectedMaterialId);
       if (material) {
         setValue("materialName", material.name, { shouldValidate: true });
         setValue("unit", material.unit, { shouldValidate: true });
@@ -90,9 +90,9 @@ export default function SupervisorPurchaseRequestFormPage() {
 
   const displayedRequests = useMemo(() => {
     if (!authUser) return [];
-    return purchaseRequests
-      .filter((pr) => pr.supervisorId === authUser.id)
-      .sort((a, b) => {
+    return (purchaseRequests || [])
+      .filter((pr: PurchaseRequest) => pr.supervisorId === authUser.id)
+      .sort((a: PurchaseRequest, b: PurchaseRequest) => {
         const dateA = getDate(a.createdAt);
         const dateB = getDate(b.createdAt);
         if (dateA && dateB) return dateB.getTime() - dateA.getTime();
@@ -192,7 +192,7 @@ export default function SupervisorPurchaseRequestFormPage() {
         description="Pide materiales que no están en el inventario o cuyo stock es bajo."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="flex flex-col gap-8">
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Generar Solicitud de Compra</CardTitle>
@@ -207,7 +207,7 @@ export default function SupervisorPurchaseRequestFormPage() {
                     <Button variant="outline" role="combobox" className="w-full justify-between">
                       <span className="truncate">
                         {selectedMaterialId
-                          ? materials.find((m) => m.id === selectedMaterialId)?.name
+                          ? (materials || []).find((m: Material) => m.id === selectedMaterialId)?.name
                           : "Selecciona un material..."}
                       </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -219,7 +219,7 @@ export default function SupervisorPurchaseRequestFormPage() {
                       <CommandList>
                         <CommandEmpty>No se encontró el material.</CommandEmpty>
                         <CommandGroup>
-                          {materials.map((m) => (
+                          {(materials || []).map((m: Material) => (
                             <CommandItem
                               key={m.id}
                               value={m.name}
@@ -316,7 +316,7 @@ export default function SupervisorPurchaseRequestFormPage() {
                           <Button variant="outline" role="combobox" className="w-full justify-between">
                             <span className="truncate">
                               {field.value
-                                ? materialCategories.find((cat) => cat.name === field.value)?.name
+                                ? (materialCategories || []).find((cat: MaterialCategory) => cat.name === field.value)?.name
                                 : "Selecciona una categoría..."}
                             </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -328,7 +328,7 @@ export default function SupervisorPurchaseRequestFormPage() {
                             <CommandList>
                               <CommandEmpty>No se encontró la categoría.</CommandEmpty>
                               <CommandGroup>
-                                {materialCategories.map((cat) => (
+                                {(materialCategories || []).map((cat: MaterialCategory) => (
                                   <CommandItem
                                     key={cat.id}
                                     value={cat.name}
@@ -388,7 +388,7 @@ export default function SupervisorPurchaseRequestFormPage() {
 
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Historial de Mis Solicitudes de Compra</CardTitle>
+            <CardTitle>Historial de Mis Solicitudes</CardTitle>
             <CardDescription>El estado de tus solicitudes se actualiza aquí.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -405,7 +405,7 @@ export default function SupervisorPurchaseRequestFormPage() {
                     </TableHeader>
                     <TableBody>
                       {paginatedRequests.length > 0 ? (
-                        paginatedRequests.map((req) => {
+                        paginatedRequests.map((req: PurchaseRequest) => {
                           const changeTooltip = getChangeTooltip(req);
                           return (
                             <TableRow key={req.id}>

@@ -125,7 +125,7 @@ export default function AdminUsersPage() {
                         <CardContent>
                             <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
                                 <div className="space-y-4 p-4">
-                                    {(users || []).map(user => (
+                                    {(users || []).map((user: User) => (
                                         <div key={user.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border gap-4">
                                             <div className="flex items-center gap-4 flex-grow">
                                                 <Avatar className="bg-secondary text-secondary-foreground h-12 w-12">

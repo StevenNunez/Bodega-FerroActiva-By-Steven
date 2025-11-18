@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -13,7 +14,7 @@ import { Send, Loader2, Undo2, PackageSearch, CalendarIcon, XCircle } from "luci
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Timestamp } from "firebase/firestore";
-import type { MaterialRequest } from "@/modules/core/lib/data";
+import type { Material, MaterialRequest } from "@/modules/core/lib/data";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -46,7 +47,7 @@ export default function SupervisorReturnRequestPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
-  const materialMap = useMemo(() => new Map((materials || []).map((m) => [m.id, m])), [materials]);
+  const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 
   const aggregatedTakenMaterials = useMemo(() => {
     if (!authUser) return [];
@@ -64,7 +65,7 @@ export default function SupervisorReturnRequestPage() {
       })
       .forEach(req => {
         (req.items || []).forEach(item => {
-          const material = materialMap.get(item.materialId);
+          const material = materialMap.get(item.materialId) as Material | undefined;
           if (material) {
             if (takenMap.has(item.materialId)) {
               takenMap.get(item.materialId)!.totalQuantity += item.quantity;

@@ -1,7 +1,7 @@
 
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import type { PurchaseOrder, Supplier } from './data';
+import type { PurchaseOrder as PurchaseOrderType, Supplier } from '@/modules/core/lib/data';
 import { Timestamp } from 'firebase/firestore';
 
 declare module 'jspdf' {
@@ -36,7 +36,7 @@ const getDate = (date: Date | Timestamp) =>
 const sanitizeFileName = (name: string) =>
   name.replace(/[^a-zA-Z0-9-_]/g, '_');
 
-export async function generatePurchaseOrderPDF(order: PurchaseOrder, supplier: Supplier, orderIndex: number) {
+export async function generatePurchaseOrderPDF(order: PurchaseOrderType, supplier: Supplier, orderIndex: number) {
   if (!order || !supplier || !order.items) {
     throw new Error('Datos de la orden o proveedor incompletos');
   }
@@ -121,9 +121,9 @@ export async function generatePurchaseOrderPDF(order: PurchaseOrder, supplier: S
   y += LINE_HEIGHT;
 
   const tableColumn = ['Ítem', 'Material', 'Unidad', 'Cantidad'];
-  const tableRows = order.items.map((item, index) => [
+  const tableRows = (order.items || []).map((item, index) => [
     index + 1,
-    item.materialName || 'Sin nombre',
+    item.name || 'Sin nombre',
     item.unit || 'Sin unidad',
     item.totalQuantity ? item.totalQuantity.toLocaleString('es-CL') : '0',
   ]);
@@ -167,7 +167,7 @@ export async function generatePurchaseOrderPDF(order: PurchaseOrder, supplier: S
         doc.textWithLink(linkText, textX + doc.getTextWidth(developedByText), pageHeight - 10, { url: 'https://teolabs.app' });
 
         // --- SIGNATURE (only on last page and if items <= 18) ---
-        if (data.pageNumber === pageCount && order.items.length <= 18) {
+        if (data.pageNumber === pageCount && (order.items || []).length <= 18) {
             const signatureY = pageHeight - 40;
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
