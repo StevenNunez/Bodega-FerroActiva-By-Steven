@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -36,7 +37,8 @@ const ModuleCard: React.FC<ModuleCardProps> = ({ href, icon: Icon, title, descri
 );
 
 export default function DashboardHubPage() {
-  const { user, authLoading, can } = useAuth();
+  const { user, authLoading } = useAuth();
+  const { can } = useAppState();
   const router = useRouter();
 
   React.useEffect(() => {
@@ -104,7 +106,7 @@ export default function DashboardHubPage() {
         <ModuleCard href="/dashboard/profile" icon={UserIcon} title="Mi Perfil" description="Consulta tu información personal y de planilla." />
         
         {visibleModules.map(module => (
-          <ModuleCard key={module.href} {...module} href={module.href!} />
+          module.href ? <ModuleCard key={module.href} {...module} href={module.href} /> : null
         ))}
       </div>
     </div>

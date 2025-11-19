@@ -1,7 +1,8 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
+import { useAppState } from "@/modules/core/contexts/app-provider";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { QRCodeSVG } from "qrcode.react";
@@ -13,8 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tool as ToolType, ToolLog, User } from "@/modules/core/lib/data";
 
 export default function PrintToolsQrPage() {
-  const { tools, users, toolLogs, isLoading } = useAppState();
-  const { can } = useAuth();
+  const { tools, users, toolLogs, isLoading, can } = useAppState();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
 

@@ -2,7 +2,7 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
+import { useAppState } from '@/modules/core/contexts/app-provider';
 import { BarChart3, FileBarChart, AlertCircle, TrendingUp, UserCheck, Package } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
@@ -51,9 +51,7 @@ const ReportCard: React.FC<ReportCardProps> = ({ href, icon: Icon, title, descri
 };
 
 export default function ReportsHubPage() {
-  const { can } = useAppState();
-  const { user } = useAuth();
-  const { requests, materials, users } = useAppState();
+  const { can, user, requests, materials, users } = useAppState();
   const router = useRouter();
 
   const approvedRequests = React.useMemo(() => {

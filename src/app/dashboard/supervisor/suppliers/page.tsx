@@ -5,7 +5,7 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
+import { useAppState } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +21,7 @@ type CompatibleMaterialRequest = MaterialRequest & {
 
 
 export default function SupervisorSuppliersPage() {
-    const { requests, materials, suppliers } = useAppState();
-    const { user, can } = useAuth();
+    const { requests, materials, suppliers, user } = useAppState();
 
     const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 
@@ -57,7 +56,7 @@ export default function SupervisorSuppliersPage() {
                                         <div className="flex flex-col gap-1">
                                             <p className="font-semibold">{supplier.name}</p>
                                             <div className="flex flex-wrap gap-1">
-                                                {supplier.categories.map(cat => (
+                                                {supplier.categories.map((cat: string) => (
                                                     <Badge key={cat} variant="outline" className="text-xs">{cat}</Badge>
                                                 ))}
                                             </div>
@@ -73,5 +72,3 @@ export default function SupervisorSuppliersPage() {
         </div>
     );
 }
-
-    

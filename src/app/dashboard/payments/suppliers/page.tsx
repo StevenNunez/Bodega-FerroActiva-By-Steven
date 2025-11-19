@@ -18,7 +18,7 @@ import { EditSupplierForm } from "@/components/admin/edit-supplier-form";
 
 
 export default function AdminSuppliersPage() {
-    const { suppliers, deleteSupplier } = useAppState();
+    const { suppliers, deleteSupplier, can } = useAppState();
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
     const { toast } = useToast();
 
@@ -141,4 +141,3 @@ export default function AdminSuppliersPage() {
         </div>
     );
 }
-

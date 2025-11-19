@@ -1,10 +1,11 @@
 
+
 "use client";
 
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
+import { useAppState } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Send, ArrowRight, Clock, Check, X, Package } from "lucide-react";
@@ -28,8 +29,7 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
 };
 
 export default function SupervisorHubPage() {
-    const { requests, materials, can } = useAppState();
-    const { user } = useAuth();
+    const { requests, materials, can, user } = useAppState();
 
     const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 

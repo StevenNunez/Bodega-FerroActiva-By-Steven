@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -32,12 +33,13 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, authLoading, logout, can, tenants, currentTenantId, setCurrentTenantId } = useAuth();
+  const { user, authLoading, logout, tenants, currentTenantId, setCurrentTenantId } = useAuth();
   const { 
     requests, 
     purchaseRequests, 
     supplierPayments, 
     suppliers,
+    can,
   } = useAppState();
   const router = useRouter();
   const pathname = usePathname();
@@ -279,7 +281,7 @@ export default function DashboardLayout({
                            <DropdownMenuItem onSelect={() => setCurrentTenantId(null)}>
                               Ver Todos los Inquilinos
                           </DropdownMenuItem>
-                          {tenants.map((tenant: Tenant) => (
+                          {(tenants || []).map((tenant: Tenant) => (
                               <DropdownMenuItem key={tenant.id} onSelect={() => setCurrentTenantId(tenant.id)}>
                                   {tenant.name}
                               </DropdownMenuItem>
@@ -309,5 +311,3 @@ export default function DashboardLayout({
     </div>
   );
 }
-
-    

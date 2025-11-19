@@ -97,8 +97,7 @@ const RoleCard = ({
 };
 
 export default function PermissionsPage() {
-    const { user, can } = useAuth();
-    const { roles, updateRolePermissions } = useAppState();
+    const { user, roles, updateRolePermissions, can } = useAppState();
     const { toast } = useToast();
 
     const handlePermissionChange = async (role: UserRole, permission: Permission, checked: boolean) => {

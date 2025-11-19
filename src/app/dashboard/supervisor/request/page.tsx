@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -38,7 +37,7 @@ type CompatibleMaterialRequest = MaterialRequest & {
 
 
 export default function SupervisorRequestPage() {
-  const { materials, addMaterialRequest, requests, isLoading, user: authUser } = useAppState();
+  const { materials, addMaterialRequest, requests, isLoading, user } = useAppState();
   const { toast } = useToast();
   
   // State for the new multi-item request form
@@ -55,16 +54,8 @@ export default function SupervisorRequestPage() {
   const [page, setPage] = useState(1);
   const itemsPerPage = 5;
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
   const materialMap = useMemo<Map<string, Material>>(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
-  const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r: CompatibleMaterialRequest) => r.supervisorId === authUser?.id), [requests, authUser]);
+  const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r: CompatibleMaterialRequest) => r.supervisorId === user?.id), [requests, user]);
 
   const filteredRequests = useMemo(() => {
     if (statusFilter === "all") return myRequests;
@@ -165,7 +156,7 @@ export default function SupervisorRequestPage() {
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0 || !area.trim() || !authUser) {
+    if (cart.length === 0 || !area.trim() || !user) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -179,7 +170,7 @@ export default function SupervisorRequestPage() {
       await addMaterialRequest({
         items: cart.map(({materialId, quantity}) => ({materialId, quantity})),
         area,
-        supervisorId: authUser.id,
+        supervisorId: user.id,
       });
       toast({
         title: "Éxito",
@@ -197,6 +188,14 @@ export default function SupervisorRequestPage() {
       setIsSubmitting(false);
     }
   };
+  
+    if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -430,4 +429,3 @@ export default function SupervisorRequestPage() {
     </div>
   );
 }
-

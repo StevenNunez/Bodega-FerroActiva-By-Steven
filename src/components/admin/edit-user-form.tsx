@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
+import { useAppState } from '@/modules/core/contexts/app-provider';
 import { useToast } from '@/modules/core/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -45,8 +45,7 @@ interface EditUserFormProps {
 }
 
 export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
-  const { updateUser } = useAppState();
-  const { user: authUser, can } = useAuth();
+  const { updateUser, can, user: authUser } = useAppState();
   const { toast } = useToast();
   const [isPasswordDialogOpen, setPasswordDialogOpen] = useState(false);
 

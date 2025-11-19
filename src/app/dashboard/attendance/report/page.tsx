@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
+import { useAppState } from "@/modules/core/contexts/app-provider";
 import { User, AttendanceLog, WORK_SCHEDULE } from "@/modules/core/lib/data";
 import {
   Popover,
@@ -87,8 +87,7 @@ const HOLIDAYS: Date[] = [
 ];
 
 export default function AttendanceReportPage() {
-  const { users, attendanceLogs } = useAppState();
-  const { user: authUser, can } = useAuth();
+  const { users, attendanceLogs, can } = useAppState();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -602,4 +601,3 @@ export default function AttendanceReportPage() {
   );
 }
 
-    
