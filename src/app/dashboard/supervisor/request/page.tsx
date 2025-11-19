@@ -1,9 +1,10 @@
 
+
 "use client";
 
 import React, { useState, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
-import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
+import { useAppState } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,9 +37,8 @@ type CompatibleMaterialRequest = MaterialRequest & {
 };
 
 
-export default function OperationsRequestPage() {
-  const { materials, addMaterialRequest, requests, isLoading } = useAppState();
-  const { user: authUser } = useAuth();
+export default function SupervisorRequestPage() {
+  const { materials, addMaterialRequest, requests, isLoading, user: authUser } = useAppState();
   const { toast } = useToast();
   
   // State for the new multi-item request form
@@ -64,11 +64,11 @@ export default function OperationsRequestPage() {
   }
 
   const materialMap = useMemo<Map<string, Material>>(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
-  const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r) => r.supervisorId === authUser?.id), [requests, authUser]);
+  const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r: CompatibleMaterialRequest) => r.supervisorId === authUser?.id), [requests, authUser]);
 
   const filteredRequests = useMemo(() => {
     if (statusFilter === "all") return myRequests;
-    return myRequests.filter((r) => r.status === statusFilter);
+    return myRequests.filter((r: CompatibleMaterialRequest) => r.status === statusFilter);
   }, [myRequests, statusFilter]);
 
   const paginatedRequests = filteredRequests.slice(
@@ -79,7 +79,7 @@ export default function OperationsRequestPage() {
 
   const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
-    return date instanceof Timestamp ? date.toDate() : date;
+    return date instanceof Timestamp ? date.toDate() : new Date(date as any);
   };
 
   const formatDate = (date: Date | Timestamp | null | undefined): string => {
@@ -165,11 +165,11 @@ export default function OperationsRequestPage() {
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0 || !area || !authUser) {
+    if (cart.length === 0 || !area.trim() || !authUser) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Añade al menos un material y una justificación.",
+        description: "Añade al menos un material y especifica el área de destino.",
       });
       return;
     }
@@ -300,7 +300,7 @@ export default function OperationsRequestPage() {
                     aria-label="Área o proyecto de destino"
                   />
                 </div>
-              <Button type="submit" className="w-full" disabled={isSubmitting || cart.length === 0}>
+              <Button type="submit" className="w-full" disabled={isSubmitting || cart.length === 0 || !area.trim()}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -364,7 +364,7 @@ export default function OperationsRequestPage() {
                                 </TableCell>
                             </TableRow>
                         ) : paginatedRequests.length > 0 ? (
-                        paginatedRequests.map((req) => (
+                        paginatedRequests.map((req: CompatibleMaterialRequest) => (
                           <TableRow key={req.id}>
                             <TableCell className="font-medium max-w-[350px]">
                                 <ul className="list-disc list-inside">
@@ -386,7 +386,7 @@ export default function OperationsRequestPage() {
                             </TableCell>
                             <TableCell className="max-w-[150px] truncate">{req.area}</TableCell>
                             <TableCell>{formatDate(req.createdAt)}</TableCell>
-                            <TableCell>{getStatusBadge(req.status)}</TableCell>
+                            <TableCell>{getStatusBadge(req.status as 'pending' | 'approved' | 'rejected')}</TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -430,3 +430,4 @@ export default function OperationsRequestPage() {
     </div>
   );
 }
+

@@ -332,12 +332,12 @@ export default function PurchasingHubPage() {
       .sort((a: PurchaseRequest, b: PurchaseRequest) => ((b.approvalDate as any)?.toMillis() || 0) - ((a.approvalDate as any)?.toMillis() || 0));
   }, [purchaseRequests]);
 
-  const categories: string[] = React.useMemo(() => {
-    const uniqueCats: string[] = [
-      ...new Set((materials || []).map((m: Material) => m.category)),
-    ].filter((cat): cat is string => typeof cat === 'string');
+  const categories = React.useMemo(() => {
+    if (!materials) return [];
+    const allCats: (string | undefined)[] = materials.map((m: Material) => m.category);
+    const uniqueCats: string[] = [...new Set(allCats.filter((cat): cat is string => !!cat))];
     return uniqueCats.sort();
-  }, [materials]);
+}, [materials]);
 
   const filteredMaterials = React.useMemo(() => {
     let filtered: Material[] = (materials || []).filter((m: Material) => !m.archived);
