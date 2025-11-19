@@ -1,6 +1,6 @@
-
 "use client";
-import * as React from "react";
+
+import React from "react";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import {
   ShoppingCart,
@@ -50,18 +50,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore"; // ← Import agregado
 
-// --- Receive Dialog Component (Copied for local use) ---
 interface ReceiveRequestDialogProps {
   request: PurchaseRequest | null;
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (
-    requestId: string,
-    quantity: number,
-    materialId?: string
-  ) => Promise<void>;
+  onConfirm: (requestId: string, quantity: number, materialId?: string) => Promise<void>;
   materials: Material[];
 }
 
@@ -80,28 +75,23 @@ function ReceiveRequestDialog({
   React.useEffect(() => {
     if (request) {
       setReceivedQuantity(request.quantity);
-      const existingMaterial = materials.find(
-        (m: Material) => m.name.toLowerCase() === request.materialName.toLowerCase()
+      const existing = materials.find(
+        (m) => m.name.toLowerCase() === request.materialName.toLowerCase()
       );
-      setSelectedMaterialId(existingMaterial?.id);
+      setSelectedMaterialId(existing?.id);
     }
   }, [request, materials]);
 
-  const handleConfirmClick = async () => {
+  const handleConfirm = async () => {
     if (!request) return;
-    const quantityNum = Number(receivedQuantity);
-    if (isNaN(quantityNum) || quantityNum <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "La cantidad debe ser un número positivo.",
-      });
+    const qty = Number(receivedQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      toast({ variant: "destructive", title: "Error", description: "Cantidad inválida" });
       return;
     }
-
     setIsSubmitting(true);
     try {
-      await onConfirm(request.id, quantityNum, selectedMaterialId);
+      await onConfirm(request.id, qty, selectedMaterialId);
       onClose();
     } finally {
       setIsSubmitting(false);
@@ -110,80 +100,43 @@ function ReceiveRequestDialog({
 
   if (!request) return null;
 
-  const existingMaterial = materials.find(
-    (m: Material) => m.name.toLowerCase() === request.materialName.toLowerCase()
-  );
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Registrar Recepción de Material</DialogTitle>
+          <DialogTitle>Recibir Material</DialogTitle>
           <DialogDescription>
-            Confirma la cantidad de{" "}
-            <span className="font-semibold">{request.materialName}</span> que ha
-            llegado a bodega.
+            Confirma la cantidad de <strong>{request.materialName}</strong> recibida.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="receivedQuantity">Cantidad Recibida</Label>
-            <Input
-              id="receivedQuantity"
-              type="number"
-              value={receivedQuantity}
-              onChange={(e) => setReceivedQuantity(e.target.value)}
-            />
+            <Label>Cantidad Recibida</Label>
+            <Input type="number" value={receivedQuantity} onChange={(e) => setReceivedQuantity(e.target.value)} />
           </div>
-
           <div className="space-y-2">
-            <Label htmlFor="materialLink">Vincular a Material Existente</Label>
-            {existingMaterial ? (
-              <div className="p-3 rounded-md bg-green-100 dark:bg-green-900 border border-green-200 dark:border-green-800">
-                <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                  Material Encontrado
-                </p>
-                <p className="text-xs text-green-700 dark:text-green-300">
-                  El stock se añadirá a:{" "}
-                  <strong>{existingMaterial.name}</strong>
-                </p>
-              </div>
-            ) : (
-              <Select
-                onValueChange={setSelectedMaterialId}
-                defaultValue={selectedMaterialId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Crear nuevo material o vincular..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="create_new">
-                    -- Crear Nuevo Material en Bodega --
+            <Label>Vincular a Material Existente (Opcional)</Label>
+            <Select onValueChange={setSelectedMaterialId} value={selectedMaterialId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar o crear nuevo..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="create_new">-- Crear Nuevo --</SelectItem>
+                {materials.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name} ({m.stock} en stock)
                   </SelectItem>
-                  {materials.map((m: Material) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Si el material ya existe, selecciónalo para sumar el stock. Si no,
-              se creará uno nuevo con este nombre.
-            </p>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirmClick} disabled={isSubmitting}>
-            {isSubmitting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <PackageCheck className="mr-2 h-4 w-4" />
-            )}
+          <Button onClick={handleConfirm} disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
             Confirmar Recepción
           </Button>
         </DialogFooter>
@@ -191,24 +144,11 @@ function ReceiveRequestDialog({
     </Dialog>
   );
 }
-// --- End of Dialog ---
 
-const StatCardV2 = ({
-  title,
-  value,
-  icon: Icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  color?: string;
-}) => (
-  <div className="flex items-center gap-4 rounded-lg bg-card p-4">
-    <div
-      className={`flex h-12 w-12 items-center justify-center rounded-lg ${color}`}
-    >
-      <Icon className="h-6 w-6 text-white" />
+const StatCardV2 = ({ title, value, icon: Icon, color }: { title: string; value: number | string; icon: React.ElementType; color?: string }) => (
+  <div className={`flex items-center gap-4 rounded-lg bg-card p-4 border`}>
+    <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${color || "bg-primary/10"} text-primary`}>
+      <Icon className="h-6 w-6" />
     </div>
     <div>
       <p className="text-sm text-muted-foreground">{title}</p>
@@ -217,86 +157,8 @@ const StatCardV2 = ({
   </div>
 );
 
-const PendingReceptionCard = ({
-  requests,
-  onReceiveClick,
-}: {
-  requests: PurchaseRequest[];
-  onReceiveClick: (request: PurchaseRequest) => void;
-}) => {
-  const [receptionSearchTerm, setReceptionSearchTerm] = React.useState("");
-
-  const filteredRequests = React.useMemo(() => {
-    if (!receptionSearchTerm) return requests;
-    return requests.filter((req: PurchaseRequest) =>
-      req.materialName.toLowerCase().includes(receptionSearchTerm.toLowerCase())
-    );
-  }, [requests, receptionSearchTerm]);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Truck /> Materiales Pendientes de Recepción
-        </CardTitle>
-        <CardDescription>
-          Listado de materiales aprobados u ordenados que están por llegar a
-          bodega.
-        </CardDescription>
-        <div className="pt-2">
-            <Input
-              placeholder="Buscar por material..."
-              value={receptionSearchTerm}
-              onChange={(e) => setReceptionSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <ScrollArea className="h-96 border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Material</TableHead>
-                <TableHead>Cantidad</TableHead>
-                <TableHead className="text-right">Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRequests.length > 0 ? (
-                filteredRequests.map((req: PurchaseRequest) => (
-                  <TableRow key={req.id}>
-                    <TableCell>
-                      <p className="font-medium">{req.materialName}</p>
-                      <p className="text-xs text-muted-foreground">{req.area}</p>
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      {req.quantity} {req.unit}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" onClick={() => onReceiveClick(req)}>
-                        <PackageCheck className="mr-2 h-4 w-4" />
-                        Recibir
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
-                    No hay materiales pendientes de recepción.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </ScrollArea>
-      </CardContent>
-    </Card>
-  );
-};
-
 export default function PurchasingHubPage() {
+  const { user, can } = useAuth();
   const {
     purchaseRequests,
     purchaseOrders,
@@ -304,7 +166,6 @@ export default function PurchasingHubPage() {
     isLoading,
     receivePurchaseRequest,
   } = useAppState();
-  const { user } = useAuth();
   const { batchedLots } = useLots();
   const { toast } = useToast();
 
@@ -312,126 +173,130 @@ export default function PurchasingHubPage() {
   const [categoryFilter, setCategoryFilter] = React.useState("all");
   const [receivingRequest, setReceivingRequest] = React.useState<PurchaseRequest | null>(null);
 
-  const stats = React.useMemo(
-    () => ({
-      pending: (purchaseRequests || []).filter(
-        (pr: PurchaseRequest) => pr.status === "pending"
-      ).length,
-      approved: (purchaseRequests || []).filter(
-        (pr: PurchaseRequest) => pr.status === "approved" && !pr.lotId
-      ).length,
-      lots: (batchedLots || []).length,
-      orders: (purchaseOrders || []).length,
-    }),
-    [purchaseRequests, batchedLots, purchaseOrders]
-  );
+  // === ESTADÍSTICAS CON TIPADO EXPLÍCITO ===
+  const stats = React.useMemo(() => ({
+    pending: (purchaseRequests || []).filter((pr: PurchaseRequest) => pr.status === "pending").length,
+    approved: (purchaseRequests || []).filter((pr: PurchaseRequest) => pr.status === "approved" && !pr.lotId).length,
+    inLots: batchedLots?.length || 0,
+    ordered: purchaseOrders?.length || 0,
+  }), [purchaseRequests, batchedLots, purchaseOrders]);
 
-  const pendingReceptionRequests = React.useMemo(() => {
+  // === PENDIENTES DE RECEPCIÓN (solo para bodega-admin) ===
+  const pendingReception = React.useMemo(() => {
     return (purchaseRequests || [])
       .filter((pr: PurchaseRequest) => ["approved", "batched", "ordered"].includes(pr.status))
-      .sort((a: PurchaseRequest, b: PurchaseRequest) => ((b.approvalDate as any)?.toMillis() || 0) - ((a.approvalDate as any)?.toMillis() || 0));
+      .sort((a: PurchaseRequest, b: PurchaseRequest) => {
+        const aTime = a.approvalDate instanceof Timestamp ? a.approvalDate.toMillis() : 0;
+        const bTime = b.approvalDate instanceof Timestamp ? b.approvalDate.toMillis() : 0;
+        return bTime - aTime;
+      });
   }, [purchaseRequests]);
 
+  // === CATEGORÍAS Y STOCK FILTRADO ===
   const categories = React.useMemo(() => {
-    if (!materials) return [];
-    const allCats: (string | undefined)[] = materials.map((m: Material) => m.category);
-    const uniqueCats: string[] = [...new Set(allCats.filter((cat): cat is string => !!cat))];
-    return uniqueCats.sort();
-}, [materials]);
+    const set = new Set<string>();
+    materials?.forEach((m: Material) => m.category && set.add(m.category));
+    return Array.from(set).sort();
+  }, [materials]);
 
-  const filteredMaterials = React.useMemo(() => {
-    let filtered: Material[] = (materials || []).filter((m: Material) => !m.archived);
+  const filteredStock = React.useMemo(() => {
+    let list = (materials || []).filter((m: Material) => !m.archived);
     if (searchTerm) {
-      filtered = filtered.filter((material: Material) =>
-        material.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      list = list.filter((m: Material) => m.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     if (categoryFilter !== "all") {
-      filtered = filtered.filter(
-        (material: Material) => material.category === categoryFilter
-      );
+      list = list.filter((m: Material) => m.category === categoryFilter);
     }
-    return filtered;
+    return list;
   }, [materials, searchTerm, categoryFilter]);
 
-  const handleReceiveConfirm = async (
-    requestId: string,
-    quantity: number,
-    existingMaterialId?: string
-  ) => {
+  const handleReceive = async (id: string, qty: number, matId?: string) => {
     try {
-      await receivePurchaseRequest(requestId, quantity, existingMaterialId);
-      toast({
-        title: "Recepción registrada",
-        description: "El stock ha sido actualizado.",
-      });
-      setReceivingRequest(null);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error al recibir",
-        description:
-          error instanceof Error ? error.message : "Ocurrió un error inesperado.",
-      });
+      await receivePurchaseRequest(id, qty, matId);
+      toast({ title: "Recepción Exitosa", description: "Stock actualizado" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message || "No se pudo recibir" });
     }
   };
 
+  const canReceive = can("stock:receive_order");
+
   return (
     <>
-      <ReceiveRequestDialog
-        request={receivingRequest}
-        isOpen={!!receivingRequest}
-        onClose={() => setReceivingRequest(null)}
-        onConfirm={handleReceiveConfirm}
-        materials={materials || []}
-      />
+      {canReceive && (
+        <ReceiveRequestDialog
+          request={receivingRequest}
+          isOpen={!!receivingRequest}
+          onClose={() => setReceivingRequest(null)}
+          onConfirm={handleReceive}
+          materials={materials || []}
+        />
+      )}
+
       <div className="flex flex-col gap-8">
         <PageHeader
-          title={`Bienvenido, ${user?.name.split(" ")[0] || ""}`}
-          description="Gestiona las solicitudes de compra y supervisa el estado general de la operación."
+          title={`Bienvenido, ${user?.name.split(" ")[0] || "Usuario"}`}
+          description="Módulo de Compras - Supervisa todo el flujo de adquisiciones"
         />
 
-        {user?.role === "bodega-admin" ? (
-          <PendingReceptionCard
-            requests={pendingReceptionRequests}
-            onReceiveClick={setReceivingRequest}
-          />
-        ) : (
+        {/* Jefe de Bodega: ve recepción */}
+        {user?.role === "bodega-admin" && canReceive && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Estado del Flujo de Compras
+                <Truck className="h-5 w-5" /> Pendientes de Recepción
               </CardTitle>
-              <CardDescription>
-                Vista general del ciclo de vida de las solicitudes de compra.
-              </CardDescription>
+              <CardDescription>Materiales aprobados/ordenados por recibir</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-96 border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Material</TableHead>
+                      <TableHead>Cantidad</TableHead>
+                      <TableHead>Área</TableHead>
+                      <TableHead className="text-right">Acción</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingReception.length > 0 ? pendingReception.map((req: PurchaseRequest) => (
+                      <TableRow key={req.id}>
+                        <TableCell className="font-medium">{req.materialName}</TableCell>
+                        <TableCell>{req.quantity} {req.unit}</TableCell>
+                        <TableCell className="text-muted-foreground">{req.area}</TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" onClick={() => setReceivingRequest(req)}>
+                            <PackageCheck className="mr-2 h-4 w-4" /> Recibir
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center h-24">
+                          No hay materiales pendientes de recepción
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Todos los demás roles: estadísticas */}
+        {(user?.role !== "bodega-admin" || !canReceive) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Estado General de Compras</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCardV2
-                  title="Pendientes"
-                  value={stats.pending}
-                  icon={ShoppingCart}
-                  color="bg-amber-500"
-                />
-                <StatCardV2
-                  title="Aprobadas (sin lote)"
-                  value={stats.approved}
-                  icon={ThumbsUp}
-                  color="bg-green-500"
-                />
-                <StatCardV2
-                  title="En Lote"
-                  value={stats.lots}
-                  icon={Box}
-                  color="bg-purple-500"
-                />
-                <StatCardV2
-                  title="Ordenadas"
-                  value={stats.orders}
-                  icon={FileText}
-                  color="bg-cyan-500"
-                />
+                <StatCardV2 title="Pendientes" value={stats.pending} icon={ShoppingCart} color="bg-amber-500" />
+                <StatCardV2 title="Aprobadas sin lote" value={stats.approved} icon={ThumbsUp} color="bg-green-500" />
+                <StatCardV2 title="En Lotes" value={stats.inLots} icon={Box} color="bg-purple-500" />
+                <StatCardV2 title="Ordenadas" value={stats.ordered} icon={FileText} color="bg-cyan-500" />
               </div>
             </CardContent>
           </Card>
@@ -440,71 +305,51 @@ export default function PurchasingHubPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Warehouse /> Stock Disponible
+              <Warehouse className="h-5 w-5" /> Stock Actual en Bodega
             </CardTitle>
-            <CardDescription>
-              Consulta los materiales disponibles en bodega.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row gap-4">
               <Input
                 placeholder="Buscar material..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                aria-label="Buscar material por nombre"
               />
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full sm:w-[220px]">
-                  <SelectValue placeholder="Filtrar por categoría" />
+                <SelectTrigger className="w-full sm:w-64">
+                  <SelectValue placeholder="Todas las categorías" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las categorías</SelectItem>
-                  {categories.map((cat: string) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
             <ScrollArea className="h-96 border rounded-md">
               <Table>
-                <TableHeader className="sticky top-0 bg-card">
+                <TableHeader>
                   <TableRow>
                     <TableHead>Material</TableHead>
-                    <TableHead className="w-[100px] text-right">
-                      Stock
-                    </TableHead>
+                    <TableHead>Categoría</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="h-24 text-center">
-                        Cargando...
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredMaterials.length > 0 ? (
-                    filteredMaterials.map((material: Material) => (
-                      <TableRow key={material.id}>
-                        <TableCell>
-                          <p className="font-medium">{material.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {material.category}
-                          </p>
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {material.stock.toLocaleString()}
-                        </TableCell>
+                    <TableRow><TableCell colSpan={3} className="text-center">Cargando...</TableCell></TableRow>
+                  ) : filteredStock.length === 0 ? (
+                    <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No hay materiales</TableCell></TableRow>
+                  ) : (
+                    filteredStock.map((mat: Material) => (
+                      <TableRow key={mat.id}>
+                        <TableCell className="font-medium">{mat.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{mat.category}</TableCell>
+                        <TableCell className="text-right font-mono">{mat.stock.toLocaleString()}</TableCell>
                       </TableRow>
                     ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={2} className="h-24 text-center">
-                        No se encontraron materiales.
-                      </TableCell>
-                    </TableRow>
                   )}
                 </TableBody>
               </Table>
