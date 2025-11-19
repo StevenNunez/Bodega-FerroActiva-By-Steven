@@ -303,5 +303,5 @@ export default function SeverancePage() {
             </div>
         </div>
     );
-}
+}   
      
