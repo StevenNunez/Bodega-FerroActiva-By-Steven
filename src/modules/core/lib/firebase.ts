@@ -1,3 +1,4 @@
+
 'use client';
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore";
@@ -27,7 +28,6 @@ const db: Firestore = getFirestore(app);
 const auth: Auth = getAuth(app);
 const storage: FirebaseStorage = getStorage(app);
 
-
 if (typeof window !== 'undefined') {
     try {
         enableIndexedDbPersistence(db)
@@ -42,7 +42,5 @@ if (typeof window !== 'undefined') {
         console.error("Error al habilitar la persistencia de Firestore:", error);
     }
 }
-
-
 
 export { app, db, auth, storage };

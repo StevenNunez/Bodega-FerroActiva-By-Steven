@@ -2,28 +2,18 @@
 "use client";
 
 import React from 'react';
-import { useAuth } from '@/modules/core/contexts/app-provider';
+import { useAuth } from '@/modules/auth/useAuth';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
 import { QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import { ROLES } from '@/modules/core/lib/permissions';
+import { UserRole } from '@/modules/core/lib/data';
 
 export function UserCredentialCard() {
   const { user } = useAuth();
   
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Administrador';
-      case 'bodega-admin': return 'Jefe de Bodega';
-      case 'supervisor': return 'Supervisor';
-      case 'worker': return 'Colaborador';
-      case 'operations': return 'Administrador de Obra';
-      case 'apr': return 'APR';
-      case 'guardia': return 'Guardia';
-      case 'finance': return 'Jefe de Adm. y Finanzas';
-      case 'super-admin': return 'Super Administrador';
-      case 'cphs': return 'Comité Paritario';
-      default: return 'Usuario';
-    }
+  const getRoleDisplayName = (role: UserRole) => {
+    return ROLES[role]?.label || role;
   }
 
   if (!user || !user.qrCode) return null;

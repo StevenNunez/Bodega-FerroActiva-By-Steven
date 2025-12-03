@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useAppState } from '@/modules/core/contexts/app-provider';
 import { PageHeader } from '@/components/page-header';
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Inbox, PackagePlus, ShoppingCart, Truck, Download, Trash2, CalendarIcon } from 'lucide-react';
+import { FileText, Inbox, PackagePlus, ShoppingCart, Truck, Download, Trash2, CalendarIcon, CheckCircle } from 'lucide-react';
 import { useToast } from '@/modules/core/hooks/use-toast';
 import type { PurchaseOrder as PurchaseOrderType, Supplier } from '@/modules/core/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,12 +24,14 @@ import { cn } from '@/lib/utils';
 
 const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
+type Lot = ReturnType<typeof useLots>['batchedLots'][0];
 
 interface GenerateOrderCardProps {
-    lot: ReturnType<typeof useLots>['batchedLots'][0];
+    lot: Lot;
+    onArchive: (lot: Lot) => void;
 }
 
-const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
+const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot, onArchive }) => {
     const { suppliers, generatePurchaseOrder } = useAppState();
     const [selectedSupplier, setSelectedSupplier] = useState<string>('');
     const { toast } = useToast();
@@ -85,18 +87,41 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot }) => {
                         </SelectContent>
                     </Select>
                 </div>
-                <Button className="w-full" onClick={handleGenerateOrder} disabled={!selectedSupplier || totalRequests === 0}>
-                    <FileText className="mr-2"/>
-                    <span className="sm:hidden">Generar Cotización</span>
-                    <span className="hidden sm:inline">Generar Solicitud de Cotización</span>
-                </Button>
+                <div className="flex gap-2">
+                     <Button className="w-full" onClick={handleGenerateOrder} disabled={!selectedSupplier || totalRequests === 0}>
+                        <FileText className="mr-2"/>
+                        <span>Generar Cotización</span>
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                             <Button variant="outline" className="bg-green-600 hover:bg-green-700 text-white" disabled={totalRequests === 0}>
+                                <CheckCircle className="mr-2 h-4 w-4"/> Finalizar
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Finalizar este Lote?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Esta acción marcará todas las solicitudes de este lote como "ordenadas", indicando que el proceso de cotización ha terminado. El lote ya no estará disponible para generar nuevas cotizaciones.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => onArchive(lot)} className="bg-green-600 hover:bg-green-700">
+                                Sí, finalizar y archivar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                   
+                </div>
             </CardContent>
         </Card>
     );
 };
 
 export default function OrdersPage() {
-    const { purchaseOrders, suppliers, cancelPurchaseOrder } = useAppState();
+    const { purchaseOrders, suppliers, cancelPurchaseOrder, archiveLot } = useAppState();
     const { batchedLots } = useLots();
     const { toast } = useToast();
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -117,10 +142,18 @@ export default function OrdersPage() {
     }, [purchaseOrders, selectedDate]);
 
 
-    const handleDownloadPDF = (order: PurchaseOrderType, index: number) => {
+    const handleDownloadPDF = async (order: PurchaseOrderType, index: number) => {
         const supplier = getSupplier(order.supplierId);
         if(supplier) {
-            generatePurchaseOrderPDF(order, supplier, index + 1);
+            const { blob, filename } = await generatePurchaseOrderPDF(order, supplier, index + 1);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         } else {
              alert("Proveedor no encontrado para esta orden.");
         }
@@ -134,6 +167,21 @@ export default function OrdersPage() {
             toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo anular la orden.' });
         }
     };
+
+    const handleArchiveLot = useCallback(async (lot: Lot) => {
+      if (!lot || lot.requests.length === 0) {
+        toast({ variant: "destructive", title: "Error", description: "El lote está vacío o no es válido." });
+        return;
+      }
+      const requestIds = lot.requests.map(r => r.id);
+      try {
+        await archiveLot(requestIds);
+        toast({ title: 'Lote Archivado', description: 'Todas las solicitudes del lote han sido marcadas como ordenadas.' });
+      } catch (error: any) {
+        toast({ variant: "destructive", title: "Error al archivar", description: error.message || "No se pudo archivar el lote." });
+      }
+    }, [archiveLot, toast]);
+
 
     return (
         <div className="flex flex-col gap-8">
@@ -150,7 +198,7 @@ export default function OrdersPage() {
                 <CardContent>
                     {batchedLots.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {batchedLots.map(lot => <GenerateOrderCard key={lot.lotId} lot={lot} />)}
+                            {batchedLots.map(lot => <GenerateOrderCard key={lot.lotId} lot={lot} onArchive={handleArchiveLot} />)}
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-12">

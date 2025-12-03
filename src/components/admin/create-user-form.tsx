@@ -15,13 +15,14 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/modules/core/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
-import { ROLES, PLANS, Permission } from '@/modules/core/lib/permissions';
+import { ROLES, PLANS } from '@/modules/core/lib/permissions';
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   email: z.string().email('El correo electrónico no es válido.'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
-  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin', 'cphs'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'superadmin', 'cphs'], { required_error: 'Debes seleccionar un rol.' }),
+  phone: z.string().optional(),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -36,7 +37,6 @@ export function CreateUserForm() {
       return (tenants || []).find((t: Tenant) => t.id === currentTenantId || t.tenantId === currentTenantId);
   }, [currentTenantId, tenants]);
 
-  // For now, let's assume a plan. In a real app, this would be dynamic.
   const plan = (currentTenant as any)?.plan || PLANS.professional; 
 
   const {
@@ -52,13 +52,14 @@ export function CreateUserForm() {
       email: "",
       password: "",
       role: 'worker',
+      phone: '',
     }
   });
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     let tenantIdToAssign = currentTenantId;
 
-    if (authUser?.role === 'super-admin' && !tenantIdToAssign) {
+    if (authUser?.role === 'superadmin' && !tenantIdToAssign) {
         toast({
             variant: 'destructive',
             title: 'Error de Suscriptor',
@@ -67,7 +68,7 @@ export function CreateUserForm() {
         return;
     }
 
-    if (authUser?.role !== 'super-admin') {
+    if (authUser?.role !== 'superadmin') {
         tenantIdToAssign = authUser?.tenantId || null;
     }
     
@@ -82,10 +83,6 @@ export function CreateUserForm() {
 
 
     try {
-      // NOTE: This approach of creating a user client-side with email/password is NOT secure
-      // for a multi-tenant admin panel. In a real-world app, this would be handled by a
-      // secure backend function (e.g., Firebase Cloud Function) that creates the user.
-      // This is a temporary implementation for prototyping.
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const newAuthUser = userCredential.user;
 
@@ -96,6 +93,7 @@ export function CreateUserForm() {
           name: data.name,
           email: data.email,
           role: data.role,
+          phone: data.phone,
           tenantId: tenantIdToAssign,
           qrCode: qrCode,
       });
@@ -121,8 +119,8 @@ export function CreateUserForm() {
   
   const allowedRoles = React.useMemo(() => {
     let roles = plan.allowedRoles;
-    if(authUser?.role !== 'super-admin') {
-        roles = (roles || []).filter((r: UserRole) => r !== 'super-admin');
+    if(authUser?.role !== 'superadmin') {
+        roles = (roles || []).filter((r: UserRole) => r !== 'superadmin');
     }
     return roles;
   }, [plan, authUser]);
@@ -148,6 +146,12 @@ export function CreateUserForm() {
       </div>
       
       <div className="space-y-2">
+        <Label htmlFor="phone">Teléfono (con código de país)</Label>
+        <Input id="phone" type="tel" placeholder="Ej: 56912345678" {...register('phone')} />
+        {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
+      </div>
+      
+      <div className="space-y-2">
         <Label htmlFor="role">Rol del Usuario</Label>
         <Controller
             name="role"
@@ -160,7 +164,7 @@ export function CreateUserForm() {
                     <SelectContent>
                         {(allowedRoles || []).map((roleKey: UserRole) => (
                             <SelectItem key={roleKey} value={roleKey}>
-                                {ROLES[roleKey]?.description.split('.')[0] || roleKey}
+                                {ROLES[roleKey]?.label || roleKey}
                             </SelectItem>
                         ))}
                     </SelectContent>

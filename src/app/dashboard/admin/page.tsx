@@ -1,4 +1,5 @@
-'use client';
+
+"use client";
 import * as React from 'react';
 import Link from 'next/link';
 import { useAppState } from '@/modules/core/contexts/app-provider';
@@ -18,6 +19,24 @@ import {
   FolderTree,
   Ruler,
   ShoppingCart,
+  Briefcase,
+  PackagePlus,
+  FileText,
+  Edit,
+  CalendarCheck,
+  Clock,
+  BookOpen,
+  FileBarChart,
+  User as UserIcon,
+  ListChecks,
+  DollarSign,
+  ShieldCheck,
+  ShieldAlert,
+  ClipboardPaste,
+  BarChart3,
+  QrCode,
+  Undo2,
+  HandCoins,
 } from 'lucide-react';
 import { StatCard } from '@/components/admin/stat-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -27,7 +46,9 @@ import type {
   MaterialRequest,
   ReturnRequest,
   StockMovement,
+  Tool,
   ToolLog,
+  User,
 } from '@/modules/core/lib/data';
 import {
   Table,
@@ -95,9 +116,9 @@ export default function WarehouseHubPage() {
   );
 
   const stats = React.useMemo(() => {
-    const safeMaterials = materials || [];
-    const safeTools = tools || [];
-    const safeToolLogs = toolLogs || [];
+    const safeMaterials: Material[] = materials || [];
+    const safeTools: Tool[] = tools || [];
+    const safeToolLogs: ToolLog[] = toolLogs || [];
 
     const checkedOutToolsCount = new Set(
       safeToolLogs
@@ -182,7 +203,7 @@ export default function WarehouseHubPage() {
       permission: 'materials:create',
     },
     {
-      href: '/dashboard/admin/categories',
+      href: '/dashboard/purchasing/categories',
       icon: FolderTree,
       title: 'Gestión de Categorías',
       description: 'Organiza tus materiales y proveedores.',
@@ -282,7 +303,7 @@ export default function WarehouseHubPage() {
                 </ul>
               ) : (
                 <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
-                  <p>No hay materiales con stock bajo.</p>
+                  <p>¡Todo en orden! No hay materiales con stock bajo.</p>
                 </div>
               )}
             </CardContent>
@@ -312,7 +333,7 @@ export default function WarehouseHubPage() {
                     <SelectItem value="all">
                       Todas las categorías
                     </SelectItem>
-                    {categories.map((cat) => (
+                    {categories.map((cat: string) => (
                       <SelectItem key={cat} value={cat}>
                         {cat}
                       </SelectItem>
@@ -397,3 +418,5 @@ export default function WarehouseHubPage() {
     </div>
   );
 }
+
+    

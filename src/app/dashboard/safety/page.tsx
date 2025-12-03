@@ -49,8 +49,8 @@ const getRiskBadge = (level: string) => {
 
 
 export default function SafetyDashboardPage() {
-    const { user } = useAuth();
-    const { assignedChecklists, safetyInspections, users, can } = useAppState();
+    const { user, can } = useAuth();
+    const { assignedChecklists, safetyInspections, users } = useAppState();
 
     const stats = useMemo(() => {
         const safeChecklists: AssignedSafetyTask[] = assignedChecklists || [];
@@ -70,7 +70,11 @@ export default function SafetyDashboardPage() {
         const approved = safeChecklists.filter((c: AssignedSafetyTask) => c.status === 'approved').length;
         
         const inspectionsOpen = safeInspections.filter((i: SafetyInspection) => i.status === 'open').length;
-        const inspectionsOverdue = safeInspections.filter((i: SafetyInspection) => i.status === 'open' && i.deadline && isPast((i.deadline as Timestamp).toDate())).length;
+        const inspectionsOverdue = safeInspections.filter((i: SafetyInspection) => {
+            if (i.status !== 'open' || !i.deadline) return false;
+            const deadlineDate = i.deadline instanceof Timestamp ? i.deadline.toDate() : new Date(i.deadline);
+            return isPast(deadlineDate);
+        }).length;
 
         return { 
             totalChecklists, assigned, forReview, approved,
@@ -81,7 +85,11 @@ export default function SafetyDashboardPage() {
     const checklistsForReview = useMemo(() => {
         return (assignedChecklists || [])
             .filter((c: AssignedSafetyTask) => c.status === 'completed')
-            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => (((b.completedAt as any)?.toMillis() || 0) - ((a.completedAt as any)?.toMillis() || 0)))
+            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => {
+                const dateA = a.completedAt instanceof Timestamp ? a.completedAt.toMillis() : (a.completedAt ? new Date(a.completedAt).getTime() : 0);
+                const dateB = b.completedAt instanceof Timestamp ? b.completedAt.toMillis() : (b.completedAt ? new Date(b.completedAt).getTime() : 0);
+                return dateB - dateA;
+            })
             .slice(0, 5);
     }, [assignedChecklists]);
     
@@ -100,12 +108,20 @@ export default function SafetyDashboardPage() {
         if (!user) return { checklists: [], inspections: [] };
         const myChecklists = (assignedChecklists || [])
             .filter((c: AssignedSafetyTask) => c.supervisorId === user.id && c.status === 'assigned')
-            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => (((b.createdAt as any)?.toMillis() || 0) - ((a.createdAt as any)?.toMillis() || 0)))
+            .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => {
+                const dateA = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : new Date(a.createdAt as any).getTime();
+                const dateB = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : new Date(b.createdAt as any).getTime();
+                return dateB - dateA;
+            })
             .slice(0, 3);
         
         const myInspections = (safetyInspections || [])
             .filter((i: SafetyInspection) => i.assignedTo === user.id && i.status === 'open')
-            .sort((a: SafetyInspection,b: SafetyInspection) => (((a.deadline as any)?.toMillis() || Infinity) - ((b.deadline as any)?.toMillis() || Infinity)))
+            .sort((a: SafetyInspection,b: SafetyInspection) => {
+                const deadlineA = a.deadline ? (a.deadline as Timestamp).toMillis() : Infinity;
+                const deadlineB = b.deadline ? (b.deadline as Timestamp).toMillis() : Infinity;
+                return deadlineA - deadlineB;
+            })
             .slice(0, 3);
             
         return { checklists: myChecklists, inspections: myInspections };

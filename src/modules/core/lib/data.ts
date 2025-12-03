@@ -2,7 +2,7 @@
 "use client";
 import { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin" | "bodega-admin" | "cphs";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "superadmin" | "bodega-admin" | "cphs";
 
 export interface Tenant {
   id: string;
@@ -35,6 +35,7 @@ export interface User {
   tenantId: string; // ID of the company/tenant they belong to
   rut?: string;
   cargo?: string;
+  phone?: string;
   fechaIngreso?: Date | Timestamp | null;
   afp?: string;
   tipoSalud?: 'Fonasa' | 'Isapre';
@@ -180,7 +181,6 @@ export interface PurchaseOrder {
     items: { id: string; name: string; quantity: number, unit: string, totalQuantity: number }[];
     lotId?: string | null;
     pdfUrl?: string;
-    tenantId?: string;
 }
 
 export interface StockMovement {
@@ -237,11 +237,6 @@ export interface AssignedSafetyTask {
     rejectionNotes?: string;
 }
 
-export interface BehaviorObservationItem {
-  question: string;
-  status: 'si' | 'no' | 'na' | null;
-}
-
 export interface BehaviorObservation {
     id: string;
     obra: string;
@@ -258,6 +253,11 @@ export interface BehaviorObservation {
     observerName: string;
     createdAt: Date | Timestamp;
     evidencePhoto?: string;
+}
+
+export interface BehaviorObservationItem {
+  question: string;
+  status: 'si' | 'no' | 'na' | null;
 }
 
 export interface ChecklistItem {

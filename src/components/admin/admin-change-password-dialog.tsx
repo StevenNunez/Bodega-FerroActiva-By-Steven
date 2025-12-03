@@ -12,8 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { User } from '@/modules/core/lib/data';
 
 
-
-
 // This function simulates a call to a secure backend (like a Firebase Cloud Function)
 // which is required to change another user's password.
 // The client-side Firebase SDK does NOT allow changing another user's password for security reasons.

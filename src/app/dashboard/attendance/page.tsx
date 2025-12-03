@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -16,7 +17,8 @@ import {
     UserCheck,
     UserX,
     LogIn,
-    LogOut
+    LogOut,
+    HandCoins
 } from "lucide-react";
 import { useAppState } from "@/modules/core/contexts/app-provider";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -61,6 +63,13 @@ const attendanceModules: ModuleProps[] = [
         href: "/dashboard/attendance/overtime",
         permission: "attendance:edit",
         icon: Clock,
+    },
+    {
+        title: "Generador de Finiquito",
+        description: "Calcula finiquitos según la normativa chilena.",
+        href: "/dashboard/attendance/severance",
+        permission: "attendance:edit",
+        icon: HandCoins,
     }
 ];
 
@@ -69,36 +78,40 @@ export default function AttendanceDashboardPage() {
 
     const todayStr = useMemo(() => {
         const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+            now.getDate()
+        ).padStart(2, "0")}`;
     }, []);
 
     const { stats, recentLogs } = useMemo(() => {
-        const safeUsers = (users || []) as User[];
-        const safeLogs = (attendanceLogs || []) as AttendanceLog[];
+        const safeUsers: User[] = users || [];
+        const safeLogs: AttendanceLog[] = attendanceLogs || [];
 
-        const relevantUsers = safeUsers.filter(u => u.role !== "guardia" && u.role !== "super-admin");
+        const relevantUsers = safeUsers.filter(
+            (u: User) => u.role !== "guardia" && u.role !== "super-admin"
+        );
 
-        const todaysLogs = safeLogs.filter(log => log.date === todayStr);
+        const todaysLogs = safeLogs.filter((log: AttendanceLog) => log.date === todayStr);
 
-        const attendees = new Set(todaysLogs.map(log => log.userId));
+        const attendees = new Set(todaysLogs.map((log) => log.userId));
 
         let currentlyPresent = 0;
         const userLastLogType: Record<string, "in" | "out"> = {};
 
-        todaysLogs.forEach(log => {
+        todaysLogs.forEach((log: AttendanceLog) => {
             userLastLogType[log.userId] = log.type;
         });
 
-        Object.values(userLastLogType).forEach(type => {
+        Object.values(userLastLogType).forEach((type) => {
             if (type === "in") currentlyPresent++;
         });
 
         const sortedRecentLogs = [...todaysLogs]
-            .sort((a, b) => {
-                const aTime = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : new Date(a.timestamp).getTime();
-                const bTime = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : new Date(b.timestamp).getTime();
-                return bTime - aTime;
-            })
+            .sort(
+                (a, b) =>
+                    (b.timestamp as Timestamp).toMillis() -
+                    (a.timestamp as Timestamp).toMillis()
+            )
             .slice(0, 5);
 
         return {
@@ -112,21 +125,19 @@ export default function AttendanceDashboardPage() {
         };
     }, [users, attendanceLogs, todayStr]);
 
-    // Mapa con tipado explícito para evitar errores de ReactNode
-    const userMap = useMemo(() => {
-        const map = new Map<string, string>();
-        (users || []).forEach((u: User) => {
-            map.set(u.id, u.name);
-        });
-        return map;
-    }, [users]);
+    const userMap = useMemo(
+        () => new Map((users || []).map((u: User) => [u.id, u.name])),
+        [users]
+    );
 
     const formatTime = (date: Date | Timestamp) => {
         const jsDate = date instanceof Timestamp ? date.toDate() : date;
         return jsDate.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
     };
 
-    const visibleModules = attendanceModules.filter(module => can(module.permission as any));
+    const visibleModules = attendanceModules.filter((module) =>
+        can(module.permission as any)
+    );
 
     if (!can("module_attendance:view")) {
         return (
@@ -150,8 +161,18 @@ export default function AttendanceDashboardPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <StatCard title="Trabajadores Activos" value={stats.totalWorkers} icon={Users} />
                 <StatCard title="Asistencia Hoy" value={stats.presentToday} icon={UserCheck} />
-                <StatCard title="Ausentes Hoy" value={stats.absentToday} icon={UserX} color="text-red-500" />
-                <StatCard title="Actualmente en Obra" value={stats.currentlyIn} icon={Users} color="text-green-500" />
+                <StatCard
+                    title="Ausentes Hoy"
+                    value={stats.absentToday}
+                    icon={UserX}
+                    color="text-red-500"
+                />
+                <StatCard
+                    title="Actualmente en Obra"
+                    value={stats.currentlyIn}
+                    icon={Users}
+                    color="text-green-500"
+                />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -174,14 +195,16 @@ export default function AttendanceDashboardPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {recentLogs.length > 0 ? (
-                                        recentLogs.map((log) => (
+                                        recentLogs.map((log: AttendanceLog) => (
                                             <TableRow key={log.id}>
                                                 <TableCell className="font-mono">
                                                     {formatTime(log.timestamp)}
                                                 </TableCell>
+
                                                 <TableCell className="font-medium">
-                                                    {userMap.get(log.userId) ?? "Desconocido"}
+                                                    {userMap.get(log.userId) || "Desconocido"}
                                                 </TableCell>
+
                                                 <TableCell className="text-right">
                                                     {log.type === "in" ? (
                                                         <Badge className="bg-green-600 hover:bg-green-700 text-white">
@@ -197,7 +220,10 @@ export default function AttendanceDashboardPage() {
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+                                            <TableCell
+                                                colSpan={3}
+                                                className="text-center h-24 text-muted-foreground"
+                                            >
                                                 No hay movimientos registrados hoy.
                                             </TableCell>
                                         </TableRow>
@@ -214,12 +240,14 @@ export default function AttendanceDashboardPage() {
                             <AlertCircle className="h-4 w-4" />
                             <AlertTitle>Sin Permisos de Acción</AlertTitle>
                             <AlertDescription>
-                                Puedes ver este módulo, pero tu rol no tiene permisos para realizar acciones aquí.
+                                Puedes ver este módulo, pero tu rol no tiene permisos para
+                                realizar acciones aquí. Contacta a un administrador si crees que esto
+                                es un error.
                             </AlertDescription>
                         </Alert>
                     ) : (
                         visibleModules.map((module) => (
-                            <Link key={module.href} href={module.href} className="group block">
+                            <Link key={module.href} href={module.href} className="group">
                                 <Card className="h-full transition-all duration-200 hover:border-primary hover:shadow-md">
                                     <CardHeader>
                                         <CardTitle className="flex items-center justify-between">

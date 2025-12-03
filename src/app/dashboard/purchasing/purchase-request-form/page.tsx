@@ -89,8 +89,8 @@ export default function PurchaseRequestFormPage() {
   }, [selectedMaterialId, materials, setValue]);
 
   const displayedRequests = useMemo(() => {
-    if (!authUser) return [];
-    return (purchaseRequests || [])
+    if (!authUser || !purchaseRequests) return [];
+    return purchaseRequests
       .filter((pr: PurchaseRequest) => pr.supervisorId === authUser.id)
       .sort((a: PurchaseRequest, b: PurchaseRequest) => {
         const dateA = getDate(a.createdAt);
@@ -476,4 +476,3 @@ export default function PurchaseRequestFormPage() {
     </div>
   );
 }
-

@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import { useAppState } from '@/modules/core/contexts/app-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '../ui/input';
 
-const QrScannerDialog = dynamic(() => import('@/components/qr-scanner-dialog').then(mod => mod.QrScannerDialog), { ssr: false });
 type ScanPurpose = 'checkout-worker' | 'checkout-tool' | 'return-tool';
 
 // --- Sanitizador robusto
@@ -35,8 +33,6 @@ export function ToolCheckoutCard() {
   const [manualWorkerId, setManualWorkerId] = useState('');
   const [manualToolId, setManualToolId] = useState('');
   const [pistolInput, setPistolInput] = useState('');
-  const [isScannerOpen, setScannerOpen] = useState(false);
-  const [scannerPurpose, setScannerPurpose] = useState<ScanPurpose | null>(null);
   const [isDamaged, setIsDamaged] = useState(false);
   const [returnNotes, setReturnNotes] = useState('');
 
@@ -125,22 +121,18 @@ export function ToolCheckoutCard() {
       const code = sanitizeQrCode(rawCode);
       const up = (s?: string) => (s ? s.trim().toUpperCase() : '');
 
-      // 1. Coincidencia exacta por QR
       const byQr = (tools || []).find((t: ToolType) => up(t.qrCode) === up(code));
       if (byQr) return byQr;
 
-      // 2. Normalización de códigos
       const normalize = (s: string) => up(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '-');
       const normalizedCode = normalize(code);
       
       const byNormalizedQr = (tools || []).find((t: ToolType) => normalize(t.qrCode) === normalizedCode);
       if(byNormalizedQr) return byNormalizedQr;
 
-      // 3. Coincidencia exacta por ID
       const byId = (tools || []).find((t: ToolType) => up(t.id) === up(code));
       if (byId) return byId;
       
-      // 4. Búsqueda por tokens si falla lo anterior
       const tokens = code.split(/[^a-zA-Z0-9_-]+/);
       for(const token of tokens) {
           const byTokenId = (tools || []).find((t: ToolType) => up(t.id) === up(token));
@@ -156,11 +148,9 @@ export function ToolCheckoutCard() {
   const findUserFromScanned = useCallback(
     (finalCode: string): UserType | null => {
       if (!finalCode) return null;
-      // try exact match by qrCode or id
       const exact = (users || []).find((u: UserType) => u.qrCode === finalCode || u.id === finalCode);
       if (exact) return exact;
 
-      // split by '
       const parts = finalCode.split("'");
       if (parts.length >= 2) {
         const candidateId = parts[1] || parts[0];
@@ -168,14 +158,12 @@ export function ToolCheckoutCard() {
         if (byId) return byId;
       }
 
-      // fallback by tokens
       const tokens = finalCode.split(/[^A-Za-z0-9_-]+/).filter(Boolean);
       for (const tok of tokens) {
         const byId = (users || []).find((u: UserType) => u.id === tok);
         if (byId) return byId;
       }
 
-      // last resort: partial name match
       const up = finalCode.toUpperCase();
       const byName = (users || []).find((u: UserType) => u.name && u.name.toUpperCase().includes(up));
       if (byName) return byName;
@@ -188,7 +176,6 @@ export function ToolCheckoutCard() {
   const processScan = useCallback(
     (scannedCode: string) => {
       const finalCode = sanitizeQrCode(scannedCode);
-      console.log('DEBUG - scanned code:', scannedCode, '-> sanitized:', finalCode);
       if (!finalCode) {
         toast({ variant: 'destructive', title: 'Error', description: 'Entrada vacía.' });
         return;
@@ -196,7 +183,6 @@ export function ToolCheckoutCard() {
 
       const upper = finalCode.toUpperCase();
 
-      // 1) Intentar reconocer usuario
       if (upper.startsWith('USER') || upper.includes('USER')) {
         const user = findUserFromScanned(finalCode);
         if (user) {
@@ -204,13 +190,11 @@ export function ToolCheckoutCard() {
           toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${user.name}.` });
           return;
         }
-        // si decía USER pero no se encontró, avisar
         const maybeId = finalCode.split("'")[1] || finalCode.split('-')[1] || finalCode;
         toast({ variant: 'destructive', title: 'Error', description: `Usuario no encontrado: ${maybeId}` });
         return;
       }
 
-      // 2) Intentar reconocer herramienta
       const tool = findToolFromScanned(finalCode);
       if (tool) {
         if (returnMode) {
@@ -230,7 +214,6 @@ export function ToolCheckoutCard() {
         return;
       }
 
-      // 3) Si no es usuario ni herramienta, probar con el usuario de nuevo por si acaso
       const maybeUser = findUserFromScanned(finalCode);
       if (maybeUser) {
         setCheckoutState({ worker: maybeUser, tools: [] });
@@ -295,40 +278,15 @@ export function ToolCheckoutCard() {
   const removeToolFromCart = (toolId: string) =>
     setCheckoutState(prev => ({ ...prev, tools: prev.tools.filter((t: ToolType) => t.id !== toolId) }));
 
-  const openScanner = (purpose: ScanPurpose) => {
-    setScannerPurpose(purpose);
-    setScannerOpen(true);
-  };
-
-  const handleScanFromDialog = (qrCode: string) => {
-    setScannerOpen(false);
-    processScan(qrCode);
-    setScannerPurpose(null);
-  };
-
-  const scannerTitles: Record<ScanPurpose, string> = {
-    'checkout-worker': 'Escanear ID de Usuario para Entrega',
-    'checkout-tool': 'Escanear QR de Herramienta para Entrega',
-    'return-tool': 'Escanear QR de Herramienta a Devolver',
-  };
-
-  const scannerDescriptions: Record<ScanPurpose, string> = {
-    'checkout-worker': 'Apunta la cámara al código QR del carnet del usuario.',
-    'checkout-tool': 'Escanea los códigos QR de las herramientas a entregar.',
-    'return-tool': 'Escanea el QR de la herramienta que se devuelve.',
+  const openScanner = () => {
+    toast({
+        variant: 'destructive',
+        title: 'Función Deshabilitada',
+        description: 'El escaneo de QR está desactivado temporalmente por problemas de instalación.',
+    });
   };
 
   return (
-    <>
-      {isScannerOpen && scannerPurpose && (
-        <QrScannerDialog
-          open={isScannerOpen}
-          onOpenChange={setScannerOpen}
-          onScan={handleScanFromDialog}
-          title={scannerTitles[scannerPurpose]}
-          description={scannerDescriptions[scannerPurpose]}
-        />
-      )}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -425,9 +383,9 @@ export function ToolCheckoutCard() {
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => openScanner(returnMode ? 'return-tool' : checkoutState.worker ? 'checkout-tool' : 'checkout-worker')}
+              onClick={openScanner}
             >
-              <ScanLine className="mr-2 h-4 w-4" /> Usar Cámara del Dispositivo
+              <ScanLine className="mr-2 h-4 w-4" /> Usar Cámara (Desactivado)
             </Button>
           </div>
           {/* Estado actual */}
@@ -505,7 +463,7 @@ export function ToolCheckoutCard() {
                   <Checkbox
                     id="damaged"
                     checked={isDamaged}
-                    onCheckedChange={(checked: boolean) => setIsDamaged(checked)}
+                    onCheckedChange={(checked) => setIsDamaged(checked as boolean)}
                   />
                   <Label htmlFor="damaged" className="text-destructive font-medium">
                     Devuelta con daños
@@ -522,8 +480,5 @@ export function ToolCheckoutCard() {
           </div>
         </CardContent>
       </Card>
-    </>
-  );
-}
-
+    
     

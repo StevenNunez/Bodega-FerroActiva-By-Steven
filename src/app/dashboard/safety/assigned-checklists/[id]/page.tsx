@@ -1,9 +1,7 @@
-
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import dynamic from 'next/dynamic';
 import { useParams, useRouter } from "next/navigation";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { PageHeader } from "@/components/page-header";
@@ -18,12 +16,11 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import SignaturePad from "@/components/signature-pad";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import type { AssignedSafetyTask as AssignedChecklist, ChecklistItem as ChecklistItemType, User } from "@/modules/core/lib/data";
+import type { AssignedSafetyTask as AssignedChecklist, UnplannedInspection as ChecklistItemType, User } from "@/modules/core/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-
-const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
@@ -45,7 +42,7 @@ export default function AssignedChecklistPage() {
 
     const checklist = useMemo(() => {
         if (!assignedChecklists) return null;
-        return assignedChecklists.find((c: AssignedChecklist) => c.id === checklistId) || null;
+        return assignedChecklists.find(c => c.id === checklistId) || null;
     }, [assignedChecklists, checklistId]);
 
     const [checklistData, setChecklistData] = useState<AssignedChecklist | null>(checklist);
@@ -55,7 +52,7 @@ export default function AssignedChecklistPage() {
     }, [checklist]);
 
 
-    const handleItemChange = (itemIndex: number, field: keyof ChecklistItemType, value: any) => {
+    const handleItemChange = (itemIndex: number, field: keyof any, value: any) => {
         if (!checklistData) return;
         
         setChecklistData(prevData => {
@@ -138,7 +135,7 @@ export default function AssignedChecklistPage() {
                             };
                         });
                     };
-                    img.src = e.target.result as string;
+                    img.src = e.target.result;
                 }
             };
             reader.readAsDataURL(file);
@@ -238,7 +235,7 @@ export default function AssignedChecklistPage() {
                                             <SelectValue placeholder="Asignar responsable..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {(users || []).map((u: User) => (
+                                            {users.map(u => (
                                                 <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                                             ))}
                                         </SelectContent>
@@ -262,7 +259,7 @@ export default function AssignedChecklistPage() {
                                         <PopoverContent className="w-auto p-0">
                                             <Calendar
                                                 mode="single"
-                                                selected={item.completionDate instanceof Timestamp ? item.completionDate.toDate() : (item.completionDate || undefined)}
+                                                selected={item.completionDate instanceof Timestamp ? item.completionDate.toDate() : item.completionDate || undefined}
                                                 onSelect={(date) => handleItemChange(index, 'completionDate', date)}
                                                 initialFocus
                                             />
@@ -356,4 +353,3 @@ export default function AssignedChecklistPage() {
         </div>
     );
 }
-

@@ -180,5 +180,10 @@ export async function generatePurchaseOrderPDF(order: PurchaseOrderType, supplie
   });
 
   const safeFilename = `Solicitud_Cotizacion_${String(orderIndex).padStart(3, '0')}_${orderDate.toISOString().split('T')[0]}.pdf`;
-  doc.save(safeFilename);
+  const pdfBlob = doc.output('blob');
+  
+  return {
+      blob: pdfBlob,
+      filename: safeFilename
+  };
 }

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -15,7 +16,6 @@ import { es } from "date-fns/locale";
 import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { User } from "@/modules/core/lib/data";
 
 import {
   Select,
@@ -64,7 +64,7 @@ export default function MonthlyReportPage() {
   const [anticipo, setAnticipo] = useState(0);
 
   const selectedUser = useMemo(
-    () => (users || []).find((u: User) => u.id === selectedUserId),
+    () => (users || []).find((u) => u.id === selectedUserId),
     [users, selectedUserId]
   );
 
@@ -252,8 +252,8 @@ export default function MonthlyReportPage() {
               <SelectTrigger><SelectValue placeholder="Selecciona un trabajador..." /></SelectTrigger>
               <SelectContent>
                 {(users || [])
-                  .filter((u: User) => u.role !== "guardia")
-                  .map((user: User) => (<SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>))}
+                  .filter((u) => u.role !== "guardia")
+                  .map((user) => (<SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>))}
               </SelectContent>
             </Select>
             <Select value={String(selectedMonth)} onValueChange={(val) => setSelectedMonth(Number(val))}>

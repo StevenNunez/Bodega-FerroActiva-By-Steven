@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -53,12 +52,6 @@ import { EditPaymentForm } from "@/components/admin/edit-payment-form";
 const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 type PaymentStatus = "pending" | "paid" | "overdue";
-
-type ProcessedPayment = SupplierPayment & {
-  dueDate: Date;
-  calculatedStatus: PaymentStatus;
-};
-
 
 // === Subcomponente para crear factura ===
 const CreatePaymentForm = ({
@@ -125,7 +118,7 @@ const CreatePaymentForm = ({
                 <SelectValue placeholder="Selecciona un proveedor..." />
               </SelectTrigger>
               <SelectContent>
-                {suppliers.map((s: Supplier) => (
+                {suppliers.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
                   </SelectItem>
@@ -277,10 +270,10 @@ export default function PaymentManagementPage() {
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(value);
   };
 
-  const processedPayments = useMemo((): ProcessedPayment[] => {
+  const processedPayments = useMemo(() => {
     const today = startOfDay(new Date());
     return (supplierPayments || [])
-      .map((p: SupplierPayment) => {
+      .map((p) => {
         const dueDate =
           p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate as any);
         let currentStatus: PaymentStatus = p.status as PaymentStatus;
@@ -295,11 +288,11 @@ export default function PaymentManagementPage() {
           calculatedStatus: currentStatus,
         };
       })
-      .sort((a: ProcessedPayment, b: ProcessedPayment) => a.dueDate.getTime() - b.dueDate.getTime());
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   }, [supplierPayments]);
 
   const filteredPayments = useMemo(() => {
-    return processedPayments.filter((p: ProcessedPayment) => {
+    return processedPayments.filter(p => {
         const statusMatch = filter === 'all' || p.calculatedStatus === filter;
         const ocMatch = !ocFilter || (p.purchaseOrderNumber && p.purchaseOrderNumber.includes(ocFilter));
         const workMatch = workFilter === 'all' || (p.work && p.work.toLowerCase().includes(workFilter.toLowerCase()));
@@ -321,8 +314,8 @@ export default function PaymentManagementPage() {
     );
   }
 
-  const supplierMap = new Map<string, string>((suppliers || []).map((s: Supplier) => [s.id, s.name]));
-  const workOptions = [...new Set(supplierPayments.map((p: SupplierPayment) => p.work).filter(Boolean))] as string[];
+  const supplierMap = new Map(suppliers.map((s) => [s.id, s.name]));
+  const workOptions = [...new Set(supplierPayments.map(p => p.work).filter(Boolean))] as string[];
 
   return (
     <div className="flex flex-col gap-8">
@@ -338,7 +331,7 @@ export default function PaymentManagementPage() {
             </CardHeader>
             <CardContent>
                 <CreatePaymentForm
-                suppliers={suppliers || []}
+                suppliers={suppliers}
                 addPayment={addSupplierPayment}
                 />
             </CardContent>
@@ -385,7 +378,7 @@ export default function PaymentManagementPage() {
 
                     <TableBody>
                     {filteredPayments.length > 0 ? (
-                        filteredPayments.map((p: ProcessedPayment) => (
+                        filteredPayments.map((p) => (
                         <TableRow
                             key={p.id}
                             className={cn(
@@ -405,7 +398,7 @@ export default function PaymentManagementPage() {
                              <TableCell>
                                 {p.work || 'N/A'}
                                 {p.status === 'paid' && p.paymentDate && (
-                                    <div className="text-xs text-muted-foreground">Pagado: {format(p.paymentDate instanceof Timestamp ? p.paymentDate.toDate() : (p.paymentDate as Date), "dd-MM-yy")} ({p.paymentMethod})</div>
+                                    <div className="text-xs text-muted-foreground">Pagado: {format(p.paymentDate as Date, "dd-MM-yy")} ({p.paymentMethod})</div>
                                 )}
                             </TableCell>
                             <TableCell className="text-right flex justify-end gap-2">

@@ -9,13 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Save, User as UserIcon, Calendar, Camera, Trash2 } from "lucide-react";
+import { Loader2, ArrowLeft, Save, User, Calendar, Camera, Trash2 } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import SignaturePad from "@/components/signature-pad";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import type { SafetyInspection, User } from "@/modules/core/lib/data";
+import type { UnplannedInspection as SafetyInspection } from "@/modules/core/lib/data";
 import { Badge } from "@/components/ui/badge";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
@@ -38,7 +38,7 @@ export default function CompleteInspectionPage() {
 
     const inspection = useMemo(() => {
         if (!safetyInspections) return null;
-        return safetyInspections.find((i: SafetyInspection) => i.id === inspectionId) || null;
+        return safetyInspections.find(i => i.id === inspectionId) || null;
     }, [safetyInspections, inspectionId]);
 
     const [inspectionData, setInspectionData] = useState<SafetyInspection | null>(inspection);
@@ -49,7 +49,7 @@ export default function CompleteInspectionPage() {
 
     const inspector = useMemo(() => {
         if (!inspectionData) return null;
-        return (users || []).find((u: User) => u.id === inspectionData.inspectorId);
+        return users.find(u => u.id === inspectionData.inspectorId);
     }, [inspectionData, users]);
 
     const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,7 +96,7 @@ export default function CompleteInspectionPage() {
                             };
                         });
                     };
-                    img.src = e.target.result as string;
+                    img.src = e.target.result;
                 }
             };
             reader.readAsDataURL(file);
@@ -197,7 +197,7 @@ export default function CompleteInspectionPage() {
                             <div>
                                 <h4 className="font-semibold">Evidencia del Problema:</h4>
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-2">
-                                {(inspectionData.evidencePhotos || []).map((photo, index) => (
+                                {(inspectionData.evidencePhotoUrl ? [inspectionData.evidencePhotoUrl] : []).map((photo, index) => (
                                     <div key={`evidence-${index}`} className="relative aspect-video">
                                         <Image src={photo} alt={`Evidencia ${index+1}`} layout="fill" className="rounded-md object-cover"/>
                                     </div>
@@ -280,7 +280,7 @@ export default function CompleteInspectionPage() {
                          </CardHeader>
                          <CardContent className="space-y-4 text-sm">
                               <div className="flex items-center gap-2 text-muted-foreground">
-                                <UserIcon className="h-4 w-4"/>
+                                <User className="h-4 w-4"/>
                                 <span>Reportado por: <span className="font-semibold text-foreground">{inspector?.name || 'N/A'}</span></span>
                              </div>
                              <div className="flex items-center gap-2 text-muted-foreground">

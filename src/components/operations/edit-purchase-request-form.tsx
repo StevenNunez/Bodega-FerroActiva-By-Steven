@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from '../ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '../ui/command';
 import { cn } from '@/lib/utils';
 import { Separator } from '../ui/separator';
 import { format } from 'date-fns';
@@ -38,12 +38,15 @@ interface EditPurchaseRequestFormProps {
     onClose: () => void;
 }
 
+type ActionType = 'save' | 'approve' | 'reject';
+
 export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurchaseRequestFormProps) {
   const { updatePurchaseRequestStatus, units, users } = useAppState();
   const { toast } = useToast();
   const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
+  const [action, setAction] = useState<ActionType>('save');
 
-  const requester = React.useMemo(() => (users as UserType[]).find((u: UserType) => u.id === request.supervisorId), [users, request.supervisorId]);
+  const requester = React.useMemo(() => (users || []).find((u: UserType) => u.id === request.supervisorId), [users, request.supervisorId]);
 
   const {
     register,
@@ -68,24 +71,29 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
           });
       }
   }, [request, reset]);
-
-  const handleStatusChange = async (status: 'approved' | 'rejected') => {
-      try {
-        await updatePurchaseRequestStatus(request.id, status, getValues());
-        toast({
-            title: status === 'approved' ? 'Solicitud Aprobada' : 'Solicitud Rechazada',
-            description: `La solicitud ha sido marcada como ${status === 'approved' ? 'aprobada' : 'rechazada'}.`,
-            variant: status === 'rejected' ? 'destructive' : 'default'
-        });
-        onClose();
-      } catch (error) {
-           toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'No se pudo actualizar el estado de la solicitud.',
-          });
-      }
+  
+  const handleActionSubmit = async (status: PurchaseRequest['status']) => {
+     try {
+      await updatePurchaseRequestStatus(request.id, status, getValues());
+      
+      let toastMessage = 'Cambios guardados.';
+      if (status === 'approved') toastMessage = 'Solicitud Aprobada.';
+      if (status === 'rejected') toastMessage = 'Solicitud Rechazada.';
+      
+      toast({
+        title: 'Éxito',
+        description: toastMessage,
+      });
+      onClose();
+    } catch (error) {
+       toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'No se pudo completar la acción.',
+      });
+    }
   }
+
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
      try {
@@ -229,7 +237,7 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
                      <div className="flex gap-2">
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button type="button" variant="destructive" className="w-full sm:w-auto">
+                                <Button type="button" variant="destructive" className="w-full sm:w-auto" disabled={isSubmitting || request.status === 'rejected'}>
                                     <ThumbsDown className="mr-2 h-4 w-4"/> Rechazar
                                 </Button>
                             </AlertDialogTrigger>
@@ -242,7 +250,7 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleStatusChange('rejected')} className="bg-destructive hover:bg-destructive/90">
+                                    <AlertDialogAction onClick={() => handleActionSubmit('rejected')} className="bg-destructive hover:bg-destructive/90">
                                     Sí, Rechazar
                                     </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -250,7 +258,7 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
                         </AlertDialog>
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
-                                <Button type="button" className="w-full sm:w-auto bg-green-600 hover:bg-green-700">
+                                <Button type="button" className="w-full sm:w-auto bg-green-600 hover:bg-green-700" disabled={isSubmitting || request.status === 'approved'}>
                                     <ThumbsUp className="mr-2 h-4 w-4"/> Aprobar
                                 </Button>
                             </AlertDialogTrigger>
@@ -263,7 +271,7 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleStatusChange('approved')} className="bg-green-600 hover:bg-green-700">
+                                    <AlertDialogAction onClick={() => handleActionSubmit('approved')} className="bg-green-600 hover:bg-green-700">
                                         Sí, Aprobar
                                     </AlertDialogAction>
                                 </AlertDialogFooter>

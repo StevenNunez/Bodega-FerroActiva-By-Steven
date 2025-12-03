@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { SafetyInspection, User } from '@/modules/core/lib/data';
@@ -132,8 +133,8 @@ function addInspectionInfo(doc: jsPDF, inspection: SafetyInspection, supervisor:
   };
 
   const tableData = [
-    ['Reportado por:', apr.name || 'N/A', 'Fecha Reporte:', formatDate(inspection.date)],
-    ['Asignado a:', supervisor.name || 'N/A', 'Plazo Cierre:', formatDate(inspection.deadline)],
+    ['Reportado por:', apr?.name || inspection.inspectorName || 'N/A', 'Fecha Reporte:', formatDate(inspection.date)],
+    ['Asignado a:', supervisor?.name || 'N/A', 'Plazo Cierre:', formatDate(inspection.deadline)],
     ['Ubicación:', inspection.location || 'N/A', 'Estado:', getStatusInSpanish(inspection.status)],
     ['Nivel de Riesgo:', getRiskInSpanish(inspection.riskLevel), '', ''],
   ];
@@ -263,8 +264,8 @@ async function addSignatures(doc: jsPDF, y: number, inspection: SafetyInspection
     doc.text(formatDate(date, true), x + sigWidth / 2, lineY + 8, { align: 'center' });
   };
 
-  await addSignature('Firma Ejecutor (Cierre)', inspection.completionSignature, supervisor.name, inspection.completedAt || null, leftX);
-  await addSignature('Firma Revisor (APR)', inspection.reviewedBy?.signature || null, apr.name, inspection.reviewedBy?.date || null, rightX);
+  await addSignature('Firma Ejecutor (Cierre)', inspection.completionSignature, supervisor?.name || inspection.completionExecutor || 'N/A', inspection.completedAt || null, leftX);
+  await addSignature('Firma Revisor (APR)', inspection.reviewedBy?.signature || null, apr?.name || (inspection.reviewedBy as any)?.name || 'N/A', inspection.reviewedBy?.date || null, rightX);
 }
 
 export async function generateInspectionPDF(inspection: SafetyInspection, supervisor: User, apr: User) {
@@ -287,6 +288,7 @@ export async function generateInspectionPDF(inspection: SafetyInspection, superv
   await addSignatures(doc, y, inspection, supervisor, apr);
   addFooter(doc);
 
-  const filename = `Inspeccion_${inspection.area.replace(/[^a-zA-Z0-9]/g, '_')}_${formatDate(inspection.date)}.pdf`;
+  const safeArea = (inspection.area || 'SinArea').replace(/[^a-zA-Z0-9]/g, '_');
+  const filename = `Inspeccion_${safeArea}_${formatDate(inspection.date)}.pdf`;
   doc.save(filename);
 }

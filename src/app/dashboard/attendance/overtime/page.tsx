@@ -24,7 +24,6 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { UserSearch, Clock, Briefcase, CalendarDays, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { User } from "@/modules/core/lib/data";
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({
   value: i + 1,
@@ -45,7 +44,7 @@ export default function OvertimeReportPage() {
   );
   
   const selectedUser = useMemo(
-    () => (users || []).find((u: User) => u.id === selectedUserId),
+    () => (users || []).find((u) => u.id === selectedUserId),
     [users, selectedUserId]
   );
 
@@ -72,8 +71,8 @@ export default function OvertimeReportPage() {
               </SelectTrigger>
               <SelectContent>
                 {(users || [])
-                  .filter((u: User) => u.role !== "guardia")
-                  .map((user: User) => (
+                  .filter((u) => u.role !== "guardia")
+                  .map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.name}
                     </SelectItem>

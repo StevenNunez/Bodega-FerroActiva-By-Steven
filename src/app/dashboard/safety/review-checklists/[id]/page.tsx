@@ -121,6 +121,7 @@ export default function AprReviewChecklistPage() {
     }
     
     const isReviewed = checklist.status === 'approved' || checklist.status === 'rejected';
+    const canDownload = isReviewed || checklist.status === 'completed';
 
     return (
         <div className="flex flex-col gap-8">
@@ -132,7 +133,7 @@ export default function AprReviewChecklistPage() {
                     <PageHeader title={checklist.templateTitle} description={`Revisando para la obra: ${checklist.area}`} className="mb-0"/>
                  </div>
                  <div className="flex items-center gap-4">
-                    {isReviewed && (
+                    {canDownload && (
                         <Button variant="outline" onClick={handleDownloadPDF}>
                             <Download className="mr-2"/> Descargar PDF
                         </Button>

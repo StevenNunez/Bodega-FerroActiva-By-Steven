@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
-import { useAuth } from "@/modules/core/contexts/app-provider";
+import { useAuth } from "@/modules/auth/useAuth";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 

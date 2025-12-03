@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { useAppState } from "@/modules/core/contexts/app-provider";
+import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import {
   Card,
   CardContent,
@@ -49,31 +50,47 @@ export default function ManageMaterialRequestsPage() {
     useAppState();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<Status>("pending");
+  const [processingIds, setProcessingIds] = useState<string[]>([]);
 
-  // Mapas seguros y con tipado explícito
-  const materialMap = useMemo(() => {
-    const map = new Map<string, Material>();
-    (materials || []).forEach((m: Material) => {
-      map.set(m.id, m);
-    });
-    return map;
-  }, [materials]);
 
-  const userMap = useMemo(() => {
-    const map = new Map<string, string>();
-    (users || []).forEach((u: User) => {
-      map.set(u.id, u.name);
-    });
-    return map;
-  }, [users]);
+  // Mapas para acceso rápido
+  const materialMap = useMemo(
+    () => new Map((materials || []).map((m: Material) => [m.id, m])),
+    [materials]
+  );
+  const userMap = useMemo(
+    () => new Map((users || []).map((u: User) => [u.id, u.name])),
+    [users]
+  );
 
-  const toDate = (date: Date | Timestamp | null | undefined): Date | null => {
+  const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
     return date instanceof Timestamp ? date.toDate() : (date as Date);
   };
 
-  const formatDate = (date: Date | Timestamp | null | undefined): string => {
-    const jsDate = toDate(date);
+  const sortedRequests = useMemo(() => {
+    if (!requests) return [];
+    return [...(requests as CompatibleMaterialRequest[])].sort((a,b) => {
+        const dateA = a.createdAt ? getDate(a.createdAt)?.getTime() || 0 : 0;
+        const dateB = b.createdAt ? getDate(b.createdAt)?.getTime() || 0 : 0;
+        return dateB - dateA;
+    });
+  }, [requests]);
+
+  // Listas filtradas y ordenadas
+  const pendingRequests = useMemo(() => sortedRequests.filter((req) => req.status === "pending"), [sortedRequests]);
+  const approvedRequests = useMemo(() => sortedRequests.filter((req) => req.status === "approved"), [sortedRequests]);
+  const rejectedRequests = useMemo(() => sortedRequests.filter((req) => req.status === "rejected"), [sortedRequests]);
+  
+  const visiblePendingRequests = useMemo(() => {
+      return pendingRequests.filter(req => !processingIds.includes(req.id));
+  }, [pendingRequests, processingIds]);
+
+
+  const formatDate = (
+    date: Date | Timestamp | null | undefined
+  ): string => {
+    const jsDate = getDate(date);
     return jsDate
       ? jsDate.toLocaleDateString("es-CL", {
           day: "2-digit",
@@ -85,43 +102,18 @@ export default function ManageMaterialRequestsPage() {
       : "N/A";
   };
 
-  // Filtros con tipado correcto
-  const pendingRequests = useMemo(() => {
-    return (requests || [])
-      .filter((req: any): req is MaterialRequest => req?.status === "pending")
-      .sort((a: MaterialRequest, b: MaterialRequest) => {
-        const aTime = toDate(a.createdAt)?.getTime() || 0;
-        const bTime = toDate(b.createdAt)?.getTime() || 0;
-        return aTime - bTime;
-      });
-  }, [requests]);
-
-  const approvedRequests = useMemo(() => {
-    return (requests || [])
-      .filter((req: any): req is MaterialRequest => req?.status === "approved")
-      .sort((a: MaterialRequest, b: MaterialRequest) => {
-        const aTime = toDate(a.createdAt)?.getTime() || 0;
-        const bTime = toDate(b.createdAt)?.getTime() || 0;
-        return bTime - aTime;
-      });
-  }, [requests]);
-
-  const rejectedRequests = useMemo(() => {
-    return (requests || [])
-      .filter((req: any): req is MaterialRequest => req?.status === "rejected")
-      .sort((a: MaterialRequest, b: MaterialRequest) => {
-        const aTime = toDate(a.createdAt)?.getTime() || 0;
-        const bTime = toDate(b.createdAt)?.getTime() || 0;
-        return bTime - aTime;
-      });
-  }, [requests]);
-
-  const handleStatusUpdate = async (requestId: string, status: "approved" | "rejected") => {
+  const handleStatusUpdate = async (
+    requestId: string,
+    status: "approved" | "rejected"
+  ) => {
+    setProcessingIds(prev => [...prev, requestId]);
     try {
       await updateMaterialRequestStatus(requestId, status);
       toast({
-        title: status === "approved" ? "Solicitud Aprobada" : "Solicitud Rechazada",
-        description: "El estado ha sido actualizado correctamente.",
+        title:
+          status === "approved" ? "Solicitud Aprobada" : "Solicitud Rechazada",
+        description:
+          "El estado de la solicitud ha sido actualizado correctamente.",
       });
     } catch (error: any) {
       toast({
@@ -129,6 +121,10 @@ export default function ManageMaterialRequestsPage() {
         title: "Error",
         description: error.message || "No se pudo actualizar la solicitud.",
       });
+    } finally {
+        // En lugar de quitarlo solo en error, lo quitamos siempre para que la lista principal se actualice desde Firestore
+        // Si no, el item queda oculto para siempre en esta sesión si la actualización fue exitosa.
+        // La lista principal se re-renderizará via onSnapshot y el item ya no estará en `pendingRequests`.
     }
   };
 
@@ -139,35 +135,32 @@ export default function ManageMaterialRequestsPage() {
       case "rejected":
         return rejectedRequests;
       default:
-        return pendingRequests;
+        // Mostramos la lista de pendientes que no se estén procesando
+        return pendingRequests.filter(req => !processingIds.includes(req.id));
     }
-  }, [activeTab, pendingRequests, approvedRequests, rejectedRequests]);
+  }, [activeTab, pendingRequests, approvedRequests, rejectedRequests, processingIds]);
 
-  // Renderizado seguro
   const renderRequestItems = (request: CompatibleMaterialRequest) => {
     const items =
       request.items && Array.isArray(request.items)
         ? request.items
-        : request.materialId && request.quantity !== undefined
+        : request.materialId && request.quantity
         ? [{ materialId: request.materialId, quantity: request.quantity }]
         : [];
 
-    if (items.length === 0) {
-      return <span className="text-sm text-muted-foreground">Sin items</span>;
-    }
-
     return (
       <ul className="list-disc list-inside space-y-1 text-sm">
-        {items.map((item: { materialId: string; quantity: number }, index: number) => {
+        {items.map((item, index) => {
           const material = materialMap.get(item.materialId);
           return (
             <li key={index}>
               <span className="font-semibold">{item.quantity}</span>
-              <span className="text-muted-foreground"> × </span>
+              <span className="text-muted-foreground"> x </span>
               <span>{material?.name ?? "Material desconocido"}</span>
               {material?.unit && (
                 <span className="text-muted-foreground text-xs">
-                  {" "}({material.unit})
+                  {" "}
+                  ({material.unit})
                 </span>
               )}
             </li>
@@ -209,11 +202,11 @@ export default function ManageMaterialRequestsPage() {
         description="Aprueba o rechaza las solicitudes de material de los supervisores."
       />
 
-      {/* Pendientes rápidas */}
+      {/* Tarjeta de solicitudes pendientes rápidas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Solicitudes Pendientes</span>
+            <span>Solicitudes de Materiales Pendientes</span>
             <Link href="/dashboard/admin/requests">
               <Button variant="outline" size="sm">
                 <ClipboardList className="mr-2 h-4 w-4" /> Ver Todas
@@ -221,178 +214,251 @@ export default function ManageMaterialRequestsPage() {
             </Link>
           </CardTitle>
           <CardDescription>
-            Revisa y aprueba las solicitudes pendientes.
+            Revisa y aprueba las solicitudes pendientes para descontar del stock.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-72 text-muted-foreground">
-              <Loader2 className="h-10 w-10 animate-spin mb-2" />
-              <p>Cargando...</p>
+            <div className="text-sm text-muted-foreground text-center py-8 h-72 flex flex-col items-center justify-center">
+              <Loader2 className="h-10 w-10 mb-2 animate-spin" />
+              <p>Cargando solicitudes...</p>
             </div>
-          ) : pendingRequests.length > 0 ? (
+          ) : visiblePendingRequests.length > 0 ? (
             <ScrollArea className="h-72 border rounded-md">
               <ul className="p-4 space-y-4">
-                {pendingRequests.map((req: MaterialRequest) => {
-                  const supervisorName = userMap.get(req.supervisorId) || "Desconocido";
-
-                  return (
-                    <li
-                      key={req.id}
-                      className="flex flex-col sm:flex-row justify-between items-start p-4 rounded-lg bg-secondary gap-4"
-                    >
-                      <div className="flex-1 space-y-2">
-                        {(req as CompatibleMaterialRequest).items?.map((item: { materialId: string; quantity: number }) => {
-                          const mat = materialMap.get(item.materialId);
-                          return (
-                            <div key={item.materialId} className="text-sm font-medium">
-                              <span className="font-semibold">{mat?.name ?? "Desconocido"}</span>{" "}
-                              <span className="text-primary">({item.quantity} uds)</span>
-                            </div>
-                          );
-                        })}
-                        <p className="text-xs text-muted-foreground">
-                          Por: {supervisorName} • Área: {req.area}
-                        </p>
-                      </div>
-
-                      {can("material_requests:approve") && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                              <Check className="mr-2 h-4 w-4" /> Aprobar
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¿Aprobar solicitud?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Se descontará el stock automáticamente.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleStatusUpdate(req.id, "approved")}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                Sí, Aprobar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </li>
-                  );
-                })}
+                {visiblePendingRequests.map(
+                  (req: CompatibleMaterialRequest) => {
+                    const supervisor = users?.find(
+                      (u: User) => u.id === req.supervisorId
+                    );
+                    const isProcessing = processingIds.includes(req.id);
+                    return (
+                      <li
+                        key={req.id}
+                        className="flex flex-col sm:flex-row sm:items-start sm:justify-between p-3 rounded-lg bg-secondary gap-4"
+                      >
+                        <div className="flex-grow space-y-2">
+                           <div>
+                            {(req.items || []).map((item) => {
+                                const material = materialMap.get(item.materialId);
+                                return (
+                                  <div
+                                    key={item.materialId}
+                                    className="text-sm font-medium"
+                                  >
+                                    <span className="font-semibold">
+                                      {material?.name ?? "N/A"}
+                                    </span>{" "}
+                                    <span className="text-primary">
+                                      ({item.quantity} uds)
+                                    </span>
+                                  </div>
+                                )
+                            })}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Solicitado por: {supervisor?.name || "Desconocido"}{" "}
+                            para {req.area}
+                          </p>
+                        </div>
+                        
+                        {can("material_requests:approve") && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                <Button size="sm" className="w-full sm:w-auto bg-green-600 hover:bg-green-700" disabled={isProcessing}>
+                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Check className="mr-2 h-4 w-4"/>} Aprobar
+                                </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                    ¿Confirmar Aprobación?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    Al confirmar, se descontará el stock de los
+                                    materiales solicitados del inventario. Esta
+                                    acción no se puede deshacer fácilmente.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                    onClick={() =>
+                                        handleStatusUpdate(req.id, "approved")
+                                    }
+                                    className="bg-green-600 hover:bg-green-700"
+                                    >
+                                    Sí, Confirmar y Descontar Stock
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
+                      </li>
+                    );
+                  }
+                )}
               </ul>
             </ScrollArea>
           ) : (
-            <div className="flex flex-col items-center justify-center h-72 text-muted-foreground">
+            <div className="text-sm text-muted-foreground text-center py-8 h-72 flex flex-col items-center justify-center">
               <Bell className="h-10 w-10 mb-2" />
-              <p>No hay solicitudes pendientes</p>
+              <p>No hay solicitudes pendientes.</p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Historial */}
+      {/* Historial completo con pestañas */}
       <Card>
         <CardHeader>
           <CardTitle>Historial de Solicitudes</CardTitle>
+          <CardDescription>
+            Navega entre las pestañas para ver el historial de solicitudes por
+            estado.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Status)}>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Status)}>
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="pending">Pendientes ({pendingRequests.length})</TabsTrigger>
-              <TabsTrigger value="approved">Aprobadas ({approvedRequests.length})</TabsTrigger>
-              <TabsTrigger value="rejected">Rechazadas ({rejectedRequests.length})</TabsTrigger>
+              <TabsTrigger value="pending">
+                Pendientes ({pendingRequests.length})
+              </TabsTrigger>
+              <TabsTrigger value="approved">
+                Aprobadas ({approvedRequests.length})
+              </TabsTrigger>
+              <TabsTrigger value="rejected">
+                Rechazadas ({rejectedRequests.length})
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value={activeTab} className="mt-6">
-              <ScrollArea className="h-[calc(80vh-20rem)]">
+              <ScrollArea className="h-[calc(80vh-18rem)]">
                 <div className="space-y-4 pr-4">
-                  {filteredRequests.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-12">
-                      No hay solicitudes en esta categoría.
-                    </p>
-                  ) : (
-                    filteredRequests.map((req: MaterialRequest) => (
-                      <div
-                        key={req.id}
-                        className="border rounded-lg p-4 flex flex-col sm:flex-row justify-between gap-4"
-                      >
-                        <div className="flex-1 space-y-3">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Solicitante / Área</p>
-                            <p className="font-semibold">
-                              {userMap.get(req.supervisorId) || "Desconocido"} / {req.area}
+                  {isLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : filteredRequests.length > 0 ? (
+                    (filteredRequests as CompatibleMaterialRequest[]).map(
+                      (req: CompatibleMaterialRequest) => (
+                        <div
+                          key={req.id}
+                          className="border rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start gap-4"
+                        >
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                Solicitante / Área
+                              </p>
+                              <p className="font-semibold">
+                                {userMap.get(req.supervisorId) || "Desconocido"} /{" "}
+                                <span className="font-normal">{req.area}</span>
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-sm text-muted-foreground">
+                                Materiales Solicitados
+                              </p>
+                              {renderRequestItems(req)}
+                            </div>
+
+                            <p className="text-xs text-muted-foreground font-mono pt-2">
+                              Solicitado el: {formatDate(req.createdAt)}
                             </p>
                           </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Materiales</p>
-                            {renderRequestItems(req as CompatibleMaterialRequest)}
+
+                          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                            {activeTab === "pending" &&
+                              can("material_requests:approve") && (
+                                <>
+                                  {/* Rechazar */}
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="w-full sm:w-auto"
+                                        disabled={processingIds.includes(req.id)}
+                                      >
+                                        <X className="mr-2 h-4 w-4" /> Rechazar
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          ¿Confirmar Rechazo?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Esta acción marcará la solicitud como
+                                          rechazada y no modificará el stock.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                          Cancelar
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() =>
+                                            handleStatusUpdate(req.id, "rejected")
+                                          }
+                                          className="bg-destructive hover:bg-destructive/90"
+                                        >
+                                          Sí, Rechazar
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+
+                                  {/* Aprobar */}
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+                                        disabled={processingIds.includes(req.id)}
+                                      >
+                                        {processingIds.includes(req.id) ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Check className="mr-2 h-4 w-4" />} Aprobar
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          ¿Confirmar Aprobación?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Al confirmar, se descontará el stock de
+                                          los materiales solicitados.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                          Cancelar
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() =>
+                                            handleStatusUpdate(req.id, "approved")
+                                          }
+                                          className="bg-green-600 hover:bg-green-700"
+                                        >
+                                          Sí, Confirmar
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </>
+                              )}
+
+                            {activeTab !== "pending" && getStatusBadge(req.status as Status)}
                           </div>
-                          <p className="text-xs text-muted-foreground font-mono">
-                            {formatDate(req.createdAt)}
-                          </p>
                         </div>
-
-                        <div className="flex flex-col gap-2 sm:w-48">
-                          {activeTab === "pending" && can("material_requests:approve") && (
-                            <>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="destructive">
-                                    <X className="mr-2 h-4 w-4" /> Rechazar
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Rechazar?</AlertDialogTitle>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleStatusUpdate(req.id, "rejected")}
-                                      className="bg-destructive"
-                                    >
-                                      Sí, Rechazar
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                                    <Check className="mr-2 h-4 w-4" /> Aprobar
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Aprobar?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Se descontará el stock.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleStatusUpdate(req.id, "approved")}
-                                      className="bg-green-600 hover:bg-green-700"
-                                    >
-                                      Sí, Aprobar
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </>
-                          )}
-                          {activeTab !== "pending" && getStatusBadge(req.status as Status)}
-                        </div>
-                      </div>
-                    ))
+                      )
+                    )
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-12">
+                      <p>No hay solicitudes en esta categoría.</p>
+                    </div>
                   )}
                 </div>
               </ScrollArea>

@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
@@ -11,19 +11,22 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import type { User, UserRole } from "@/modules/core/lib/data";
-import { MoreHorizontal, Trash2, Edit, QrCode } from "lucide-react";
+import { MoreHorizontal, Trash2, Edit, QrCode, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EditUserForm } from "@/components/admin/edit-user-form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/modules/core/hooks/use-toast";
 import { QRCodeSVG } from "qrcode.react";
+import { Input } from "@/components/ui/input";
+import { ROLES } from "@/modules/core/lib/permissions";
 
 
 export default function AdminUsersPage() {
     const { users, deleteUser, can } = useAppState();
     const { user: authUser } = useAuth();
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [searchTerm, setSearchTerm] = useState("");
     const { toast } = useToast();
 
     const getInitials = (name: string) => {
@@ -32,23 +35,12 @@ export default function AdminUsersPage() {
     }
     
     const getRoleDisplayName = (role: UserRole) => {
-        switch (role) {
-            case 'admin': return 'Administrador de App';
-            case 'bodega-admin': return 'Jefe de Bodega';
-            case 'supervisor': return 'Supervisor';
-            case 'worker': return 'Colaborador';
-            case 'operations': return 'Administrador de Obra';
-            case 'apr': return 'APR';
-            case 'guardia': return 'Guardia';
-            case 'finance': return 'Jefe de Adm. y Finanzas';
-            case 'super-admin': return 'Super Administrador';
-            case 'cphs': return 'Comité Paritario';
-        }
+        return ROLES[role]?.label || role;
     }
     
     const getRoleBadgeVariant = (role: UserRole): "default" | "secondary" | "destructive" | "outline" => {
         switch (role) {
-            case 'super-admin':
+            case 'superadmin':
             case 'admin': return 'destructive';
             case 'operations': return 'default';
             case 'bodega-admin': return 'secondary';
@@ -74,6 +66,17 @@ export default function AdminUsersPage() {
             });
         }
     }
+
+    const filteredUsers = useMemo(() => {
+        if (!users) return [];
+        if (!searchTerm) return users;
+
+        return users.filter((user: User) => 
+            user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (user.rut && user.rut.includes(searchTerm))
+        );
+    }, [users, searchTerm]);
 
     return (
         <div className="flex flex-col gap-8">
@@ -123,9 +126,18 @@ export default function AdminUsersPage() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
+                             <div className="mb-4 relative">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Buscar por nombre, correo o RUT..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-8"
+                                />
+                            </div>
+                            <ScrollArea className="h-[calc(70vh)] border rounded-md">
                                 <div className="space-y-4 p-4">
-                                    {(users || []).map((user: User) => (
+                                    {filteredUsers.map((user: User) => (
                                         <div key={user.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border gap-4">
                                             <div className="flex items-center gap-4 flex-grow">
                                                 <Avatar className="bg-secondary text-secondary-foreground h-12 w-12">
@@ -162,7 +174,7 @@ export default function AdminUsersPage() {
                                                             {can('users:delete') && (
                                                                 <AlertDialog>
                                                                     <AlertDialogTrigger asChild>
-                                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} disabled={authUser?.id === user.id}>
                                                                             <Trash2 className="mr-2 h-4 w-4 text-destructive"/>
                                                                             <span className="text-destructive">Eliminar</span>
                                                                         </DropdownMenuItem>
@@ -192,6 +204,11 @@ export default function AdminUsersPage() {
                                             </div>
                                         </div>
                                     ))}
+                                    {filteredUsers.length === 0 && (
+                                        <div className="text-center py-10 text-muted-foreground">
+                                            No se encontraron usuarios con ese criterio.
+                                        </div>
+                                    )}
                                 </div>
                                 <ScrollBar orientation="vertical" />
                             </ScrollArea>

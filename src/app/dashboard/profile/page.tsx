@@ -2,37 +2,27 @@
 "use client";
 
 import React, { useState } from 'react';
-import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
+import { useAuth } from '@/modules/auth/useAuth';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, QrCode, KeyRound, AtSign, Edit } from 'lucide-react';
+import { Loader2, QrCode, KeyRound, AtSign, Edit, Phone } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ChangePasswordDialog } from '@/components/change-password-dialog';
 import { ChangeEmailDialog } from '@/components/change-email-dialog';
 import { EditUserForm } from '@/components/admin/edit-user-form';
 import { UserRole } from '@/modules/core/lib/data';
+import { Timestamp } from 'firebase/firestore';
+import { ROLES } from '@/modules/core/lib/permissions';
 
 const getRoleDisplayName = (role: UserRole | undefined) => {
     if (!role) return 'N/A';
-    const roles: Record<UserRole, string> = {
-        'admin': 'Administrador de App',
-        'bodega-admin': 'Jefe de Bodega',
-        'supervisor': 'Supervisor',
-        'worker': 'Colaborador',
-        'operations': 'Administrador de Obra',
-        'apr': 'APR',
-        'guardia': 'Guardia',
-        'finance': 'Jefe de Adm. y Finanzas',
-        'super-admin': 'Super Administrador',
-        'cphs': 'Comité Paritario',
-    };
-    return roles[role] || 'Usuario';
+    return ROLES[role]?.label || role;
 };
 
-const formatDate = (date: any): string => {
+const formatDate = (date: Date | Timestamp | null | undefined): string => {
     if (!date) return 'No especificada';
-    const jsDate = date.toDate ? date.toDate() : new Date(date);
+    const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
     return jsDate.toLocaleDateString('es-CL');
 }
 
@@ -60,7 +50,7 @@ export default function ProfilePage() {
                 isOpen={isEmailDialogOpen} 
                 onClose={() => setEmailDialogOpen(false)} 
             />
-            {isEditingUser && (
+            {isEditingUser && user && (
                 <EditUserForm 
                     user={user}
                     isOpen={isEditingUser}
@@ -99,8 +89,8 @@ export default function ProfilePage() {
                                 <p className="text-muted-foreground text-sm">{user.email}</p>
                             </div>
                             <div className="flex flex-col sm:flex-row gap-2">
-                                <Button variant="outline" className="w-full" onClick={() => setEmailDialogOpen(true)}><AtSign/>Cambiar Correo</Button>
-                                <Button variant="outline" className="w-full" onClick={() => setPasswordDialogOpen(true)}><KeyRound/>Cambiar Contraseña</Button>
+                                <Button variant="outline" className="w-full" onClick={() => setEmailDialogOpen(true)}><AtSign className="mr-2 h-4 w-4" />Cambiar Correo</Button>
+                                <Button variant="outline" className="w-full" onClick={() => setPasswordDialogOpen(true)}><KeyRound className="mr-2 h-4 w-4" />Cambiar Contraseña</Button>
                             </div>
                         </CardContent>
                     </Card>
@@ -125,6 +115,10 @@ export default function ProfilePage() {
                             <div className="space-y-1">
                                 <p className="text-sm font-medium text-muted-foreground">RUT</p>
                                 <p>{user.rut || 'No especificado'}</p>
+                            </div>
+                             <div className="space-y-1">
+                                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2"><Phone className="h-4 w-4"/>Teléfono</p>
+                                <p>{user.phone || 'No especificado'}</p>
                             </div>
                             <div className="space-y-1">
                                 <p className="text-sm font-medium text-muted-foreground">Cargo</p>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -20,6 +21,7 @@ import { useToast } from "@/modules/core/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 
+
 export default function AdminToolsPage() {
   const { users, toolLogs, tools, deleteTool, isLoading, can } = useAppState();
   const [editingTool, setEditingTool] = useState<ToolType | null>(null);
@@ -28,50 +30,39 @@ export default function AdminToolsPage() {
   const [toolPage, setToolPage] = useState(1);
   const itemsPerPage = 5;
   const { toast } = useToast();
+  
+  const canDeleteTools = can('tools:delete');
 
-  const canDeleteTools = can("tools:delete");
-
-  // Ensure toolLogs is treated as ToolLog[]
-  const checkedOutTools = useMemo(() => {
-    const logs = (toolLogs || []) as ToolLog[];
-    const entries: [string, ToolLog][] = logs
-      .filter((log: ToolLog) => log.returnDate === null)
-      .map((log: ToolLog) => [log.toolId, log]);
-    return new Map<string, ToolLog>(entries);
-  }, [toolLogs]);
-
-  type CheckoutInfo = { status: "Disponible" | "Ocupado"; workerName: string | null };
+  const checkedOutTools = useMemo(() => new Map((toolLogs || []).filter((log: ToolLog) => log.returnDate === null).map((log: ToolLog) => [log.toolId, log])), [toolLogs]);
 
   const getToolCheckoutInfo = useMemo(() => {
-    const usr = (users || []) as User[];
-    const workerMap = new Map<string, string>(usr.map((u: User) => [u.id, u.name]));
-    return (toolId: string): CheckoutInfo => {
-      const log = checkedOutTools.get(toolId);
-      if (!log) return { status: "Disponible", workerName: null };
-
-      const workerName = typeof log.userId === "string"
-        ? (workerMap.get(log.userId) ?? (typeof log.userName === "string" ? log.userName : "N/A"))
-        : (typeof log.userName === "string" ? log.userName : "N/A");
-
-      return { status: "Ocupado", workerName };
+    const workerMap = new Map((users || []).map((u: User) => [u.id, u.name]));
+    return (toolId: string) => {
+      const log: ToolLog | undefined = checkedOutTools.get(toolId);
+      if (!log) return { status: "Disponible" as const, workerName: null };
+      
+      const workerName = workerMap.get(log.userId) ?? log.userName ?? "N/A";
+      
+      return { status: "Ocupado" as const, workerName };
     };
   }, [checkedOutTools, users]);
 
   const filteredTools = useMemo(() => {
-    const allTools = (tools || []) as ToolType[];
-    let filtered: ToolType[] = allTools;
+    let filtered: ToolType[] = tools || [];
     if (toolSearchTerm) {
-      const term = toolSearchTerm.toLowerCase();
-      filtered = filtered.filter((tool: ToolType) => (tool.name || "").toLowerCase().includes(term));
+      filtered = filtered.filter(tool => 
+        tool.name.toLowerCase().includes(toolSearchTerm.toLowerCase())
+      );
     }
     if (toolStatusFilter !== "all") {
-      filtered = filtered.filter((tool: ToolType) => getToolCheckoutInfo(tool.id).status === toolStatusFilter);
+      filtered = filtered.filter((tool) => getToolCheckoutInfo(tool.id).status === toolStatusFilter);
     }
     return filtered;
   }, [tools, toolStatusFilter, getToolCheckoutInfo, toolSearchTerm]);
 
   const paginatedTools = filteredTools.slice((toolPage - 1) * itemsPerPage, toolPage * itemsPerPage);
-  const totalToolPages = Math.max(1, Math.ceil(filteredTools.length / itemsPerPage));
+  const totalToolPages = Math.ceil(filteredTools.length / itemsPerPage);
+
 
   const handleDeleteTool = async (toolId: string, toolName: string) => {
     try {
@@ -104,47 +95,46 @@ export default function AdminToolsPage() {
           <Card className="!max-w-none">
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <CardTitle>Inventario de Herramientas</CardTitle>
-                  <CardDescription>Lista completa de todas las herramientas y su estado actual.</CardDescription>
-                </div>
-                <Button asChild>
-                  <Link href="/dashboard/admin/tools/print-qrs">
-                    <QrCode className="mr-2 h-4 w-4" />
-                    Imprimir Códigos QR
-                  </Link>
-                </Button>
+                  <div>
+                    <CardTitle>Inventario de Herramientas</CardTitle>
+                    <CardDescription>Lista completa de todas las herramientas y su estado actual.</CardDescription>
+                  </div>
+                  <Button asChild>
+                      <Link href="/dashboard/admin/tools/print-qrs">
+                          <QrCode className="mr-2 h-4 w-4" />
+                          Imprimir Códigos QR
+                      </Link>
+                  </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="p-6 space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Input
-                    placeholder="Buscar herramienta por nombre..."
-                    value={toolSearchTerm}
-                    onChange={(e) => setToolSearchTerm(e.target.value)}
-                    className="flex-grow"
-                  />
-                  <div className="w-full sm:w-[180px]">
-                    <Select
-                      value={toolStatusFilter}
-                      onValueChange={(value) => {
-                        setToolStatusFilter(value as "all" | "Disponible" | "Ocupado");
-                        setToolPage(1);
-                      }}
-                    >
-                      <SelectTrigger id="tool-status-filter" aria-label="Filtrar por estado">
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="Disponible">Disponible</SelectItem>
-                        <SelectItem value="Ocupado">Ocupado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    <Input 
+                      placeholder="Buscar herramienta por nombre..."
+                      value={toolSearchTerm}
+                      onChange={(e) => setToolSearchTerm(e.target.value)}
+                      className="flex-grow"
+                    />
+                    <div className="w-full sm:w-[180px]">
+                      <Select
+                        value={toolStatusFilter}
+                        onValueChange={(value) => {
+                          setToolStatusFilter(value as "all" | "Disponible" | "Ocupado");
+                          setToolPage(1);
+                        }}
+                      >
+                        <SelectTrigger id="tool-status-filter" aria-label="Filtrar por estado">
+                          <SelectValue placeholder="Todos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="Disponible">Disponible</SelectItem>
+                          <SelectItem value="Ocupado">Ocupado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                 </div>
-
                 <div className="relative overflow-x-auto max-w-full">
                   <div className="min-w-[800px]">
                     <Table>
@@ -157,32 +147,28 @@ export default function AdminToolsPage() {
                           <TableHead className="w-[150px] text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
-
                       <TableBody>
                         {isLoading ? (
-                          <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                              <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                            </TableCell>
-                          </TableRow>
+                            <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center">
+                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                                </TableCell>
+                            </TableRow>
                         ) : paginatedTools.length > 0 ? (
-                          paginatedTools.map((tool: ToolType) => {
+                          paginatedTools.map((tool) => {
                             const checkoutInfo = getToolCheckoutInfo(tool.id);
-                            const workerNameDisplay = checkoutInfo.workerName ?? "---";
                             return (
                               <TableRow key={tool.id}>
                                 <TableCell className="font-medium max-w-[200px] truncate">{tool.name}</TableCell>
                                 <TableCell>
                                   <div className="p-1 bg-white rounded-md w-fit">
-                                    <QRCodeSVG value={String(tool.qrCode || "")} size={40} />
+                                    <QRCodeSVG value={tool.qrCode} size={40} />
                                   </div>
                                 </TableCell>
                                 <TableCell>
                                   <Badge
                                     className={cn(
-                                      checkoutInfo.status === "Disponible"
-                                        ? "bg-green-600 hover:bg-green-700"
-                                        : "bg-orange-600 hover:bg-orange-700",
+                                      checkoutInfo.status === "Disponible" ? "bg-green-600 hover:bg-green-700" : "bg-orange-600 hover:bg-orange-700",
                                       "text-white"
                                     )}
                                   >
@@ -190,7 +176,7 @@ export default function AdminToolsPage() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">
-                                  {workerNameDisplay}
+                                  {checkoutInfo.workerName ?? "---"}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <DropdownMenu>
@@ -200,43 +186,40 @@ export default function AdminToolsPage() {
                                         <MoreHorizontal className="h-4 w-4" />
                                       </Button>
                                     </DropdownMenuTrigger>
-
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem onClick={() => setEditingTool(tool)}>
                                         <Edit className="mr-2 h-4 w-4" />
                                         <span>Editar</span>
                                       </DropdownMenuItem>
-
                                       {canDeleteTools && (
                                         <AlertDialog>
-                                          <AlertDialogTrigger asChild>
+                                            <AlertDialogTrigger asChild>
                                             <DropdownMenuItem
-                                              onSelect={(e) => e.preventDefault()}
-                                              disabled={checkoutInfo.status !== "Disponible"}
-                                              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                onSelect={(e) => e.preventDefault()}
+                                                disabled={checkoutInfo.status !== "Disponible"}
+                                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                                             >
-                                              <Trash2 className="mr-2 h-4 w-4" />
-                                              <span>Eliminar</span>
+                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                <span>Eliminar</span>
                                             </DropdownMenuItem>
-                                          </AlertDialogTrigger>
-
-                                          <AlertDialogContent>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
                                             <AlertDialogHeader>
-                                              <AlertDialogTitle>¿Estás seguro de eliminar {tool.name}?</AlertDialogTitle>
-                                              <AlertDialogDescription>
+                                                <AlertDialogTitle>¿Estás seguro de eliminar {tool.name}?</AlertDialogTitle>
+                                                <AlertDialogDescription>
                                                 Esta acción no se puede deshacer. Se eliminará permanentemente la herramienta de la base de datos.
-                                              </AlertDialogDescription>
+                                                </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
-                                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                              <AlertDialogAction
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction
                                                 className="bg-destructive hover:bg-destructive/90"
                                                 onClick={() => handleDeleteTool(tool.id, tool.name)}
-                                              >
+                                                >
                                                 Sí, eliminar herramienta
-                                              </AlertDialogAction>
+                                                </AlertDialogAction>
                                             </AlertDialogFooter>
-                                          </AlertDialogContent>
+                                            </AlertDialogContent>
                                         </AlertDialog>
                                       )}
                                     </DropdownMenuContent>
@@ -256,7 +239,6 @@ export default function AdminToolsPage() {
                     </Table>
                   </div>
                 </div>
-
                 {totalToolPages > 1 && (
                   <div className="flex justify-between items-center mt-4 px-6 pb-6">
                     <Button
@@ -267,11 +249,9 @@ export default function AdminToolsPage() {
                     >
                       Anterior
                     </Button>
-
                     <span>
                       Página {toolPage} de {totalToolPages}
                     </span>
-
                     <Button
                       variant="outline"
                       disabled={toolPage === totalToolPages}

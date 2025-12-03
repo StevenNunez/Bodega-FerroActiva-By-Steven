@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -9,10 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Inbox, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Timestamp } from "firebase/firestore";
+import type { BehaviorObservation } from "@/modules/core/lib/data";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {
     if (!date) return 'N/A';
-    const jsDate = date instanceof Timestamp ? date.toDate() : date;
+    const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
     return jsDate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
@@ -22,9 +24,9 @@ export default function ReviewBehaviorObservationsPage() {
     const sortedObservations = useMemo(() => {
         if (!behaviorObservations) return [];
         return [...behaviorObservations].sort((a, b) => {
-            const dateA = a.observationDate as Date;
-            const dateB = b.observationDate as Date;
-            return dateB.getTime() - dateA.getTime();
+            const dateA = a.observationDate instanceof Timestamp ? a.observationDate.toMillis() : new Date(a.observationDate as any).getTime();
+            const dateB = b.observationDate instanceof Timestamp ? b.observationDate.toMillis() : new Date(b.observationDate as any).getTime();
+            return dateB - dateA;
         });
     }, [behaviorObservations]);
 
@@ -60,7 +62,7 @@ export default function ReviewBehaviorObservationsPage() {
                     <ScrollArea className="h-[calc(80vh-12rem)] border rounded-md">
                         {sortedObservations.length > 0 ? (
                             <div className="space-y-3 p-4">
-                                {sortedObservations.map(obs => (
+                                {sortedObservations.map((obs: BehaviorObservation) => (
                                     <Link key={obs.id} href={`/dashboard/safety/review-observations/${obs.id}`} >
                                         <div className="p-4 border rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 hover:bg-muted/50 transition-colors cursor-pointer">
                                             <div className="flex-grow">

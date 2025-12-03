@@ -37,7 +37,7 @@ export default function AprTemplatesPage() {
   const { toast } = useToast();
 
   const [title, setTitle] = useState("");
-  const [items, setItems] = useState<Pick<ChecklistItem, 'element'>[]>([{ element: "" }]);
+  const [items, setItems] = useState<Pick<ChecklistItem, 'element'>>([{ element: "" }]);
   const [assigningTemplate, setAssigningTemplate] = useState<ChecklistTemplate | null>(null);
   const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
   const [workArea, setWorkArea] = useState("");
@@ -47,7 +47,7 @@ export default function AprTemplatesPage() {
   const assignableUsers = useMemo(() => {
     const rolesToAssign = ['supervisor', 'apr', 'admin', 'operations'];
     if (!users) return [];
-    return users.filter((u: User) => rolesToAssign.includes(u.role));
+    return users.filter(u => rolesToAssign.includes(u.role));
   }, [users]);
   
   const canManageTemplates = can('safety_templates:create');
@@ -193,7 +193,7 @@ export default function AprTemplatesPage() {
                  ) : (
                     <ScrollArea className="h-[calc(80vh-12rem)]">
                         <div className="space-y-4 pr-4">
-                            {checklistTemplates.map((template: ChecklistTemplate) => (
+                            {checklistTemplates.map(template => (
                                 <div key={template.id} className="p-4 border rounded-lg flex justify-between items-center">
                                     <h4 className="font-semibold">{template.title || 'Plantilla sin título'}</h4>
                                     <div className="flex items-center gap-2">
@@ -253,7 +253,7 @@ export default function AprTemplatesPage() {
                    <Label>Usuarios Asignables</Label>
                    <ScrollArea className="h-40 border rounded-md">
                        <div className="p-4 space-y-2">
-                            {assignableUsers.map((sup: User) => (
+                            {assignableUsers.map(sup => (
                                <div key={sup.id} className="flex items-center space-x-2">
                                  <Checkbox 
                                     id={`sup-${sup.id}`}

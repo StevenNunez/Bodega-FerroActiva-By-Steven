@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -38,9 +39,9 @@ import { MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
 type CompatibleMaterialRequest = MaterialRequest & {
-  materialId?: string;
-  quantity?: number;
-  items?: { materialId: string; quantity: number }[];
+    materialId?: string;
+    quantity?: number;
+    items?: { materialId: string; quantity: number }[];
 };
 
 export default function AdminMaterialsPage() {
@@ -53,7 +54,7 @@ export default function AdminMaterialsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const itemsPerPage = 10;
-
+  
   const canCreate = can('materials:create');
   const canEdit = can('materials:edit');
   const canDelete = can('materials:delete');
@@ -87,7 +88,7 @@ export default function AdminMaterialsPage() {
         description: `El material ${material.name} ha sido archivado.`,
       });
     } catch (error) {
-      toast({
+       toast({
         variant: "destructive",
         title: "Error al Archivar",
         description: error instanceof Error ? error.message : "No se pudo archivar el material.",
@@ -95,15 +96,13 @@ export default function AdminMaterialsPage() {
     }
   };
 
-  // Categorías con tipo guard explícito
-  const categories = useMemo((): string[] => {
-    if (!materials || materials.length === 0) return ["all"];
-    const allCats: string[] = (materials as Material[])
-      .map((m) => m.category)
-      .filter((cat): cat is string => typeof cat === "string" && cat.trim().length > 0);
-    const uniqueCats = Array.from(new Set(allCats));
+  const categories = useMemo(() => {
+    if (!materials) return ["all"];
+    const allCats = materials.map((m: Material) => m.category).filter((cat): cat is string => typeof cat === 'string');
+    const uniqueCats = [...new Set(allCats)];
     return ["all", ...uniqueCats].sort();
   }, [materials]);
+
 
   const filteredMaterials = useMemo(() => {
     let filtered: Material[] = materials || [];
@@ -125,12 +124,12 @@ export default function AdminMaterialsPage() {
   }, [filteredMaterials, currentPage]);
 
   const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
-
+  
   const toDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
     return date instanceof Timestamp ? date.toDate() : date;
   };
-
+  
   const formatDate = (date: Date | Timestamp | null | undefined): string => {
     const jsDate = toDate(date);
     if (!jsDate) return "Fecha no disponible";
@@ -154,11 +153,8 @@ export default function AdminMaterialsPage() {
       })
       .slice(0, 5);
   }, [purchaseRequests]);
-
-  // MaterialMap con tipo explícito para evitar inferencias erróneas
-  const materialMap = useMemo((): Map<string, Material> => {
-    return new Map<string, Material>((materials || []).map((m: Material) => [m.id, m]));
-  }, [materials]);
+  
+  const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 
   const recentApprovedRequests = useMemo(() => {
     if (!requests) return [];
@@ -175,8 +171,9 @@ export default function AdminMaterialsPage() {
   const getSupplierNameFromId = (supplierId: string | null | undefined): string => {
     if (!supplierId) return "N/A";
     const supplier = (suppliers || []).find((s: Supplier) => s.id === supplierId);
-    return supplier?.name ?? "Desconocido";
+    return supplier?.name || "Desconocido";
   };
+
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -217,16 +214,16 @@ export default function AdminMaterialsPage() {
                     <SelectValue placeholder="Filtrar por categoría" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
+                    {categories.map((cat, index) => (
+                      <SelectItem key={`${cat}-${index}`} value={cat || "all"}>
                         {cat === "all" ? "Todas" : cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <div className="flex items-center space-x-2 pt-2 sm:pt-0">
-                  <Checkbox id="showArchived" checked={showArchived} onCheckedChange={(checked) => setShowArchived(checked as boolean)} />
-                  <Label htmlFor="showArchived" className="text-sm font-medium whitespace-nowrap">Mostrar archivados</Label>
+                    <Checkbox id="showArchived" checked={showArchived} onCheckedChange={(checked) => setShowArchived(checked as boolean)} />
+                    <Label htmlFor="showArchived" className="text-sm font-medium whitespace-nowrap">Mostrar archivados</Label>
                 </div>
               </div>
               <ScrollArea className="h-96 border rounded-md">
@@ -243,20 +240,20 @@ export default function AdminMaterialsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {isLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={6} className="h-24 text-center">
-                            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                          </TableCell>
-                        </TableRow>
-                      ) : paginatedMaterials.length > 0 ? (
+                        {isLoading ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-24 text-center">
+                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                                </TableCell>
+                            </TableRow>
+                        ) : paginatedMaterials.length > 0 ? (
                         paginatedMaterials.map((material: Material) => (
                           <TableRow key={material.id} className={material.archived ? "bg-muted/30" : ""}>
                             <TableCell className="font-medium whitespace-nowrap">
                               {material.name}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">
-                              {material.category || "-"}
+                              {material.category}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                               {getSupplierNameFromId(material.supplierId)}
@@ -281,8 +278,8 @@ export default function AdminMaterialsPage() {
                                   </DropdownMenuItem>}
                                   {canArchive && !material.archived && material.stock === 0 && (
                                     <DropdownMenuItem onClick={() => handleArchiveMaterial(material)}>
-                                      <Archive className="mr-2 h-4 w-4" />
-                                      <span>Archivar</span>
+                                        <Archive className="mr-2 h-4 w-4" />
+                                        <span>Archivar</span>
                                     </DropdownMenuItem>
                                   )}
                                   {canDelete && <AlertDialog>
@@ -352,7 +349,7 @@ export default function AdminMaterialsPage() {
         </div>
         <div className="space-y-8">
           {canCreate && (
-            <Card>
+             <Card>
               <CardHeader>
                 <CardTitle>Añadir Nuevo Material</CardTitle>
                 <CardDescription>
@@ -380,19 +377,19 @@ export default function AdminMaterialsPage() {
                       const createdAtDate = formatDate(req.createdAt);
                       return (
                         <li key={`approved-${req.id}`} className="text-sm p-3 rounded-lg border bg-muted/50">
-                          <ul className="list-disc list-inside space-y-1">
-                            {req.items && Array.isArray(req.items) ? (
-                              req.items.map(item => (
-                                <li key={item.materialId} className="font-semibold">
-                                  {materialMap.get(item.materialId)?.name ?? "N/A"} <span className="font-normal text-primary">({item.quantity} uds)</span>
-                                </li>
-                              ))
-                            ) : (
-                              <li key={`${req.id}-${req.materialId}`} className="font-semibold">
-                                {materialMap.get(req.materialId || '')?.name ?? "N/A"} <span className="font-normal text-primary">({req.quantity} uds)</span>
-                              </li>
-                            )}
-                          </ul>
+                            <ul className="list-disc list-inside space-y-1">
+                                {req.items && Array.isArray(req.items) ? (
+                                    req.items.map(item => (
+                                        <li key={item.materialId} className="font-semibold">
+                                           {materialMap.get(item.materialId)?.name || "N/A"} <span className="font-normal text-primary">({item.quantity} uds)</span>
+                                        </li>
+                                    ))
+                                ) : (
+                                     <li key={`${req.id}-${req.materialId}`} className="font-semibold">
+                                        {materialMap.get(req.materialId || '')?.name || "N/A"} <span className="font-normal text-primary">({req.quantity} uds)</span>
+                                    </li>
+                                )}
+                            </ul>
                           <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
                             Para: {req.area} (Solicitado por {supervisor?.name || 'Desconocido'})
                           </p>

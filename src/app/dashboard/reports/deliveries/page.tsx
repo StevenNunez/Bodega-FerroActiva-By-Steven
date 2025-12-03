@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -13,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, UserSearch, FileDown } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import Papa from 'papaparse';
-import type { MaterialRequest, Material, User } from '@/modules/core/lib/data';
+import type { MaterialRequest } from '@/modules/core/lib/data';
 
 type CompatibleMaterialRequest = MaterialRequest & {
     materialId?: string;
@@ -39,11 +38,11 @@ export default function DeliveryReportPage() {
     const [searchTerm, setSearchTerm] = useState('');
 
     const approvedRequests = useMemo(() => {
-        return (requests || []).filter((req: MaterialRequest) => req.status === 'approved') as CompatibleMaterialRequest[];
+        return (requests || []).filter(req => req.status === 'approved') as CompatibleMaterialRequest[];
     }, [requests]);
     
-    const userMap = useMemo(() => new Map<string, User>((users || []).map((u: User) => [u.id, u])), [users]);
-    const materialMap = useMemo(() => new Map<string, Material>((materials || []).map((m: Material) => [m.id, m])), [materials]);
+    const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u])), [users]);
+    const materialMap = useMemo(() => new Map((materials || []).map(m => [m.id, m])), [materials]);
 
     const flatDeliveries = useMemo((): DeliveryItem[] => {
         return approvedRequests.flatMap(req => {
@@ -82,7 +81,7 @@ export default function DeliveryReportPage() {
     }, [flatDeliveries, searchTerm]);
 
     const aprDeliveries = useMemo(() => {
-        return approvedRequests.filter((req: CompatibleMaterialRequest) => {
+        return approvedRequests.filter(req => {
             const user = userMap.get(req.supervisorId);
             return user?.role === 'apr';
         });
@@ -218,7 +217,7 @@ export default function DeliveryReportPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {aprDeliveries.length > 0 ? (
-                                           aprDeliveries.flatMap((req: CompatibleMaterialRequest) => {
+                                           aprDeliveries.flatMap(req => {
                                                 const itemsToProcess = Array.isArray(req.items) 
                                                     ? req.items 
                                                     : (req.materialId && req.quantity ? [{ materialId: req.materialId, quantity: req.quantity }] : []);
@@ -232,7 +231,7 @@ export default function DeliveryReportPage() {
                                                             <TableCell>{item.quantity}</TableCell>
                                                             <TableCell>{aprUser?.name || 'Desconocido'}</TableCell>
                                                             <TableCell>{req.area}</TableCell>
-                                                            <TableCell>{formatDate(req.createdAt instanceof Timestamp ? req.createdAt.toDate() : req.createdAt as any)}</TableCell>
+                                                            <TableCell>{formatDate(req.createdAt instanceof Timestamp ? req.createdAt.toDate() : req.createdAt)}</TableCell>
                                                         </TableRow>
                                                     )
                                                 })

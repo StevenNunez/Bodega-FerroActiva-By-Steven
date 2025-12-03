@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useCallback, memo } from "react";
@@ -161,7 +162,7 @@ const ActiveLotsCard = memo(
                     <div>
                         <h3 className="font-semibold text-lg text-primary capitalize">{lot.category}</h3>
                         <p className="text-sm text-muted-foreground mb-3">
-                        {lot.requests.length} solicitudes, {lot.totalQuantity.toLocaleString()} unidades en total.
+                          {lot.requests.length} solicitudes, {new Intl.NumberFormat('es-CL').format(lot.totalQuantity)} unidades en total.
                         </p>
                     </div>
                  </div>

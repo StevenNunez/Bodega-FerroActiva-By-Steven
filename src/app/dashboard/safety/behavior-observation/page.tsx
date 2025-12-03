@@ -1,9 +1,8 @@
-
 "use client";
 
 import React, { useState, useMemo, useRef } from "react";
 import Image from "next/image";
-import { useForm, Controller, useWatch, SubmitHandler } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
@@ -23,7 +22,6 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import SignaturePad from "@/components/signature-pad";
-import type { User } from "@/modules/core/lib/data";
 
 const observationQuestions = [
     "¿La persona trabajadora utiliza los EPP acordes a la actividad que realiza?",
@@ -74,7 +72,7 @@ export default function BehaviorObservationPage() {
   });
 
   const workerId = useWatch({ control, name: "workerId" });
-  const selectedWorker = useMemo(() => (users || []).find((u: User) => u.id === workerId), [users, workerId]);
+  const selectedWorker = useMemo(() => (users || []).find(u => u.id === workerId), [users, workerId]);
 
   const handleWorkerSelect = (id: string) => {
     setValue("workerId", id, { shouldValidate: true });
@@ -118,7 +116,7 @@ export default function BehaviorObservationPage() {
                         setEvidencePhoto(dataUrl);
                         setValue('evidencePhoto', dataUrl);
                     };
-                    img.src = e.target.result as string;
+                    img.src = e.target.result;
                 }
             };
             reader.readAsDataURL(file);
@@ -144,6 +142,8 @@ export default function BehaviorObservationPage() {
             ...data,
             workerName: selectedWorker.name,
             workerRut: selectedWorker.rut || 'N/A',
+            observerId: authUser.id,
+            observerName: authUser.name,
         });
         toast({ title: "Observación Guardada", description: "El formulario ha sido registrado exitosamente." });
         // Optionally reset form
@@ -181,7 +181,7 @@ export default function BehaviorObservationPage() {
                                <Popover open={workerPopoverOpen} onOpenChange={setWorkerPopoverOpen}>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" role="combobox" className="w-full justify-between">
-                                            <span className="truncate">{(selectedWorker?.name) || "Selecciona un trabajador..."}</span>
+                                            <span className="truncate">{selectedWorker?.name || "Selecciona un trabajador..."}</span>
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
@@ -191,7 +191,7 @@ export default function BehaviorObservationPage() {
                                             <CommandList>
                                                 <CommandEmpty>No se encontró el trabajador.</CommandEmpty>
                                                 <CommandGroup>
-                                                    {(users || []).filter((u: User) => u.role !== 'guardia').map((user: User) => (
+                                                    {(users || []).filter(u => u.role !== 'guardia').map((user) => (
                                                         <CommandItem key={user.id} value={user.name} onSelect={() => handleWorkerSelect(user.id)}>
                                                             <Check className={cn("mr-2 h-4 w-4", field.value === user.id ? "opacity-100" : "opacity-0")} />
                                                             {user.name}
@@ -377,5 +377,3 @@ export default function BehaviorObservationPage() {
     </form>
   );
 }
-
-    

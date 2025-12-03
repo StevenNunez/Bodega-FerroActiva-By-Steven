@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import dynamic from 'next/dynamic';
 import { PageHeader } from "@/components/page-header";
 import { useAppState } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,13 +19,13 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
+import { useToast } from "@/modules/core/hooks/use-toast";
 
-const QrScannerDialog = dynamic(() => import('@/components/qr-scanner-dialog').then(mod => mod.QrScannerDialog), { ssr: false });
 
 export default function AttendanceRegistryPage() {
     const { attendanceLogs, handleAttendanceScan, loading, users } = useAppState();
-    const [isScannerOpen, setScannerOpen] = useState(false);
     const [today, setToday] = useState('');
+    const { toast } = useToast();
 
     useEffect(() => {
         const now = new Date();
@@ -100,10 +99,13 @@ export default function AttendanceRegistryPage() {
       "Fuera de Obra": { label: "Fuera de Obra", icon: UserX },
     };
 
-    const handleScan = async (qrCode: string) => {
-        setScannerOpen(false);
-        await handleAttendanceScan(qrCode);
-    };
+    const handleScanClick = () => {
+        toast({
+            variant: 'destructive',
+            title: 'Función Deshabilitada',
+            description: 'El escaneo QR está temporalmente desactivado por un problema de instalación.',
+        });
+    }
 
     const formatTime = (date: Date | Timestamp | null | undefined): string => {
         if (!date) return "--:--";
@@ -127,14 +129,6 @@ export default function AttendanceRegistryPage() {
     }
     
     return (
-        <>
-        <QrScannerDialog
-            open={isScannerOpen}
-            onOpenChange={setScannerOpen}
-            onScan={handleScan}
-            title="Escanear Asistencia"
-            description="Apunta la cámara al código QR del carnet del trabajador para registrar su entrada o salida."
-        />
         <div className="flex flex-col gap-8">
             <PageHeader
                 title="Registro de Asistencia"
@@ -186,9 +180,9 @@ export default function AttendanceRegistryPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                         <span>Movimientos del Día</span>
-                         <Button onClick={() => setScannerOpen(true)}>
+                         <Button onClick={handleScanClick}>
                             <ScanLine className="mr-2 h-4 w-4" />
-                            Escanear QR
+                            Escanear QR (Desactivado)
                         </Button>
                     </CardTitle>
                     <CardDescription>
@@ -234,6 +228,6 @@ export default function AttendanceRegistryPage() {
                 </CardContent>
             </Card>
         </div>
-        </>
     );
 }
+    

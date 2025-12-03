@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useAppState } from "@/modules/core/contexts/app-provider";
+import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { QRCodeSVG } from "qrcode.react";
@@ -12,9 +12,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { User, UserRole } from "@/modules/core/lib/data";
+import { ROLES } from "@/modules/core/lib/permissions";
 
 export default function PrintUserQrPage() {
-  const { users, isLoading, can } = useAppState();
+  const { users, isLoading } = useAppState();
+  const { can } = useAuth();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -33,19 +35,7 @@ export default function PrintUserQrPage() {
   }, [users, searchTerm]);
   
   const getRoleDisplayName = (role: UserRole) => {
-    switch (role) {
-      case 'admin': return 'Administrador de App';
-      case 'bodega-admin': return 'Jefe de Bodega';
-      case 'supervisor': return 'Supervisor';
-      case 'worker': return 'Colaborador';
-      case 'operations': return 'Administrador de Obra';
-      case 'apr': return 'APR';
-      case 'guardia': return 'Guardia';
-      case 'finance': return 'Jefe de Adm. y Finanzas';
-      case 'super-admin': return 'Super Administrador';
-      case 'cphs': return 'Comité Paritario';
-      default: return 'Usuario';
-    }
+    return ROLES[role]?.label || role;
   }
   
   if (!can('users:print_qr')) {

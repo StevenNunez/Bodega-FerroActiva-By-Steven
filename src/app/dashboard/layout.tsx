@@ -1,10 +1,10 @@
-
 "use client";
 
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth, useAppState } from "@/modules/core/contexts/app-provider";
+import { useAuth } from "@/modules/auth/useAuth";
+import { useAppState } from "@/modules/data/useData";
 import { Sidebar } from "@/components/sidebar";
 import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -206,7 +206,7 @@ export default function DashboardLayout({
                 ) : (
                   <>
                     {can('purchase_requests:approve') && pendingPurchaseRequests > 0 && (
-                      <Link href="/dashboard/operations/purchase-requests">
+                      <Link href="/dashboard/purchasing/purchase-requests">
                         <DropdownMenuItem>
                           <ShoppingCart className="mr-2 h-4 w-4 text-cyan-500" />
                           <span>{pendingPurchaseRequests} Solicitud(es) de Compra</span>
@@ -282,7 +282,7 @@ export default function DashboardLayout({
                               Ver Todos los Inquilinos
                           </DropdownMenuItem>
                           {(tenants || []).map((tenant: Tenant) => (
-                              <DropdownMenuItem key={tenant.id} onSelect={() => setCurrentTenantId(tenant.id)}>
+                              <DropdownMenuItem key={tenant.id} onSelect={() => setCurrentTenantId(tenant.tenantId)}>
                                   {tenant.name}
                               </DropdownMenuItem>
                           ))}

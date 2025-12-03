@@ -119,17 +119,19 @@ function addChecklistInfo(doc: jsPDF, checklist: AssignedSafetyTask, supervisor?
     switch (status) {
       case 'approved': return 'Aprobado';
       case 'rejected': return 'Rechazado';
-      case 'completed': return 'Completado';
+      case 'completed': return 'Completado (Para Revisión)';
       case 'assigned': return 'Asignado';
       default: return status;
     }
   };
 
+  const reviewerName = apr?.name || (checklist.reviewedBy as any)?.name || 'Pendiente';
+
   const info = [
-    ['Obra/Proyecto:', checklist.area],
+    ['Obra/Proyecto:', checklist.area || 'No especificada'],
     ['Fecha Completado:', formatDate(checklist.completedAt, true)],
     ['Realizado por:', supervisor?.name || 'No especificado'],
-    ['Revisado por:', apr?.name || (checklist.reviewedBy as any)?.name || 'Pendiente'],
+    ['Revisado por:', reviewerName],
     ['Estado:', getStatusInSpanish(checklist.status)],
   ];
 

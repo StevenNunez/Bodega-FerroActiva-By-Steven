@@ -97,8 +97,9 @@ const RoleCard = ({
 };
 
 export default function PermissionsPage() {
-    const { user, roles, updateRolePermissions, can } = useAppState();
+    const { user, roles, updateRolePermissions } = useAppState();
     const { toast } = useToast();
+    const { can } = useAuth();
 
     const handlePermissionChange = async (role: UserRole, permission: Permission, checked: boolean) => {
         try {
@@ -115,45 +116,38 @@ export default function PermissionsPage() {
             });
         }
     };
-
+    
     const visibleRoles = React.useMemo(() => {
         if (!user || !roles) return [];
-
+    
         const allRoles = Object.entries(roles).map(([roleKey, roleData]) => ({
             key: roleKey as UserRole,
             ...roleData,
         }));
         
         const canManage = can('permissions:manage');
-
+    
         if (user.role === 'super-admin') {
-            // Super admin can edit all roles, including their own.
             return allRoles.map(r => ({ ...r, isEditable: true }));
         }
         
-        const platformPermissions = (Object.keys(PERMISSIONS) as Permission[])
-            .filter((key) => PERMISSIONS[key].group === 'Plataforma');
-
         return allRoles
             .filter(role => role.key !== 'super-admin')
             .map(role => ({
                 ...role,
-                permissions: (role.permissions || []).filter(cap => !platformPermissions.includes(cap as Permission)),
-                isEditable: canManage, 
-        }));
-
+                isEditable: canManage,
+            }));
+    
     }, [user, can, roles]);
-
-    if (!can('module_permissions:view')) {
-        return (
-             <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Acceso Denegado</AlertTitle>
-                <AlertDescription>
-                    No tienes los permisos necesarios para acceder a esta sección.
-                </AlertDescription>
-            </Alert>
-        )
+    
+    // Protección a nivel de página
+    if (user?.role !== 'super-admin' && !['admin', 'operations'].includes(user?.role || '')) {
+      return (
+        <div className="p-8 text-center">
+            <h1 className="text-2xl font-bold text-red-600">Acceso Denegado</h1>
+            <p>No tienes permisos para gestionar roles y permisos.</p>
+        </div>
+      )
     }
 
     return (
@@ -177,7 +171,7 @@ export default function PermissionsPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><Shield /> Manifiesto de Capacidades</CardTitle>
                     <CardDescription>
-                       Haz clic en un rol para expandir y visualizar sus permisos.
+                       Haz clic en un rol para expandir y gestionar sus permisos. Los cambios se guardarán en tiempo real.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -186,7 +180,7 @@ export default function PermissionsPage() {
                            <RoleCard 
                                 key={key} 
                                 role={key} 
-                                description={description} 
+                                description={description || ''} 
                                 capabilities={permissions || []}
                                 isEditable={isEditable}
                                 onPermissionChange={handlePermissionChange}

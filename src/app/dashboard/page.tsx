@@ -4,14 +4,16 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
-import { Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, ShieldCheck, BarChart3, ListChecks, AlertCircle, ShoppingCart, HardHat, Wrench } from 'lucide-react';
+import { 
+  Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, 
+  ShieldCheck, BarChart3, ListChecks, ShoppingCart, HardHat, Wrench, AlertCircle 
+} from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
 import { UserCredentialCard } from '@/components/user-credential-card';
 import type { Permission } from '@/modules/core/lib/permissions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UserRole } from '@/modules/core/lib/data';
-
 
 interface ModuleCardProps {
   href: string;
@@ -43,15 +45,15 @@ export default function DashboardHubPage() {
 
   React.useEffect(() => {
     if (authLoading) return;
+
     if (!user) {
       router.replace('/login');
       return;
     }
 
     if (user.role === 'guardia') {
-        router.replace('/dashboard/attendance/registry');
+      router.replace('/dashboard/attendance/registry');
     }
-
   }, [user, authLoading, router]);
 
   if (authLoading || !user) {
@@ -65,48 +67,57 @@ export default function DashboardHubPage() {
     );
   }
 
-  const allModules: (ModuleCardProps & { permission?: Permission, condition?: boolean, href?: string })[] = [
-    { href: '/dashboard/admin', icon: Warehouse, title: "Módulo Bodega", description: "Gestiona inventario, herramientas y solicitudes.", permission: 'module_warehouse:view' },
-    { href: '/dashboard/worker', icon: Wrench, title: "Módulo Herramientas", description: "Consulta el historial de herramientas a tu cargo.", condition: user.role === 'cphs' || user.role === 'worker' },
+  const allModules: (ModuleCardProps & { permission?: Permission, roles?: UserRole[], superadminOnly?: boolean })[] = [
+    { href: '/dashboard/admin', icon: Warehouse, title: "Módulo de Bodega", description: "Gestiona inventario, herramientas y solicitudes.", permission: 'module_warehouse:view' },
     { href: '/dashboard/purchasing', icon: ShoppingCart, title: "Módulo Compras", description: "Gestiona adquisiciones, lotes y órdenes de compra.", permission: 'module_purchasing:view' },
-    { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tus tareas de seguridad.", condition: ['supervisor', 'apr'].includes(user.role) },
     { href: '/dashboard/users', icon: UserIcon, title: "Módulo de Usuarios", description: "Gestiona los perfiles y roles de los trabajadores.", permission: 'module_users:view' },
-    { href: '/dashboard/subscriptions', icon: DollarSign, title: "Módulo de Suscripciones", description: "Gestiona los inquilinos (clientes) de la plataforma.", permission: 'module_subscriptions:view' },
+    { href: '/dashboard/subscriptions', icon: DollarSign, title: "Módulo de Suscripciones", description: "Gestiona los inquilinos (clientes) de la plataforma.", superadminOnly: true },
     { href: '/dashboard/safety', icon: ShieldCheck, title: "Módulo de Prevención", description: "Gestión de checklists, plantillas y revisiones de seguridad.", permission: 'module_safety:view' },
-    { href: '/dashboard/attendance', icon: CalendarCheck, title: "Módulo de Asistencia", description: "Control de entrada/salida de personal y reportes.", permission: 'module_attendance:view' },
+    { href: '/dashboard/attendance', icon: CalendarCheck, title: "Módulo de Asistencia", description: "Control de entrada/salida del personal.", permission: 'module_attendance:view' },
     { href: '/dashboard/payments', icon: DollarSign, title: "Módulo de Pagos", description: "Gestiona las facturas y pagos a proveedores.", permission: 'module_payments:view' },
-    { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza el consumo de materiales y genera informes.", permission: 'reports:view' },
-    { href: '/dashboard/admin/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'module_permissions:view' },
+    { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza consumos y genera informes.", permission: 'module_reports:view' },
+    { href: '/dashboard/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'permissions:manage' },
+    { href: '/dashboard/worker', icon: Wrench, title: "Módulo Herramientas", description: "Consulta el historial de herramientas a tu cargo.", roles: ['worker', 'cphs'] },
+    { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tareas de seguridad.", roles: ['supervisor', 'apr', 'bodega-admin'] },
   ];
 
-  const visibleModules = allModules.filter(module => {
-    if(module.condition !== undefined) return module.condition;
-    return can(module.permission as Permission)
-  });
-
+  const finalModules = allModules.filter(m => {
+    if (user.role === 'superadmin') return true;
+    if (m.superadminOnly) return false;
+    if (m.roles) return m.roles.includes(user.role);
+    if (m.permission) return can(m.permission);
+    return false;
+  }).filter((value, index, self) => self.findIndex(v => v.href === value.href) === index);
+  
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title={`Bienvenido, ${user.name}`}
         description="Selecciona el módulo al que deseas acceder o gestiona tu perfil."
       />
-      
-      {visibleModules.length === 0 && !['guardia', 'worker', 'cphs'].includes(user.role) && (
-         <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Sin Módulos Asignados</AlertTitle>
-            <AlertDescription>
-                Tu rol actual no tiene permisos para ver ningún módulo. Por favor, contacta a un administrador para que te asigne los permisos necesarios.
-            </AlertDescription>
+
+      {finalModules.length === 0 && user.role !== 'guardia' && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Sin Módulos Asignados</AlertTitle>
+          <AlertDescription>
+            Tu rol actual no tiene permisos para ver ningún módulo. Contacta a un administrador.
+          </AlertDescription>
         </Alert>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
         <UserCredentialCard />
-        <ModuleCard href="/dashboard/profile" icon={UserIcon} title="Mi Perfil" description="Consulta tu información personal y de planilla." />
-        
-        {visibleModules.map(module => (
-          module.href ? <ModuleCard key={module.href} {...module} href={module.href} /> : null
+
+        <ModuleCard
+          href="/dashboard/profile"
+          icon={UserIcon}
+          title="Mi Perfil"
+          description="Consulta tu información personal y de planilla."
+        />
+
+        {finalModules.map(module => (
+          <ModuleCard key={module.href} {...module} />
         ))}
       </div>
     </div>

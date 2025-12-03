@@ -5,12 +5,12 @@ import dynamic from 'next/dynamic';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAppState } from '@/modules/core/contexts/app-provider';
+import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
 import { useToast } from '@/modules/core/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, Save, KeyRound } from 'lucide-react';
+import { Loader2, Save, KeyRound, Phone } from 'lucide-react';
 import { User, UserRole } from '@/modules/core/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
@@ -21,14 +21,16 @@ import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Timestamp } from 'firebase/firestore';
 import { AdminChangePasswordDialog } from './admin-change-password-dialog';
+import { ROLES } from '@/modules/core/lib/permissions';
 
 const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin', 'cphs'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'superadmin', 'cphs'], { required_error: 'Debes seleccionar un rol.' }),
   rut: z.string().optional(),
+  phone: z.string().optional(),
   cargo: z.string().optional(),
   fechaIngreso: z.date().optional().nullable(),
   afp: z.string().optional(),
@@ -45,17 +47,15 @@ interface EditUserFormProps {
 }
 
 export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
-  const { updateUser, can, user: authUser } = useAppState();
+  const { updateUser } = useAppState();
+  const { user: authUser, can } = useAuth();
   const { toast } = useToast();
   const [isPasswordDialogOpen, setPasswordDialogOpen] = useState(false);
 
-  // You can edit a role if:
-  // 1. You are a super-admin.
-  // 2. You have 'users:edit' permission AND the user you are editing is NOT a super-admin.
   const canEditRole = React.useMemo(() => {
     if (!authUser) return false;
-    if (authUser.role === 'super-admin') return true; // Super admin can edit anyone
-    if (can('users:edit') && user.role !== 'super-admin') {
+    if (authUser.role === 'superadmin') return true; 
+    if (can('users:edit') && user.role !== 'superadmin') {
       return true;
     }
     return false;
@@ -78,6 +78,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
             name: user.name,
             role: user.role,
             rut: user.rut || '',
+            phone: user.phone || '',
             cargo: user.cargo || '',
             fechaIngreso: user.fechaIngreso ? (user.fechaIngreso instanceof Timestamp ? user.fechaIngreso.toDate() : new Date(user.fechaIngreso as any)) : null,
             afp: user.afp || '',
@@ -86,30 +87,14 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
           });
       }
   }, [user, reset]);
-  
-  const getRoleDisplayName = (role: UserRole) => {
-    switch (role) {
-        case 'admin': return 'Administrador de App';
-        case 'bodega-admin': return 'Jefe de Bodega';
-        case 'supervisor': return 'Supervisor';
-        case 'worker': return 'Colaborador';
-        case 'operations': return 'Administrador de Obra';
-        case 'apr': return 'APR';
-        case 'guardia': return 'Guardia';
-        case 'finance': return 'Jefe de Adm. y Finanzas';
-        case 'super-admin': return 'Super Administrador';
-        case 'cphs': return 'Comité Paritario';
-    }
-  }
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const updateData: Partial<User> = { ...data };
       if (!canEditRole) {
-        delete updateData.role; // Ensure non-admins cannot change role
+        delete updateData.role; 
       }
       
-      // Convert date back to Timestamp if it exists
       if (data.fechaIngreso) {
         updateData.fechaIngreso = Timestamp.fromDate(data.fechaIngreso);
       } else {
@@ -161,16 +146,13 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                                         <SelectValue placeholder="Selecciona un rol" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="admin">Administrador de App</SelectItem>
-                                        <SelectItem value="operations">Administrador de Obra</SelectItem>
-                                        <SelectItem value="bodega-admin">Jefe de Bodega</SelectItem>
-                                        <SelectItem value="finance">Jefe de Adm. y Finanzas</SelectItem>
-                                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                                        <SelectItem value="apr">APR</SelectItem>
-                                        <SelectItem value="cphs">Comité Paritario</SelectItem>
-                                        <SelectItem value="guardia">Guardia</SelectItem>
-                                        <SelectItem value="worker">Colaborador</SelectItem>
-                                        {authUser?.role === 'super-admin' && <SelectItem value="super-admin">Super Administrador</SelectItem>}
+                                        {Object.entries(ROLES).map(([key, value]) => (
+                                            (authUser?.role === 'superadmin' || key !== 'superadmin') && (
+                                                <SelectItem key={key} value={key}>
+                                                    {value.label}
+                                                </SelectItem>
+                                            )
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             )}
@@ -179,10 +161,17 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                         {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
                     </div>
                  </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="user-email">Correo Electrónico</Label>
-                    <Input id="user-email" type="email" value={user.email} disabled />
-                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div className="space-y-2">
+                        <Label htmlFor="user-email">Correo Electrónico</Label>
+                        <Input id="user-email" type="email" value={user.email} disabled />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="phone">Teléfono (con código de país)</Label>
+                        <Input id="phone" placeholder="Ej: 56912345678" {...register('phone')} />
+                        {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
+                    </div>
+                 </div>
                 
                  <h4 className="font-semibold text-lg border-b pb-2 pt-6">Información para Planilla</h4>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

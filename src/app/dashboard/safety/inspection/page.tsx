@@ -1,9 +1,7 @@
-
 "use client";
 
 import React, { useState, useMemo, useRef } from "react";
-import { useForm, Controller, SubmitHandler } from "react-hook-form";
-import dynamic from 'next/dynamic';
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
@@ -18,17 +16,14 @@ import { Loader2, Send, Camera, Trash2, Calendar as CalendarIcon } from "lucide-
 import Image from "next/image";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import type { SafetyInspection, User } from "@/modules/core/lib/data";
-import { Timestamp } from "firebase/firestore";
-
-const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
 
 const InspectionSchema = z.object({
-  area: z.string().min(3, "El nombre de la obra es requerido."),
+  work: z.string().min(3, "El nombre de la obra es requerido."),
   location: z.string().optional(),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
   riskLevel: z.enum(['leve', 'grave', 'fatal'], { required_error: "Debes seleccionar un nivel de riesgo." }),
@@ -49,8 +44,7 @@ export default function SafetyInspectionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const assignableUsers = useMemo(() => {
-    if (!users) return [];
-    return users.filter((u: User) => ['supervisor', 'operations', 'apr'].includes(u.role));
+    return users.filter(u => ['supervisor', 'operations'].includes(u.role));
   }, [users]);
   
   const {
@@ -62,7 +56,7 @@ export default function SafetyInspectionPage() {
   } = useForm<InspectionFormData>({
     resolver: zodResolver(InspectionSchema),
     defaultValues: {
-      area: 'File 721', // Default value
+      work: 'File 721', // Default value
     }
   });
 
@@ -104,7 +98,7 @@ export default function SafetyInspectionPage() {
 
                     setEvidencePhotos(prev => [...prev, dataUrl]);
                 };
-                img.src = e.target.result as string;
+                img.src = e.target.result;
             }
         };
         reader.readAsDataURL(file);
@@ -130,8 +124,6 @@ export default function SafetyInspectionPage() {
       try {
           await addSafetyInspection({
               ...data,
-              deadline: data.deadline ? Timestamp.fromDate(data.deadline) : undefined,
-              date: Timestamp.now(),
               evidencePhotos,
               inspectorId: authUser.id,
               inspectorName: authUser.name,
@@ -167,8 +159,8 @@ export default function SafetyInspectionPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="space-y-2">
                             <Label htmlFor="work">Obra</Label>
-                            <Input id="work" {...register('area')} />
-                            {errors.area && <p className="text-xs text-destructive">{errors.area.message}</p>}
+                            <Input id="work" {...register('work')} />
+                            {errors.work && <p className="text-xs text-destructive">{errors.work.message}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="location">Ubicación Específica (Opcional)</Label>
@@ -251,7 +243,7 @@ export default function SafetyInspectionPage() {
                                 <Select onValueChange={field.onChange} value={field.value}>
                                     <SelectTrigger><SelectValue placeholder="Selecciona un responsable..." /></SelectTrigger>
                                     <SelectContent>
-                                        {assignableUsers.map((s: User) => <SelectItem key={s.id} value={s.id}>{s.name} ({s.role === 'operations' ? 'Adm. Obra' : s.role === 'apr' ? 'APR' : 'Supervisor'})</SelectItem>)}
+                                        {assignableUsers.map(s => <SelectItem key={s.id} value={s.id}>{s.name} ({s.role === 'operations' ? 'Adm. Obra' : 'Supervisor'})</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             )}
@@ -275,7 +267,7 @@ export default function SafetyInspectionPage() {
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} initialFocus />
+                                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
                                     </PopoverContent>
                                 </Popover>
                             )}

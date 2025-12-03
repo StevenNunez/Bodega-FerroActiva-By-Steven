@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -20,16 +21,18 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
 export default function ReviewInspectionsPage() {
     const { safetyInspections, users, isLoading } = useAppState();
     
-    const userMap = useMemo(() => new Map((users || []).map((u: User) => [u.id, u.name])), [users]);
+    const userMap = useMemo(() => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])), [users]);
 
     const inspectionsToReview = useMemo(() => {
         if (!safetyInspections) return [];
         return (safetyInspections as SafetyInspection[])
             .filter((i: SafetyInspection) => i.status === 'completed' || i.status === 'approved' || i.status === 'rejected')
             .sort((a: SafetyInspection, b: SafetyInspection) => {
-                const dateA = (a.completedAt || a.date) as Timestamp;
-                const dateB = (b.completedAt || b.date) as Timestamp;
-                return dateB.toMillis() - dateA.toMillis();
+                const dateA = (a.completedAt || a.date);
+                const dateB = (b.completedAt || b.date);
+                const timeA = dateA instanceof Timestamp ? dateA.toMillis() : new Date(dateA as any).getTime();
+                const timeB = dateB instanceof Timestamp ? dateB.toMillis() : new Date(dateB as any).getTime();
+                return timeB - timeA;
             });
     }, [safetyInspections]);
 

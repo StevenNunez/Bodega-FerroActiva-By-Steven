@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/modules/core/contexts/app-provider";
+import { useAuth } from "@/modules/auth/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   Card,

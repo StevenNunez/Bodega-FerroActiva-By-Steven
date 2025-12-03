@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
-import { useAppState } from "@/modules/core/contexts/app-provider";
+import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,8 @@ type CompatibleMaterialRequest = MaterialRequest & {
 
 
 export default function SupervisorRequestPage() {
-  const { materials, addMaterialRequest, requests, isLoading, user } = useAppState();
+  const { materials, addMaterialRequest, requests, isLoading } = useAppState();
+  const { user: authUser } = useAuth(); // Usar el usuario de autenticación
   const { toast } = useToast();
   
   // State for the new multi-item request form
@@ -55,7 +56,7 @@ export default function SupervisorRequestPage() {
   const itemsPerPage = 5;
 
   const materialMap = useMemo<Map<string, Material>>(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
-  const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r: CompatibleMaterialRequest) => r.supervisorId === user?.id), [requests, user]);
+  const myRequests = useMemo(() => ((requests || []) as CompatibleMaterialRequest[]).filter((r: CompatibleMaterialRequest) => r.supervisorId === authUser?.id), [requests, authUser]);
 
   const filteredRequests = useMemo(() => {
     if (statusFilter === "all") return myRequests;
@@ -95,7 +96,7 @@ export default function SupervisorRequestPage() {
           );
         case "approved":
           return (
-            <Badge variant="default" className="bg-green-600 text-white">
+            <Badge className="bg-green-600 text-white">
               <Check className="mr-1 h-3 w-3" />
               Aprobado
             </Badge>
@@ -156,7 +157,7 @@ export default function SupervisorRequestPage() {
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0 || !area.trim() || !user) {
+    if (cart.length === 0 || !area.trim() || !authUser) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -170,7 +171,7 @@ export default function SupervisorRequestPage() {
       await addMaterialRequest({
         items: cart.map(({materialId, quantity}) => ({materialId, quantity})),
         area,
-        supervisorId: user.id,
+        supervisorId: authUser.id,
       });
       toast({
         title: "Éxito",
@@ -429,3 +430,5 @@ export default function SupervisorRequestPage() {
     </div>
   );
 }
+
+    

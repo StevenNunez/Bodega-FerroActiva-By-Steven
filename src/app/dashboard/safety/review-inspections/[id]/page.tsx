@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
@@ -23,7 +22,7 @@ import { generateInspectionPDF } from "@/lib/inspection-pdf-generator";
 
 const formatDate = (date: Date | Timestamp | undefined | null, includeTime = false) => {
   if (!date) return 'N/A';
-  const jsDate = date instanceof Timestamp ? date.toDate() : date;
+  const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
   const formatString = includeTime ? "d 'de' MMMM, yyyy HH:mm" : "d 'de' MMMM, yyyy";
   return format(jsDate, formatString, { locale: es });
 };
@@ -91,12 +90,13 @@ export default function ReviewInspectionPage() {
     
     const handleDownloadPDF = async () => {
         if (!inspection) return;
-        if (!supervisor || !aprUser) {
-            toast({ variant: 'destructive', title: 'Faltan datos', description: 'No se puede generar el PDF sin la información completa del supervisor y el inspector.' });
-            return;
-        }
+        
+        // Use fallback data if user objects are not found
+        const supervisorData = supervisor || { id: inspection.assignedTo, name: inspection.completionExecutor || 'Usuario no encontrado' } as User;
+        const aprData = aprUser || { id: inspection.inspectorId, name: inspection.inspectorName || 'Inspector no encontrado' } as User;
+
         try {
-            await generateInspectionPDF(inspection, supervisor, aprUser);
+            await generateInspectionPDF(inspection, supervisorData, aprData);
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error al generar PDF', description: error.message });
         }
@@ -182,8 +182,8 @@ export default function ReviewInspectionPage() {
                             <CardTitle>Detalles de Asignación</CardTitle>
                         </CardHeader>
                         <CardContent className="text-sm space-y-2">
-                            <p>Reportado por: <span className="font-semibold">{aprUser?.name}</span></p>
-                            <p>Asignado a: <span className="font-semibold">{supervisor?.name}</span></p>
+                            <p>Reportado por: <span className="font-semibold">{aprUser?.name || inspection.inspectorName}</span></p>
+                            <p>Asignado a: <span className="font-semibold">{supervisor?.name || 'Usuario no encontrado'}</span></p>
                             <p>Fecha de Reporte: <span className="font-semibold">{formatDate(inspection.date)}</span></p>
                         </CardContent>
                   </Card>
@@ -226,10 +226,10 @@ export default function ReviewInspectionPage() {
 
                            {!isReviewed && (
                             <div className="flex gap-2">
-                                <Button variant="destructive" className="flex-1" onClick={() => handleReview('rejected')} disabled={!rejectionNotes.trim() || !aprSignature || isSubmitting || isReviewed}>
+                                <Button variant="destructive" className="flex-1" onClick={() => handleReview('rejected')} disabled={isSubmitting}>
                                     {isSubmitting ? <Loader2 className="mr-2 animate-spin"/> : <ThumbsDown className="mr-2"/>} Rechazar
                                 </Button>
-                                <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleReview('approved')} disabled={!aprSignature || isSubmitting || isReviewed}>
+                                <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleReview('approved')} disabled={!aprSignature || isSubmitting}>
                                     {isSubmitting ? <Loader2 className="mr-2 animate-spin"/> : <ThumbsUp className="mr-2"/>} Aprobar
                                 </Button>
                             </div>
@@ -242,5 +242,3 @@ export default function ReviewInspectionPage() {
         </div>
     );
 }
-
-    
