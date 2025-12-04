@@ -1,4 +1,5 @@
 
+
 import {
   doc,
   collection,
@@ -72,6 +73,8 @@ export async function updatePurchaseRequestStatus(
     }
 
     const currentData = requestDoc.data();
+    
+    // Start with a clearly typed object
     const updateData: Partial<PurchaseRequest> = {
       ...data,
       status: status,
@@ -81,13 +84,14 @@ export async function updatePurchaseRequestStatus(
       updateData.originalQuantity = currentData.quantity;
     }
 
+    // Conditionally add the server timestamp, using 'as any' for this specific override
     if (status === 'approved' && currentData.status !== 'approved') {
       updateData.approverId = user.id;
       updateData.approverName = user.name;
       (updateData as any).approvalDate = serverTimestamp();
     }
 
-    transaction.update(requestRef, updateData as any);
+    transaction.update(requestRef, updateData);
   });
 }
 
@@ -287,11 +291,11 @@ export async function generatePurchaseOrder(requests: PurchaseRequest[], supplie
       tenantId,
     });
   
-    for (const req of requests) {
-      const reqRef = doc(db, `purchaseRequests`, req.id);
-      batch.update(reqRef, { status: 'ordered' });
-    }
+    // We will no longer change the status of requests here.
+    // This will be done by the "archiveLot" function manually.
   
     await batch.commit();
     return orderId;
   }
+
+    
