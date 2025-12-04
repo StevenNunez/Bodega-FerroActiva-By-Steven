@@ -349,7 +349,7 @@ export default function PurchasingHubPage() {
   const pendingReceptionRequests = React.useMemo(() => {
     return (purchaseRequests || [])
       .filter((pr: PurchaseRequest) => ["approved", "batched", "ordered"].includes(pr.status))
-      .sort((a: any, b: any) => (b.approvalDate?.toMillis() || 0) - (a.approvalDate?.toMillis() || 0));
+      .sort((a: any, b: any) => (b.approvalDate?.getTime() || 0) - (a.approvalDate?.getTime() || 0));
   }, [purchaseRequests]);
 
   const categories = React.useMemo(() => {
