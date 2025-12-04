@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -54,7 +53,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
 
   const canEditRole = React.useMemo(() => {
     if (!authUser) return false;
-    if (authUser.role === 'superadmin') return true; 
+    if (authUser.role === 'superadmin') return true;
     if (can('users:edit') && user.role !== 'superadmin') {
       return true;
     }
@@ -92,11 +91,11 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
     try {
       const updateData: Partial<User> = { ...data };
       if (!canEditRole) {
-        delete updateData.role; 
+        delete updateData.role;
       }
       
       if (data.fechaIngreso) {
-        updateData.fechaIngreso = Timestamp.fromDate(data.fechaIngreso);
+        (updateData as any).fechaIngreso = Timestamp.fromDate(data.fechaIngreso);
       } else {
         updateData.fechaIngreso = null;
       }

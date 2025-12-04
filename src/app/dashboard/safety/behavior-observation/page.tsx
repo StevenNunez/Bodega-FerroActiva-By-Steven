@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useRef } from "react";
 import Image from "next/image";
-import { useForm, Controller, useWatch } from "react-hook-form";
+import { useForm, Controller, useWatch, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";

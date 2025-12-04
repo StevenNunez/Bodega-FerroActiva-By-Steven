@@ -88,7 +88,7 @@ export default function AttendanceDashboardPage() {
         const safeLogs: AttendanceLog[] = attendanceLogs || [];
 
         const relevantUsers = safeUsers.filter(
-            (u: User) => u.role !== "guardia" && u.role !== "super-admin"
+            (u: User) => u.role !== "guardia" && u.role !== "superadmin"
         );
 
         const todaysLogs = safeLogs.filter((log: AttendanceLog) => log.date === todayStr);
@@ -109,8 +109,8 @@ export default function AttendanceDashboardPage() {
         const sortedRecentLogs = [...todaysLogs]
             .sort(
                 (a, b) =>
-                    (b.timestamp as Timestamp).toMillis() -
-                    (a.timestamp as Timestamp).toMillis()
+                    b.timestamp.getTime() -
+                    a.timestamp.getTime()
             )
             .slice(0, 5);
 
@@ -130,9 +130,8 @@ export default function AttendanceDashboardPage() {
         [users]
     );
 
-    const formatTime = (date: Date | Timestamp) => {
-        const jsDate = date instanceof Timestamp ? date.toDate() : date;
-        return jsDate.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    const formatTime = (date: Date) => {
+        return date.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
     };
 
     const visibleModules = attendanceModules.filter((module) =>

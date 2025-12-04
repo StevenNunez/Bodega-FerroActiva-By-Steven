@@ -5,7 +5,7 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { useAppState } from "@/modules/core/contexts/app-provider";
+import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Send, ArrowRight, Clock, Check, X, Package } from "lucide-react";
@@ -29,7 +29,8 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
 };
 
 export default function SupervisorHubPage() {
-    const { requests, materials, can, user } = useAppState();
+    const { requests, materials, can } = useAppState();
+    const { user } = useAuth();
 
     const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 
@@ -38,8 +39,8 @@ export default function SupervisorHubPage() {
         return ((requests || []) as CompatibleMaterialRequest[])
             .filter(r => r.supervisorId === user.id)
             .sort((a,b) => {
-                const dateA = a.createdAt ? (a.createdAt instanceof Timestamp ? a.createdAt.toDate().getTime() : new Date(a.createdAt as any).getTime()) : 0;
-                const dateB = b.createdAt ? (b.createdAt instanceof Timestamp ? b.createdAt.toDate().getTime() : new Date(b.createdAt as any).getTime()) : 0;
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                 return dateB - dateA;
             });
     }, [requests, user]);

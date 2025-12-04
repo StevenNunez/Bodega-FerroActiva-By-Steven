@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Shield, AlertCircle } from "lucide-react";
 import { UserRole } from "@/modules/core/lib/data";
-import { PERMISSIONS, Permission } from "@/modules/core/lib/permissions";
+import { PERMISSIONS, Permission, ROLES, ROLES_ORDER } from "@/modules/core/lib/permissions";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/modules/core/hooks/use-toast";
@@ -20,12 +20,14 @@ type GroupedPermissions = {
 
 const RoleCard = ({ 
     role, 
+    label,
     description, 
     capabilities, 
     isEditable, 
     onPermissionChange 
 }: { 
-    role: string; 
+    role: UserRole; 
+    label: string;
     description: string; 
     capabilities: string[]; 
     isEditable: boolean;
@@ -38,13 +40,11 @@ const RoleCard = ({
             const perm = PERMISSIONS[key];
             const group = perm.group || 'General';
 
-            if (authUser?.role !== 'super-admin' && group === 'Plataforma') {
+            if (authUser?.role !== 'superadmin' && group === 'Plataforma') {
                 return acc;
             }
 
-            if (!acc[group]) {
-                acc[group] = [];
-            }
+            if (!acc[group]) acc[group] = [];
             acc[group].push({ key, label: perm.label });
             return acc;
         }, {} as GroupedPermissions);
@@ -54,7 +54,7 @@ const RoleCard = ({
         <AccordionItem value={role}>
             <AccordionTrigger className="hover:no-underline">
                 <div className="flex flex-col text-left">
-                    <h3 className="font-semibold text-lg capitalize">{role.replace(/-/g, ' ')}</h3>
+                    <h3 className="font-semibold text-lg">{label}</h3>
                     <p className="text-sm text-muted-foreground font-normal">{description}</p>
                 </div>
             </AccordionTrigger>
@@ -62,12 +62,8 @@ const RoleCard = ({
                 <div className="p-4 bg-muted/50 rounded-md space-y-6">
                     {Object.keys(groupedPermissions).sort().map(groupName => {
                         const permissionsInGroup = groupedPermissions[groupName];
-                        if (authUser?.role !== 'super-admin' && groupName === 'Plataforma') {
-                           return null;
-                        }
-                        
                         return (
-                             <div key={groupName}>
+                            <div key={groupName}>
                                 <h4 className="font-medium mb-3 text-primary">{groupName}</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {permissionsInGroup.map(({ key, label }) => {
@@ -77,10 +73,10 @@ const RoleCard = ({
                                                 <Switch
                                                     id={`${role}-${key}`}
                                                     checked={hasCapability}
+                                                    onCheckedChange={(checked) => onPermissionChange(role, key as Permission, checked)}
                                                     disabled={!isEditable}
-                                                    onCheckedChange={(checked) => onPermissionChange(role as UserRole, key as Permission, checked)}
                                                 />
-                                                <Label htmlFor={`${role}-${key}`} className="text-sm">
+                                                <Label htmlFor={`${role}-${key}`} className="text-sm cursor-pointer">
                                                     {label}
                                                 </Label>
                                             </div>
@@ -97,57 +93,60 @@ const RoleCard = ({
 };
 
 export default function PermissionsPage() {
-    const { user, roles, updateRolePermissions } = useAppState();
+    const { roles, updateRolePermissions } = useAppState();
+    const { user, can } = useAuth();
     const { toast } = useToast();
-    const { can } = useAuth();
 
     const handlePermissionChange = async (role: UserRole, permission: Permission, checked: boolean) => {
         try {
             await updateRolePermissions(role, permission, checked);
             toast({
                 title: "Permiso Actualizado",
-                description: `El permiso '${PERMISSIONS[permission]?.label || permission}' para el rol '${role}' ha sido ${checked ? 'activado' : 'desactivado'}.`,
+                description: `El permiso '${PERMISSIONS[permission]?.label || permission}' para el rol '${ROLES[role]?.label || role}' ha sido ${checked ? 'activado' : 'desactivado'}.`,
             });
         } catch (error: any) {
-             toast({
+            toast({
                 variant: 'destructive',
-                title: 'Error de Permiso',
-                description: error.message,
+                title: 'Error',
+                description: error.message || "No se pudo actualizar el permiso",
             });
         }
     };
     
     const visibleRoles = React.useMemo(() => {
-        if (!user || !roles) return [];
-    
-        const allRoles = Object.entries(roles).map(([roleKey, roleData]) => ({
-            key: roleKey as UserRole,
-            ...roleData,
-        }));
-        
+        if (!user) return [];
+
         const canManage = can('permissions:manage');
-    
-        if (user.role === 'super-admin') {
-            return allRoles.map(r => ({ ...r, isEditable: true }));
-        }
-        
-        return allRoles
-            .filter(role => role.key !== 'super-admin')
-            .map(role => ({
-                ...role,
-                isEditable: canManage,
-            }));
-    
-    }, [user, can, roles]);
-    
-    // Protección a nivel de página
-    if (user?.role !== 'super-admin' && !['admin', 'operations'].includes(user?.role || '')) {
+
+        return ROLES_ORDER
+          .map(roleKey => {
+            const defaultRole = ROLES[roleKey];
+            const dbRole = roles?.[roleKey];
+
+            if (!defaultRole) return null;
+
+            return {
+              key: roleKey,
+              label: defaultRole.label,
+              description: defaultRole.description,
+              permissions: dbRole?.permissions || defaultRole.permissions,
+              isEditable: canManage || user.role === 'superadmin'
+            };
+          })
+          .filter(Boolean)
+          .filter(role => user.role === 'superadmin' || role!.key !== 'superadmin');
+    }, [user, roles, can]);
+
+    if (!can('module_permissions:view')) {
       return (
-        <div className="p-8 text-center">
-            <h1 className="text-2xl font-bold text-red-600">Acceso Denegado</h1>
-            <p>No tienes permisos para gestionar roles y permisos.</p>
-        </div>
-      )
+        <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Acceso Denegado</AlertTitle>
+            <AlertDescription>
+                No tienes los permisos necesarios para acceder a esta sección.
+            </AlertDescription>
+        </Alert>
+      );
     }
 
     return (
@@ -157,7 +156,7 @@ export default function PermissionsPage() {
                 description="Visualiza y edita las capacidades de cada rol en el sistema."
             />
             
-            {!can('permissions:manage') && (
+            {!can('permissions:manage') && user?.role !== 'superadmin' && (
                 <Alert>
                     <Shield className="h-4 w-4" />
                     <AlertTitle>Modo de Solo Lectura</AlertTitle>
@@ -176,13 +175,14 @@ export default function PermissionsPage() {
                 </CardHeader>
                 <CardContent>
                     <Accordion type="multiple" className="w-full">
-                       {visibleRoles.map(({ key, description, permissions, isEditable }) => (
+                       {visibleRoles.map((roleData) => (
                            <RoleCard 
-                                key={key} 
-                                role={key} 
-                                description={description || ''} 
-                                capabilities={permissions || []}
-                                isEditable={isEditable}
+                                key={roleData!.key}
+                                role={roleData!.key as UserRole}
+                                label={roleData!.label}
+                                description={roleData!.description}
+                                capabilities={roleData!.permissions}
+                                isEditable={roleData!.isEditable}
                                 onPermissionChange={handlePermissionChange}
                            />
                        ))}

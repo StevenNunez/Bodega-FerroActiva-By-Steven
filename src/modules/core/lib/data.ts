@@ -1,6 +1,9 @@
 
 "use client";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, FieldValue } from "firebase/firestore";
+
+// This type is used when writing data to Firestore
+export type FirestoreWriteableDate = Date | Timestamp | FieldValue;
 
 export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "superadmin" | "bodega-admin" | "cphs";
 
@@ -8,7 +11,7 @@ export interface Tenant {
   id: string;
   name: string;
   tenantId: string; // The unique identifier for the tenant (e.g., RUT)
-  createdAt: Date | Timestamp;
+  createdAt: Timestamp;
   plan?: 'basic' | 'pro' | 'enterprise';
 }
 
@@ -25,7 +28,6 @@ export interface SubscriptionPlan {
   expiresAt?: Timestamp;
 }
 
-
 export interface User {
   id: string; // Corresponds to Firebase Auth UID
   name: string;
@@ -36,7 +38,7 @@ export interface User {
   rut?: string;
   cargo?: string;
   phone?: string;
-  fechaIngreso?: Date | Timestamp | null;
+  fechaIngreso?: Date | null;
   afp?: string;
   tipoSalud?: 'Fonasa' | 'Isapre';
   cargasFamiliares?: number;
@@ -78,14 +80,15 @@ export interface MaterialRequest {
   area: string;
   supervisorId: string;
   status: "pending" | "approved" | "rejected";
-  createdAt: Date | Timestamp;
+  createdAt: Date;
   userName?: string;
-  approvalDate?: Timestamp;
-  rejectionDate?: Timestamp;
-  deliveryDate?: Timestamp;
+  approvalDate?: Date;
+  rejectionDate?: Date;
+  deliveryDate?: Date;
   approverId?: string;
   approverName?: string;
   notes?: string;
+  tenantId: string;
 }
 
 export interface ReturnRequest {
@@ -97,11 +100,12 @@ export interface ReturnRequest {
     quantity: number;
     unit: string;
     status: 'pending' | 'completed' | 'rejected';
-    createdAt: Timestamp;
-    completionDate?: Timestamp;
+    createdAt: Date;
+    completionDate?: Date;
     notes?: string;
     handlerId?: string; // ID of the admin who handled it
     handlerName?: string;
+    tenantId: string;
 }
 
 export type PurchaseRequestStatus = "pending" | "approved" | "rejected" | "received" | "ordered" | "batched";
@@ -115,16 +119,17 @@ export interface PurchaseRequest {
   justification: string;
   supervisorId: string;
   status: PurchaseRequestStatus;
-  createdAt: Date | Timestamp;
-  receivedAt?: Date | Timestamp | null;
+  createdAt: Date;
+  receivedAt?: Date | null;
   category: string;
   area: string;
   lotId?: string | null;
   notes?: string | null;
   approverId?: string | null;
-  approvalDate?: Date | Timestamp | null;
+  approvalDate?: Date | null;
   requesterName?: string;
   approverName?: string;
+  tenantId: string;
 }
 
 export interface ToolLog {
@@ -133,8 +138,8 @@ export interface ToolLog {
   toolName: string;
   userId: string;
   userName: string;
-  checkoutDate: Date | Timestamp;
-  returnDate: Date | Timestamp | null;
+  checkoutDate: Date;
+  returnDate: Date | null;
   checkoutSupervisorId: string;
   checkoutSupervisorName: string;
   returnSupervisorId?: string;
@@ -147,14 +152,14 @@ export interface AttendanceLog {
   id: string;
   userId: string;
   userName: string;
-  timestamp: Date | Timestamp;
+  timestamp: Date;
   type: 'in' | 'out';
   method: 'qr' | 'manual';
   registrarId: string; // ID of the guard or admin who registered it
   registrarName: string;
   date: string; // YYYY-MM-DD for easy querying
-  originalTimestamp?: Date | Timestamp | null;
-  modifiedAt?: Date | Timestamp | null;
+  originalTimestamp?: Date | null;
+  modifiedAt?: Date | null;
   modifiedBy?: string | null; // User ID of the admin who modified it
 }
 
@@ -173,7 +178,7 @@ export interface PurchaseOrder {
     id: string;
     supplierId: string;
     supplierName: string;
-    createdAt: Date | Timestamp;
+    createdAt: Date;
     creatorId: string;
     creatorName: string;
     status: 'generated' | 'sent' | 'completed' | 'cancelled';
@@ -190,7 +195,7 @@ export interface StockMovement {
     quantityChange: number; // Positive for entry, negative for exit
     newStock: number;
     type: 'manual-entry' | 'initial' | 'request-delivery' | 'return-reentry' | 'adjustment';
-    date: Timestamp;
+    date: Date;
     justification: string;
     userId: string; // User who performed the action
     userName: string;
@@ -200,7 +205,7 @@ export interface StockMovement {
 export interface PurchaseLot {
     id: string;
     name: string;
-    createdAt: Timestamp;
+    createdAt: Date;
     creatorId: string;
     creatorName: string;
     status: 'open' | 'ordered';
@@ -211,7 +216,7 @@ export interface ChecklistTemplate {
   title: string;
   items: Pick<ChecklistItem, 'element'>[];
   createdBy: string;
-  createdAt: Date | Timestamp;
+  createdAt: Date;
 }
 
 export interface AssignedSafetyTask {
@@ -221,17 +226,17 @@ export interface AssignedSafetyTask {
     supervisorId: string;
     assignerId: string;
     assignerName: string;
-    createdAt: Timestamp;
+    createdAt: Date;
     status: 'assigned' | 'completed' | 'approved' | 'rejected';
     area: string; 
     items?: any[];
     observations?: string;
     evidencePhotos?: string[];
     performedBy?: any;
-    completedAt?: Timestamp;
+    completedAt?: Date;
     reviewedBy?: {
         signature: string;
-        date: Timestamp;
+        date: Date;
         name: string;
     };
     rejectionNotes?: string;
@@ -243,7 +248,7 @@ export interface BehaviorObservation {
     workerId: string;
     workerName: string;
     workerRut: string;
-    observationDate: Date | Timestamp;
+    observationDate: Date;
     items: BehaviorObservationItem[];
     riskLevel: 'aceptable' | 'leve' | 'grave' | 'gravisimo' | null;
     feedback: string;
@@ -251,7 +256,7 @@ export interface BehaviorObservation {
     workerSignature: string;
     observerId: string;
     observerName: string;
-    createdAt: Date | Timestamp;
+    createdAt: Date;
     evidencePhoto?: string;
 }
 
@@ -266,7 +271,7 @@ export interface ChecklistItem {
   no: boolean;
   na: boolean;
   responsibleUserId: string;
-  completionDate: Date | Timestamp | null;
+  completionDate: Date | null;
 }
 
 export interface SafetyInspection {
@@ -274,7 +279,7 @@ export interface SafetyInspection {
     inspectorId: string;
     inspectorName: string;
     inspectorRole: UserRole;
-    date: Timestamp;
+    date: Date;
     area: string;
     location?: string;
     description: string;
@@ -283,18 +288,18 @@ export interface SafetyInspection {
     evidencePhotoUrl?: string;
     evidencePhotos?: string[];
     assignedTo: string;
-    deadline?: Timestamp;
+    deadline?: Date;
     status: 'open' | 'in-progress' | 'completed' | 'approved' | 'rejected';
     completionNotes?: string;
     completionExecutor?: string;
     completionPhotos?: string[];
-    completedAt?: Timestamp;
+    completedAt?: Date;
     completionSignature?: string;
     reviewedBy?: {
         id: string;
         name: string;
         signature: string;
-        date: Timestamp;
+        date: Date;
     };
     rejectionNotes?: string;
 }
@@ -304,13 +309,13 @@ export interface SupplierPayment {
   supplierId: string;
   invoiceNumber: string;
   amount: number;
-  issueDate: Date | Timestamp;
-  dueDate: Date | Timestamp;
+  issueDate: Date;
+  dueDate: Date;
   status: 'pending' | 'paid' | 'overdue';
-  createdAt?: Date | Timestamp;
+  createdAt?: Date;
   purchaseOrderNumber?: string;
   work?: string; // Obra
-  paymentDate?: Date | Timestamp;
+  paymentDate?: Date;
   paymentMethod?: string;
   pdfURL?: string;
 }

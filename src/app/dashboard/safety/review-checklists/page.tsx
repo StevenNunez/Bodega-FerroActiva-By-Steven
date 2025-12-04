@@ -41,9 +41,11 @@ export default function ReviewChecklistsPage() {
         return (assignedChecklists as AssignedSafetyTask[])
             .filter((c: AssignedSafetyTask) => c.status === 'completed' || c.status === 'approved' || c.status === 'rejected')
             .sort((a: AssignedSafetyTask, b: AssignedSafetyTask) => {
-                const dateA = (a.completedAt || a.createdAt) as Timestamp;
-                const dateB = (b.completedAt || b.createdAt) as Timestamp;
-                return dateB.toMillis() - dateA.toMillis();
+                const dateA = a.completedAt || a.createdAt;
+                const dateB = b.completedAt || b.createdAt;
+                const timeA = dateA ? new Date(dateA).getTime() : 0;
+                const timeB = dateB ? new Date(dateB).getTime() : 0;
+                return timeB - timeA;
             });
     }, [assignedChecklists]);
 

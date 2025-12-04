@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useAppState } from '@/modules/core/contexts/app-provider';
+import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, User, ArrowRight, X, ScanLine } from 'lucide-react';
@@ -25,7 +25,8 @@ const sanitizeQrCode = (code: string): string => {
 };
 
 export function ToolCheckoutCard() {
-  const { users, tools, checkoutTool, returnTool, user: authUser, findActiveLogForTool, toolLogs } = useAppState();
+  const { users, tools, checkoutTool, returnTool, findActiveLogForTool, toolLogs } = useAppState();
+  const { user: authUser } = useAuth();
   const { toast } = useToast();
 
   const [checkoutState, setCheckoutState] = useState<{ worker?: UserType; tools: ToolType[] }>({ tools: [] });
@@ -126,19 +127,19 @@ export function ToolCheckoutCard() {
 
       const normalize = (s: string) => up(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, '-');
       const normalizedCode = normalize(code);
-      
+
       const byNormalizedQr = (tools || []).find((t: ToolType) => normalize(t.qrCode) === normalizedCode);
       if(byNormalizedQr) return byNormalizedQr;
 
       const byId = (tools || []).find((t: ToolType) => up(t.id) === up(code));
       if (byId) return byId;
-      
+
       const tokens = code.split(/[^a-zA-Z0-9_-]+/);
       for(const token of tokens) {
           const byTokenId = (tools || []).find((t: ToolType) => up(t.id) === up(token));
           if(byTokenId) return byTokenId;
       }
-      
+
       return null;
     },
     [tools]
@@ -174,57 +175,47 @@ export function ToolCheckoutCard() {
   );
 
   const processScan = useCallback(
-    (scannedCode: string) => {
+    async (scannedCode: string) => {
       const finalCode = sanitizeQrCode(scannedCode);
       if (!finalCode) {
         toast({ variant: 'destructive', title: 'Error', description: 'Entrada vacía.' });
         return;
       }
 
-      const upper = finalCode.toUpperCase();
-
-      if (upper.startsWith('USER') || upper.includes('USER')) {
-        const user = findUserFromScanned(finalCode);
-        if (user) {
-          setCheckoutState({ worker: user, tools: [] });
-          toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${user.name}.` });
-          return;
-        }
-        const maybeId = finalCode.split("'")[1] || finalCode.split('-')[1] || finalCode;
-        toast({ variant: 'destructive', title: 'Error', description: `Usuario no encontrado: ${maybeId}` });
-        return;
-      }
-
+      // Intenta identificar como herramienta primero
       const tool = findToolFromScanned(finalCode);
       if (tool) {
         if (returnMode) {
-          handleReturn(tool);
-          return;
+          await handleReturn(tool);
+        } else {
+          if (!checkoutStateRef.current.worker) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Escanea primero el QR de un trabajador.' });
+          } else {
+            handleToolToCheckout(tool);
+            toast({ title: 'Herramienta añadida', description: `${tool.name} lista para entregar.` });
+          }
         }
-
-        if (!checkoutStateRef.current.worker) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Escanea primero el QR de un trabajador.',
-          });
-          return;
-        }
-        handleToolToCheckout(tool);
         return;
       }
 
-      const maybeUser = findUserFromScanned(finalCode);
-      if (maybeUser) {
-        setCheckoutState({ worker: maybeUser, tools: [] });
-        toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${maybeUser.name}.` });
+      // Si no es una herramienta, intenta identificar como usuario
+      const user = findUserFromScanned(finalCode);
+      if (user) {
+        if (returnMode) {
+          toast({ variant: 'destructive', title: 'Modo Devolución', description: 'Escanea una herramienta, no un usuario.' });
+        } else {
+          setCheckoutState({ worker: user, tools: [] });
+          toast({ title: 'Trabajador Seleccionado', description: `Listo para entregar a: ${user.name}.` });
+        }
         return;
       }
 
-      toast({ variant: 'destructive', title: 'Error', description: 'Entrada no reconocida. Verifica el formato del QR.' });
+      // Si no es ni herramienta ni usuario, es un error
+      toast({ variant: 'destructive', title: 'Error', description: 'Código QR no reconocido. Verifica el formato del QR.' });
     },
     [toast, findToolFromScanned, findUserFromScanned, returnMode, handleReturn, handleToolToCheckout]
   );
+
 
   const handlePistolScanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -480,5 +471,6 @@ export function ToolCheckoutCard() {
           </div>
         </CardContent>
       </Card>
-    
-    
+    );
+}
+

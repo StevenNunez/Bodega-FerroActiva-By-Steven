@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import SignaturePad from "@/components/signature-pad";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import type { AssignedSafetyTask as AssignedChecklist, UnplannedInspection as ChecklistItemType, User } from "@/modules/core/lib/data";
+import type { AssignedSafetyTask as AssignedChecklist, SafetyInspection as ChecklistItemType, User } from "@/modules/core/lib/data";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";

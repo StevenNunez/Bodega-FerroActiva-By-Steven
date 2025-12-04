@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import SignaturePad from "@/components/signature-pad";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import type { UnplannedInspection as SafetyInspection } from "@/modules/core/lib/data";
+import type { SafetyInspection } from "@/modules/core/lib/data";
 import { Badge } from "@/components/ui/badge";
 
 const formatDate = (date: Date | Timestamp | undefined | null) => {

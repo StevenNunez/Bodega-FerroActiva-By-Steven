@@ -1,4 +1,3 @@
-
 'use client';
 import React from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -29,8 +28,7 @@ type FormData = z.infer<typeof FormSchema>;
 
 export function CreateUserForm() {
   const { toast } = useToast();
-  const { currentTenantId, tenants } = useAppState();
-  const { user: authUser } = useAuth();
+  const { user: authUser, tenants, currentTenantId } = useAuth();
   
   const currentTenant = React.useMemo(() => {
       if (!currentTenantId) return null;

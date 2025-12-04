@@ -20,7 +20,10 @@ export function useMaterialRequests(tenantId: string | null) {
     }
 
     const unsub = onSnapshot(q, (snap) => {
-      const fetchedData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MaterialRequest));
+      const fetchedData = snap.docs.map(doc => {
+          const docData = doc.data();
+          return { id: doc.id, ...docData } as MaterialRequest
+      });
       setData(fetchedData);
     }, (error) => {
       console.error(`Error fetching requests for tenant ${tenantId}:`, error);

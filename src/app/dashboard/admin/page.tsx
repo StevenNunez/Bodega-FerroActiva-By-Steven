@@ -93,7 +93,7 @@ export default function WarehouseHubPage() {
     date: Date | Timestamp | null | undefined
   ): Date | null => {
     if (!date) return null;
-    return date instanceof Timestamp ? date.toDate() : date;
+    return date instanceof Timestamp ? date.toDate() : (date as Date);
   };
 
   const formatDate = (
@@ -418,5 +418,3 @@ export default function WarehouseHubPage() {
     </div>
   );
 }
-
-    

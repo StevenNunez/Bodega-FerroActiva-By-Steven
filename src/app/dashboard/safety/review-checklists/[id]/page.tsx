@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from "react";
@@ -56,12 +55,12 @@ export default function AprReviewChecklistPage() {
 
 
     const supervisor = useMemo(() => {
-        if (!checklist) return null;
+        if (!checklist) return undefined;
         return (users || []).find((u: User) => u.id === checklist.supervisorId);
     }, [checklist, users]);
     
     const aprUser = useMemo(() => {
-        if (!checklist) return null;
+        if (!checklist) return undefined;
         return (users || []).find((u: User) => u.id === checklist.assignerId);
     }, [checklist, users]);
 
@@ -281,4 +280,3 @@ export default function AprReviewChecklistPage() {
         </div>
     );
 }
-

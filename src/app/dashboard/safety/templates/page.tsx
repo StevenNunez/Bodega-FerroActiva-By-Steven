@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -37,7 +38,7 @@ export default function AprTemplatesPage() {
   const { toast } = useToast();
 
   const [title, setTitle] = useState("");
-  const [items, setItems] = useState<Pick<ChecklistItem, 'element'>>([{ element: "" }]);
+  const [items, setItems] = useState<Pick<ChecklistItem, 'element'>[]>([{ element: "" }]);
   const [assigningTemplate, setAssigningTemplate] = useState<ChecklistTemplate | null>(null);
   const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
   const [workArea, setWorkArea] = useState("");

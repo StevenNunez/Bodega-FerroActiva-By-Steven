@@ -10,6 +10,7 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   Timestamp,
   orderBy,
   limit,
@@ -25,13 +26,12 @@ type Context = {
 
 export async function handleAttendanceScan(qrCode: string, { user, tenantId, db }: Context) {
   if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-  if (user.role !== 'guardia' && user.role !== 'admin' && user.role !== 'super-admin') {
+  if (user.role !== 'guardia' && user.role !== 'admin' && user.role !== 'superadmin') {
     throw new Error('No tienes permiso para registrar asistencia.');
   }
 
-  const usersRef = collection(db, `tenants/${tenantId}/users`);
-  const q = query(usersRef, where('qrCode', '==', qrCode));
-  const querySnapshot = await getDocs(q);
+  const usersQuery = query(collection(db, "users"), where('tenantId', '==', tenantId), where('qrCode', '==', qrCode));
+  const querySnapshot = await getDocs(usersQuery);
 
   if (querySnapshot.empty) {
     throw new Error('Código QR no válido o usuario no encontrado.');
@@ -40,7 +40,7 @@ export async function handleAttendanceScan(qrCode: string, { user, tenantId, db 
   const scannedUser = querySnapshot.docs[0].data();
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-  const attendanceRef = collection(db, `tenants/${tenantId}/attendanceLogs`);
+  const attendanceRef = collection(db, "attendanceLogs");
   const userTodayLogsQuery = query(
     attendanceRef,
     where('userId', '==', scannedUser.id),
@@ -65,8 +65,6 @@ export async function handleAttendanceScan(qrCode: string, { user, tenantId, db 
     date: todayStr,
     tenantId,
   });
-
-  return { userName: scannedUser.name, type: newLogType };
 }
 
 export async function addManualAttendance(
@@ -80,11 +78,12 @@ export async function addManualAttendance(
 
   const [hours, minutes] = time.split(':').map(Number);
   const timestamp = new Date(date);
-  timestamp.setHours(hours, minutes);
+  timestamp.setHours(hours, minutes, 0, 0);
 
-  const attendanceRef = collection(db, `tenants/${tenantId}/attendanceLogs`);
-  const userDoc = await getDocs(query(collection(db, `tenants/${tenantId}/users`), where('id', '==', userId)));
-  const userName = userDoc.docs.length > 0 ? userDoc.docs[0].data().name : 'Desconocido';
+  const attendanceRef = collection(db, "attendanceLogs");
+  const userDocRef = doc(db, "users", userId);
+  const userDoc = await getDoc(userDocRef);
+  const userName = userDoc.exists() ? userDoc.data().name : 'Desconocido';
 
   await addDoc(attendanceRef, {
     userId,
@@ -107,7 +106,7 @@ export async function updateAttendanceLog(
   { user, tenantId, db }: Context
 ) {
     if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-    const logRef = doc(db, `tenants/${tenantId}/attendanceLogs`, logId);
+    const logRef = doc(db, "attendanceLogs", logId);
     await updateDoc(logRef, {
         timestamp: Timestamp.fromDate(newTimestamp),
         type: newType,
@@ -119,6 +118,6 @@ export async function updateAttendanceLog(
 
 export async function deleteAttendanceLog(logId: string, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
-    const logRef = doc(db, `tenants/${tenantId}/attendanceLogs`, logId);
+    const logRef = doc(db, "attendanceLogs", logId);
     await deleteDoc(logRef);
 }

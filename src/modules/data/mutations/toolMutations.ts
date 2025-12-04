@@ -1,3 +1,4 @@
+'use client';
 
 import {
   doc,
@@ -10,7 +11,9 @@ import {
   where,
   getDocs,
   limit,
-  writeBatch
+  writeBatch,
+  getDoc,
+  runTransaction,
 } from 'firebase/firestore';
 import { nanoid } from 'nanoid';
 
@@ -22,7 +25,7 @@ type Context = {
 
 export async function addTool(name: string, { tenantId, db }: Context) {
   if (!tenantId) throw new Error("Inquilino no válido.");
-  const toolRef = collection(db, `tenants/${tenantId}/tools`);
+  const toolRef = collection(db, "tools");
   const qrCode = `TOOL-${nanoid(10).toUpperCase()}`;
   await addDoc(toolRef, {
     name,
@@ -34,13 +37,13 @@ export async function addTool(name: string, { tenantId, db }: Context) {
 
 export async function updateTool(toolId: string, data: any, { tenantId, db }: Context) {
   if (!tenantId) throw new Error("Inquilino no válido.");
-  const toolRef = doc(db, `tenants/${tenantId}/tools`, toolId);
+  const toolRef = doc(db, "tools", toolId);
   await updateDoc(toolRef, data);
 }
 
 export async function deleteTool(toolId: string, { tenantId, db }: Context) {
   if (!tenantId) throw new Error("Inquilino no válido.");
-  const toolRef = doc(db, `tenants/${tenantId}/tools`, toolId);
+  const toolRef = doc(db, "tools", toolId);
   await deleteDoc(toolRef);
 }
 
@@ -48,20 +51,23 @@ export async function checkoutTool(toolId: string, userId: string, supervisorId:
   if (!tenantId) throw new Error("Inquilino no válido.");
   const batch = writeBatch(db);
 
-  const userQuery = query(collection(db, `tenants/${tenantId}/users`), where("id", "==", userId));
-  const supervisorQuery = query(collection(db, `tenants/${tenantId}/users`), where("id", "==", supervisorId));
-  const toolQuery = query(doc(db, `tenants/${tenantId}/tools`, toolId) as any);
+  const userQuery = query(collection(db, "users"), where("id", "==", userId));
+  const supervisorQuery = query(collection(db, "users"), where("id", "==", supervisorId));
+  const toolRef = doc(db, "tools", toolId);
   
-  const [userSnap, supervisorSnap, toolSnap] = await Promise.all([getDocs(userQuery), getDocs(supervisorQuery), getDocs(toolQuery)]);
+  const [userSnap, supervisorSnap, toolSnap] = await Promise.all([
+    getDocs(userQuery), 
+    getDocs(supervisorQuery), 
+    getDoc(toolRef)
+  ]);
 
   const userName = userSnap.docs[0]?.data()?.name || 'Desconocido';
   const supervisorName = supervisorSnap.docs[0]?.data()?.name || 'Desconocido';
-  const toolName = toolSnap.docs[0]?.data()?.name || 'Herramienta Desconocida';
+  const toolName = toolSnap.data()?.name || 'Herramienta Desconocida';
 
-  const toolRef = doc(db, `tenants/${tenantId}/tools`, toolId);
   batch.update(toolRef, { status: 'in-use' });
 
-  const logRef = doc(collection(db, `tenants/${tenantId}/toolLogs`));
+  const logRef = doc(collection(db, "toolLogs"));
   batch.set(logRef, {
     toolId,
     toolName,
@@ -79,7 +85,7 @@ export async function checkoutTool(toolId: string, userId: string, supervisorId:
 
 export async function returnTool(logId: string, status: 'ok' | 'damaged', notes: string, { user, tenantId, db }: Context) {
   if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-  const logRef = doc(db, `tenants/${tenantId}/toolLogs`, logId);
+  const logRef = doc(db, "toolLogs", logId);
   
   await runTransaction(db, async (transaction) => {
     const logDoc = await transaction.get(logRef);
@@ -88,7 +94,7 @@ export async function returnTool(logId: string, status: 'ok' | 'damaged', notes:
     const toolId = logDoc.data()?.toolId;
     if (!toolId) throw new Error("No se pudo encontrar la herramienta asociada al registro.");
 
-    const toolRef = doc(db, `tenants/${tenantId}/tools`, toolId);
+    const toolRef = doc(db, "tools", toolId);
     transaction.update(toolRef, { status: status === 'ok' ? 'available' : 'maintenance' });
 
     transaction.update(logRef, {
@@ -103,7 +109,7 @@ export async function returnTool(logId: string, status: 'ok' | 'damaged', notes:
 
 export async function findActiveLogForTool(toolId: string, { tenantId, db }: Context) {
   if (!tenantId) throw new Error("Inquilino no válido.");
-  const logRef = collection(db, `tenants/${tenantId}/toolLogs`);
+  const logRef = collection(db, "toolLogs");
   const q = query(
     logRef,
     where('toolId', '==', toolId),
@@ -114,5 +120,5 @@ export async function findActiveLogForTool(toolId: string, { tenantId, db }: Con
   if (snapshot.empty) {
     return null;
   }
-  return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+  return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any;
 }

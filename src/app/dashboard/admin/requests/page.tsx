@@ -71,8 +71,8 @@ export default function ManageMaterialRequestsPage() {
   const sortedRequests = useMemo(() => {
     if (!requests) return [];
     return [...(requests as CompatibleMaterialRequest[])].sort((a,b) => {
-        const dateA = a.createdAt ? getDate(a.createdAt)?.getTime() || 0 : 0;
-        const dateB = b.createdAt ? getDate(b.createdAt)?.getTime() || 0 : 0;
+        const dateA = getDate(a.createdAt)?.getTime() || 0;
+        const dateB = getDate(b.createdAt)?.getTime() || 0;
         return dateB - dateA;
     });
   }, [requests]);

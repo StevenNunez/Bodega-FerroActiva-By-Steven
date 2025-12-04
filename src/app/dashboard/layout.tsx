@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -27,6 +28,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { differenceInDays, startOfDay } from 'date-fns';
 import { Timestamp } from "firebase/firestore";
 import { UserRole, type SupplierPayment, type MaterialRequest, type PurchaseRequest, type Supplier, type Tenant } from "@/modules/core/lib/data";
+import { ROLES } from '@/modules/core/lib/permissions';
 
 export default function DashboardLayout({
   children,
@@ -62,18 +64,7 @@ export default function DashboardLayout({
   }
   
   const getRoleDisplayName = (role: UserRole) => {
-    switch (role) {
-        case 'admin': return 'Administrador de App';
-        case 'bodega-admin': return 'Jefe de Bodega';
-        case 'supervisor': return 'Supervisor';
-        case 'worker': return 'Colaborador';
-        case 'operations': return 'Administrador de Obra';
-        case 'apr': return 'APR';
-        case 'guardia': return 'Guardia';
-        case 'finance': return 'Jefe de Adm. y Finanzas';
-        case 'super-admin': return 'Super Administrador';
-        default: return 'Usuario';
-    }
+    return ROLES[role]?.label || role;
   }
 
   const overduePayments = React.useMemo(() => (supplierPayments || []).filter((p: SupplierPayment) => {
@@ -270,7 +261,7 @@ export default function DashboardLayout({
                   <p className="text-xs text-primary font-medium pt-1">{getRoleDisplayName(user.role)}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                 {user.role === 'super-admin' && (
+                 {user.role === 'superadmin' && (
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <Users className="mr-2 h-4 w-4" />

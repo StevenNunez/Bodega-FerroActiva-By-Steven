@@ -1,11 +1,10 @@
 
-
 "use client";
 
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
-import { useAppState } from "@/modules/core/contexts/app-provider";
+import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +20,8 @@ type CompatibleMaterialRequest = MaterialRequest & {
 
 
 export default function SupervisorSuppliersPage() {
-    const { requests, materials, suppliers, user } = useAppState();
+    const { requests, materials, suppliers } = useAppState();
+    const { user } = useAuth();
 
     const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 
@@ -76,3 +76,4 @@ export default function SupervisorSuppliersPage() {
     
 
     
+

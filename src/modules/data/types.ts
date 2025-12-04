@@ -18,7 +18,8 @@ import {
   SafetyInspection,
   ChecklistTemplate,
   BehaviorObservation,
-  Tenant
+  StockMovement,
+  UserRole
 } from '../core/lib/data';
 import { ROLES as ROLES_DEFAULT, Permission } from '@/modules/core/lib/permissions';
 
@@ -43,7 +44,7 @@ export interface AppDataState {
   safetyInspections: SafetyInspection[];
   checklistTemplates: ChecklistTemplate[];
   behaviorObservations: BehaviorObservation[];
-  tenants: Tenant[];
+  stockMovements: StockMovement[];
 }
 
 // This defines the shape of the context, including all functions

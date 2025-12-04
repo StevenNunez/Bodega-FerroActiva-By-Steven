@@ -8,10 +8,41 @@ import React, {
   useEffect,
   useState,
 } from 'react';
-import { useAuth } from '../auth/useAuth';
-import { useToast } from '@/modules/core/hooks/use-toast';
-import { db } from '@/modules/core/lib/firebase';
-import { ROLES as ROLES_DEFAULT, Permission, PLANS } from '@/modules/core/lib/permissions';
+import {
+  onSnapshot,
+  collection,
+  query,
+  doc,
+  getDoc,
+  updateDoc,
+  Timestamp,
+} from 'firebase/firestore';
+import {
+  onAuthStateChanged,
+  signOut,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  updatePassword,
+  updateEmail,
+  type User as FirebaseAuthUser
+} from 'firebase/auth';
+import { db, auth } from '@/modules/core/lib/firebase';
+import {
+  User,
+  UserRole,
+  Tenant,
+  SubscriptionPlan,
+} from '@/modules/core/lib/data';
+import {
+  ROLES as ROLES_DEFAULT,
+  Permission,
+  PLANS,
+} from '@/modules/core/lib/permissions';
+
+import { useAuth } from "@/modules/auth/useAuth";
+import { useToast } from "@/modules/core/hooks/use-toast";
 import {
   useMaterials,
   useTools,
@@ -32,7 +63,7 @@ import {
   useSafetyInspections,
   useChecklistTemplates,
   useBehaviorObservations,
-  useTenants,
+  useStockMovements,
 } from "./collections";
 import { AppDataState, AppStateAction, AppStateContextType } from './types';
 import * as materialRequestMutations from './mutations/materialRequestMutations';
@@ -42,7 +73,6 @@ import * as toolMutations from './mutations/toolMutations';
 import * as safetyMutations from './mutations/safetyMutations';
 import * as attendanceMutations from './mutations/attendanceMutations';
 import * as paymentMutations from './mutations/paymentMutations';
-
 
 const initialState: AppDataState = {
     isLoading: true,
@@ -65,7 +95,7 @@ const initialState: AppDataState = {
     safetyInspections: [],
     checklistTemplates: [],
     behaviorObservations: [],
-    tenants: [],
+    stockMovements: [],
 };
 
 
@@ -113,55 +143,59 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const safetyInspectionsData = useSafetyInspections(tenantId);
     const checklistTemplatesData = useChecklistTemplates(tenantId);
     const behaviorObservationsData = useBehaviorObservations(tenantId);
-    const tenantsData = useTenants();
     const rolesData = useRoles();
+    const stockMovementsData = useStockMovements(tenantId);
 
     useEffect(() => {
-      if (!user) return;
-  
-      dispatch({ type: "SET_LOADING", payload: true });
-  
-      const mapping = [
-        ["users", usersData],
-        ["materials", materialsData],
-        ["tools", toolsData],
-        ["toolLogs", toolLogsData],
-        ["requests", requestsData],
-        ["returnRequests", returnRequestsData],
-        ["purchaseRequests", purchaseRequestsData],
-        ["suppliers", suppliersData],
-        ["materialCategories", materialCategoriesData],
-        ["units", unitsData],
-        ["purchaseLots", purchaseLotsData],
-        ["purchaseOrders", purchaseOrdersData],
-        ["supplierPayments", supplierPaymentsData],
-        ["attendanceLogs", attendanceLogsData],
-        ["assignedChecklists", assignedChecklistsData],
-        ["safetyInspections", safetyInspectionsData],
-        ["checklistTemplates", checklistTemplatesData],
-        ["behaviorObservations", behaviorObservationsData],
-        ["tenants", tenantsData],
-      ];
-  
-      mapping.forEach(([key, data]) => {
-        dispatch({ 
-          type: "SET_DATA", 
-          payload: { collection: key as string, data: (data as any) || [] } 
-        });
-      });
-  
-      const rolesToUse = rolesData && Object.keys(rolesData).length > 0 
-        ? rolesData 
-        : ROLES_DEFAULT;
-  
-      dispatch({ type: "SET_ROLES", payload: rolesToUse });
-  
-      dispatch({ type: "SET_LOADING", payload: false });
-    }, [user, usersData, materialsData, toolsData, toolLogsData, requestsData, 
-        returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData, 
-        unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData, 
-        attendanceLogsData, assignedChecklistsData, safetyInspectionsData, 
-        checklistTemplatesData, behaviorObservationsData, tenantsData, rolesData]);
+        if (!user) return;
+    
+        dispatch({ type: "SET_LOADING", payload: true });
+    
+        const processData = (data: any[] | undefined) => {
+            if (!Array.isArray(data)) return [];
+            return data.map((item) => {
+                const newItem = { ...item };
+                for (const prop in newItem) {
+                    if (newItem[prop] instanceof Timestamp) {
+                        (newItem as any)[prop] = newItem[prop].toDate();
+                    }
+                }
+                return newItem;
+            });
+        };
+    
+        dispatch({ type: 'SET_DATA', payload: { collection: "users", data: processData(usersData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "materials", data: processData(materialsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "tools", data: processData(toolsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "toolLogs", data: processData(toolLogsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "requests", data: processData(requestsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "returnRequests", data: processData(returnRequestsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "purchaseRequests", data: processData(purchaseRequestsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "suppliers", data: processData(suppliersData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "materialCategories", data: processData(materialCategoriesData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "units", data: processData(unitsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "purchaseLots", data: processData(purchaseLotsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "purchaseOrders", data: processData(purchaseOrdersData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "supplierPayments", data: processData(supplierPaymentsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "attendanceLogs", data: processData(attendanceLogsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "assignedChecklists", data: processData(assignedChecklistsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "safetyInspections", data: processData(safetyInspectionsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "checklistTemplates", data: processData(checklistTemplatesData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "behaviorObservations", data: processData(behaviorObservationsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "stockMovements", data: processData(stockMovementsData) } });
+
+        const rolesToUse = rolesData && Object.keys(rolesData).length > 0 ? rolesData : ROLES_DEFAULT;
+        dispatch({ type: "SET_ROLES", payload: rolesToUse });
+    
+        dispatch({ type: "SET_LOADING", payload: false });
+    
+    }, [
+        user, usersData, materialsData, toolsData, toolLogsData, requestsData,
+        returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
+        unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
+        attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
+        checklistTemplatesData, behaviorObservationsData, rolesData, stockMovementsData
+    ]);
 
     const can = useCallback((permission: Permission): boolean => {
       if (!user) return false;

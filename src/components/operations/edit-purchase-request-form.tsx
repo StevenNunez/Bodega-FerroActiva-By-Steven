@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -112,10 +113,9 @@ export function EditPurchaseRequestForm({ request, isOpen, onClose }: EditPurcha
     }
   };
 
-  const formatDate = (date: Date | Timestamp | undefined | null) => {
+  const formatDate = (date: Date | undefined | null) => {
     if (!date) return 'N/A';
-    const jsDate = date instanceof Timestamp ? date.toDate() : date;
-    return format(jsDate, "d 'de' MMMM, yyyy", { locale: es });
+    return format(date, "d 'de' MMMM, yyyy", { locale: es });
   };
 
   return (

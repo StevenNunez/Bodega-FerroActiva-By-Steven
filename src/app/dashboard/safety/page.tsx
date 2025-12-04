@@ -97,8 +97,8 @@ export default function SafetyDashboardPage() {
          return (safetyInspections || [])
             .filter((c: SafetyInspection) => c.status === 'open')
             .sort((a: SafetyInspection, b: SafetyInspection) => {
-                const deadlineA = a.deadline ? (a.deadline as Timestamp).toMillis() : Infinity;
-                const deadlineB = b.deadline ? (b.deadline as Timestamp).toMillis() : Infinity;
+                const deadlineA = a.deadline ? a.deadline.getTime() : Infinity;
+                const deadlineB = b.deadline ? b.deadline.getTime() : Infinity;
                 return deadlineA - deadlineB;
             })
             .slice(0, 5);
@@ -118,8 +118,8 @@ export default function SafetyDashboardPage() {
         const myInspections = (safetyInspections || [])
             .filter((i: SafetyInspection) => i.assignedTo === user.id && i.status === 'open')
             .sort((a: SafetyInspection,b: SafetyInspection) => {
-                const deadlineA = a.deadline ? (a.deadline as Timestamp).toMillis() : Infinity;
-                const deadlineB = b.deadline ? (b.deadline as Timestamp).toMillis() : Infinity;
+                const deadlineA = a.deadline ? a.deadline.getTime() : Infinity;
+                const deadlineB = b.deadline ? b.deadline.getTime() : Infinity;
                 return deadlineA - deadlineB;
             })
             .slice(0, 3);
@@ -197,8 +197,8 @@ export default function SafetyDashboardPage() {
                                             <div>
                                                 <p className="font-semibold">{i.description}</p>
                                                 <p className="text-sm text-muted-foreground">Asignado a: {userMap.get(i.assignedTo) || 'Desconocido'}</p>
-                                                {i.deadline && <p className={`text-xs ${isPast((i.deadline as Timestamp).toDate()) ? 'text-red-500 font-bold' : 'text-amber-500'}`}>
-                                                    Vence {isPast((i.deadline as Timestamp).toDate()) ? 'hace' : 'en'} {formatDistanceToNow((i.deadline as Timestamp).toDate(), { locale: es, addSuffix: true })}
+                                                {i.deadline && <p className={`text-xs ${isPast(i.deadline) ? 'text-red-500 font-bold' : 'text-amber-500'}`}>
+                                                    Vence {isPast(i.deadline) ? 'hace' : 'en'} {formatDistanceToNow(i.deadline, { locale: es, addSuffix: true })}
                                                 </p>}
                                             </div>
                                             <div className="flex items-center gap-2">

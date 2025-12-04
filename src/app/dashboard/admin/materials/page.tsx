@@ -127,7 +127,7 @@ export default function AdminMaterialsPage() {
   
   const toDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
-    return date instanceof Timestamp ? date.toDate() : date;
+    return date instanceof Timestamp ? date.toDate() : (date as Date);
   };
   
   const formatDate = (date: Date | Timestamp | null | undefined): string => {

@@ -21,10 +21,23 @@ export function usePurchaseRequests(tenantId: string | null) {
     }
     
     const unsub = onSnapshot(q, (snap) => {
-      const fetchedData = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as PurchaseRequest));
+      const fetchedData = snap.docs.map(doc => {
+          const docData = doc.data();
+          // Ensure createdAt is a Date object for client-side processing
+          if (docData.createdAt && docData.createdAt.toDate) {
+            docData.createdAt = docData.createdAt.toDate();
+          }
+           if (docData.receivedAt && docData.receivedAt.toDate) {
+            docData.receivedAt = docData.receivedAt.toDate();
+          }
+           if (docData.approvalDate && docData.approvalDate.toDate) {
+            docData.approvalDate = docData.approvalDate.toDate();
+          }
+          return {
+            id: doc.id,
+            ...docData
+          } as PurchaseRequest
+      });
       setData(fetchedData);
     }, (error) => {
       console.error(`Error fetching purchaseRequests for tenant ${tenantId}:`, error);

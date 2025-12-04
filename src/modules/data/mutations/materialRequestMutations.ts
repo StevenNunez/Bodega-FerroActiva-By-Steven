@@ -7,6 +7,7 @@ import {
   addDoc,
   getDoc,
   writeBatch,
+  FieldValue,
 } from 'firebase/firestore';
 import { MaterialRequest, Material, ReturnRequest } from '@/modules/core/lib/data';
 
@@ -15,6 +16,11 @@ type Context = {
   tenantId: string | null;
   db: any;
 };
+
+type CreatableMaterialRequest = Omit<MaterialRequest, 'id' | 'createdAt'> & {
+  createdAt: FieldValue;
+};
+
 
 export async function addMaterialRequest(
   requestData: {
@@ -142,7 +148,7 @@ export async function addReturnRequest(
             status: 'pending',
             createdAt: serverTimestamp(),
             notes: notes,
-            tenantId,
+            tenantId: tenantId,
         });
     });
 

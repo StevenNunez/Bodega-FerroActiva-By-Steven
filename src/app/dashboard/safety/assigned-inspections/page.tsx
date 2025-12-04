@@ -26,7 +26,7 @@ export default function AssignedInspectionsPage() {
         if (!user || !safetyInspections) return [];
         return safetyInspections
             .filter((c: SafetyInspection) => c.assignedTo === user.id)
-            .sort((a: SafetyInspection, b: SafetyInspection) => (b.date as Timestamp).toMillis() - (a.date as Timestamp).toMillis());
+            .sort((a: SafetyInspection, b: SafetyInspection) => b.date.getTime() - a.date.getTime());
     }, [safetyInspections, user]);
     
     const userMap = useMemo(() => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])), [users]);
@@ -100,4 +100,3 @@ export default function AssignedInspectionsPage() {
         </div>
     );
 }
-

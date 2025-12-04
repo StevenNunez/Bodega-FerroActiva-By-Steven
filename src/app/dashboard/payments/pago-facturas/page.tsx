@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -274,8 +275,7 @@ export default function PaymentManagementPage() {
     const today = startOfDay(new Date());
     return (supplierPayments || [])
       .map((p) => {
-        const dueDate =
-          p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate as any);
+        const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate as any);
         let currentStatus: PaymentStatus = p.status as PaymentStatus;
 
         if (p.status === "pending") {
@@ -398,7 +398,7 @@ export default function PaymentManagementPage() {
                              <TableCell>
                                 {p.work || 'N/A'}
                                 {p.status === 'paid' && p.paymentDate && (
-                                    <div className="text-xs text-muted-foreground">Pagado: {format(p.paymentDate as Date, "dd-MM-yy")} ({p.paymentMethod})</div>
+                                    <div className="text-xs text-muted-foreground">Pagado: {format(p.paymentDate, "dd-MM-yy")} ({p.paymentMethod})</div>
                                 )}
                             </TableCell>
                             <TableCell className="text-right flex justify-end gap-2">

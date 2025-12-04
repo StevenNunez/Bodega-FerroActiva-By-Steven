@@ -11,10 +11,11 @@ import {
   query,
   where,
   getDoc,
-  getDocs
+  getDocs,
+  FieldValue
 } from 'firebase/firestore';
 import { db } from '@/modules/core/lib/firebase';
-import { PurchaseRequest, Material } from '@/modules/core/lib/data';
+import { PurchaseRequest, Material, FirestoreWriteableDate } from '@/modules/core/lib/data';
 import { nanoid } from 'nanoid';
 
 
@@ -24,6 +25,12 @@ type Context = {
   db: any;
 };
 
+type CreatablePurchaseRequest = Omit<PurchaseRequest, 'id' | 'createdAt' | 'approvalDate' | 'receivedAt'> & {
+  createdAt: FieldValue;
+  approvalDate?: FieldValue;
+  receivedAt?: FieldValue;
+}
+
 export async function addPurchaseRequest(
   data: Partial<Omit<PurchaseRequest, 'id' | 'status' | 'createdAt' | 'tenantId'>>,
   context: Context
@@ -31,16 +38,16 @@ export async function addPurchaseRequest(
   const { user, tenantId } = context;
   if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
 
-  const requestData: Omit<PurchaseRequest, 'id'> = {
+  const requestData = {
+    ...data,
     status: 'pending',
     createdAt: serverTimestamp(),
     tenantId: tenantId,
     requesterName: user.name,
-    ...data,
-  } as Omit<PurchaseRequest, 'id'>;
+  };
 
   const collectionRef = collection(db, `purchaseRequests`);
-  await addDoc(collectionRef, requestData as any);
+  await addDoc(collectionRef, requestData);
 }
 
 export async function updatePurchaseRequestStatus(
@@ -77,7 +84,7 @@ export async function updatePurchaseRequestStatus(
     if (status === 'approved' && currentData.status !== 'approved') {
       updateData.approverId = user.id;
       updateData.approverName = user.name;
-      updateData.approvalDate = serverTimestamp();
+      (updateData as any).approvalDate = serverTimestamp();
     }
 
     transaction.update(requestRef, updateData as any);
@@ -100,10 +107,13 @@ export async function receivePurchaseRequest(
     if (existingMaterialId) {
         materialRef = doc(database, "materials", existingMaterialId);
     } else {
+        const requestSnap = await getDoc(requestRef);
+        if(!requestSnap.exists()) throw new Error("Solicitud no encontrada");
+
         const materialsQuery = query(
             collection(database, "materials"),
             where("tenantId", "==", tenantId),
-            where("name", "==", (await getDoc(requestRef)).data()?.materialName)
+            where("name", "==", requestSnap.data()?.materialName)
         );
         const materialsSnap = await getDocs(materialsQuery);
         if (!materialsSnap.empty) {

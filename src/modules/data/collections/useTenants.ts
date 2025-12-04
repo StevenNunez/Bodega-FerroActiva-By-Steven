@@ -4,6 +4,8 @@ import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '@/modules/core/lib/firebase';
 import { Tenant } from '@/modules/core/lib/data';
 
+// This hook is now primarily for the AuthProvider to fetch all tenants for a superadmin.
+// Other components should get tenant info from useAuth().
 export function useTenants() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
 

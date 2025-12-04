@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -28,11 +29,11 @@ export default function WorkerToolsPage() {
         
         const current = myLogs
             .filter(log => log.returnDate === null)
-            .sort((a, b) => (b.checkoutDate as Timestamp).toMillis() - (a.checkoutDate as Timestamp).toMillis());
+            .sort((a, b) => b.checkoutDate.getTime() - a.checkoutDate.getTime());
             
         const history = myLogs
             .filter(log => log.returnDate !== null)
-            .sort((a, b) => (b.returnDate as Timestamp).toMillis() - (a.returnDate as Timestamp).toMillis());
+            .sort((a, b) => (b.returnDate as Date).getTime() - (a.returnDate as Date).getTime());
 
         return { currentTools: current, toolHistory: history };
     }, [user, toolLogs]);

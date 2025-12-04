@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -25,7 +26,7 @@ export default function AdminReturnRequestsPage() {
 
   const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
-    return date instanceof Timestamp ? date.toDate() : date;
+    return date instanceof Timestamp ? date.toDate() : (date as Date);
   };
 
   const formatDate = (date: Date | Timestamp | null | undefined): string => {
@@ -53,8 +54,8 @@ export default function AdminReturnRequestsPage() {
     return (returnRequests || [])
       .filter((req: ReturnRequest) => req.status === activeTab)
       .sort((a: ReturnRequest, b: ReturnRequest) => {
-        const dateA = a.createdAt ? getDate(a.createdAt)?.getTime() || 0 : 0;
-        const dateB = b.createdAt ? getDate(b.createdAt)?.getTime() || 0 : 0;
+        const dateA = getDate(a.createdAt)?.getTime() || 0;
+        const dateB = getDate(b.createdAt)?.getTime() || 0;
         return dateB - dateA;
       });
   }, [returnRequests, activeTab]);

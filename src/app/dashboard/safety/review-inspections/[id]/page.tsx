@@ -22,7 +22,7 @@ import { generateInspectionPDF } from "@/lib/inspection-pdf-generator";
 
 const formatDate = (date: Date | Timestamp | undefined | null, includeTime = false) => {
   if (!date) return 'N/A';
-  const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
+  const jsDate = date instanceof Timestamp ? date.toDate() : date;
   const formatString = includeTime ? "d 'de' MMMM, yyyy HH:mm" : "d 'de' MMMM, yyyy";
   return format(jsDate, formatString, { locale: es });
 };

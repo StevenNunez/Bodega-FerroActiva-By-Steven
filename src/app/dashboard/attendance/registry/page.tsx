@@ -23,7 +23,7 @@ import { useToast } from "@/modules/core/hooks/use-toast";
 
 
 export default function AttendanceRegistryPage() {
-    const { attendanceLogs, handleAttendanceScan, loading, users } = useAppState();
+    const { attendanceLogs, handleAttendanceScan, isLoading, users } = useAppState();
     const [today, setToday] = useState('');
     const { toast } = useToast();
 
@@ -48,7 +48,7 @@ export default function AttendanceRegistryPage() {
                 grouped.get(log.userId)!.push(log);
             });
         
-        grouped.forEach((logs: AttendanceLog[]) => logs.sort((a,b) => (a.timestamp as Date).getTime() - (b.timestamp as Date).getTime()));
+        grouped.forEach((logs: AttendanceLog[]) => logs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
 
         return grouped;
     }, [attendanceLogs, today]);
@@ -107,7 +107,7 @@ export default function AttendanceRegistryPage() {
         });
     }
 
-    const formatTime = (date: Date | Timestamp | null | undefined): string => {
+    const formatTime = (date: Date): string => {
         if (!date) return "--:--";
         const jsDate = date instanceof Timestamp ? date.toDate() : date;
         return jsDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
@@ -120,7 +120,7 @@ export default function AttendanceRegistryPage() {
         return <Badge variant="outline">Finalizado</Badge>;
     }
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />

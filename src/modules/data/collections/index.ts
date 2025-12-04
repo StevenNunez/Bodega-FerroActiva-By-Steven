@@ -17,4 +17,4 @@ export * from './useAssignedChecklists';
 export * from './useSafetyInspections';
 export * from './useChecklistTemplates';
 export * from './useBehaviorObservations';
-export * from './useTenants';
+export * from './useStockMovements';

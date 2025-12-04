@@ -8,8 +8,9 @@ import {
   deleteDoc,
   writeBatch,
   Timestamp,
+  FieldValue,
 } from 'firebase/firestore';
-import { AssignedSafetyTask, ChecklistTemplate } from '../lib/data';
+import { AssignedSafetyTask, ChecklistTemplate } from '../../core/lib/data';
 
 type Context = {
   user: any;
@@ -19,7 +20,7 @@ type Context = {
 
 export async function addChecklistTemplate(template: Pick<ChecklistTemplate, 'title' | 'items'>, { user, tenantId, db }: Context) {
   if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-  const collectionRef = collection(db, `tenants/${tenantId}/checklistTemplates`);
+  const collectionRef = collection(db, `checklistTemplates`);
   await addDoc(collectionRef, {
     ...template,
     createdBy: user.id,
@@ -30,14 +31,14 @@ export async function addChecklistTemplate(template: Pick<ChecklistTemplate, 'ti
 
 export async function deleteChecklistTemplate(templateId: string, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
-    await deleteDoc(doc(db, `tenants/${tenantId}/checklistTemplates`, templateId));
+    await deleteDoc(doc(db, `checklistTemplates`, templateId));
 }
 
 export async function assignChecklistToSupervisors(template: ChecklistTemplate, supervisorIds: string[], workArea: string, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
     const batch = writeBatch(db);
     supervisorIds.forEach(supervisorId => {
-        const newTaskRef = doc(collection(db, `tenants/${tenantId}/assignedChecklists`));
+        const newTaskRef = doc(collection(db, `assignedChecklists`));
         const taskData = {
             templateId: template.id,
             templateTitle: template.title,
@@ -57,7 +58,7 @@ export async function assignChecklistToSupervisors(template: ChecklistTemplate, 
 
 export async function completeAssignedChecklist(checklist: AssignedSafetyTask, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
-    const checklistRef = doc(db, `tenants/${tenantId}/assignedChecklists`, checklist.id);
+    const checklistRef = doc(db, `assignedChecklists`, checklist.id);
     await updateDoc(checklistRef, {
         ...checklist,
         status: 'completed',
@@ -67,7 +68,7 @@ export async function completeAssignedChecklist(checklist: AssignedSafetyTask, {
 
 export async function reviewAssignedChecklist(checklistId: string, status: 'approved' | 'rejected', notes: string, signature: string, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
-    const checklistRef = doc(db, `tenants/${tenantId}/assignedChecklists`, checklistId);
+    const checklistRef = doc(db, `assignedChecklists`, checklistId);
     await updateDoc(checklistRef, {
         status,
         rejectionNotes: status === 'rejected' ? notes : null,
@@ -82,12 +83,12 @@ export async function reviewAssignedChecklist(checklistId: string, status: 'appr
 
 export async function deleteAssignedChecklist(checklistId: string, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
-    await deleteDoc(doc(db, `tenants/${tenantId}/assignedChecklists`, checklistId));
+    await deleteDoc(doc(db, `assignedChecklists`, checklistId));
 }
 
 export async function addSafetyInspection(data: any, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-    const inspectionRef = collection(db, `tenants/${tenantId}/safetyInspections`);
+    const inspectionRef = collection(db, `safetyInspections`);
     await addDoc(inspectionRef, {
         ...data,
         inspectorId: user.id,
@@ -100,7 +101,7 @@ export async function addSafetyInspection(data: any, { user, tenantId, db }: Con
 
 export async function completeSafetyInspection(inspectionId: string, data: any, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-    const inspectionRef = doc(db, `tenants/${tenantId}/safetyInspections`, inspectionId);
+    const inspectionRef = doc(db, `safetyInspections`, inspectionId);
     await updateDoc(inspectionRef, {
         ...data,
         status: 'completed',
@@ -111,7 +112,7 @@ export async function completeSafetyInspection(inspectionId: string, data: any, 
 
 export async function reviewSafetyInspection(inspectionId: string, status: 'approved' | 'rejected', notes: string, signature: string, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-    const inspectionRef = doc(db, `tenants/${tenantId}/safetyInspections`, inspectionId);
+    const inspectionRef = doc(db, `safetyInspections`, inspectionId);
     await updateDoc(inspectionRef, {
         status,
         rejectionNotes: status === 'rejected' ? notes : null,
@@ -126,7 +127,7 @@ export async function reviewSafetyInspection(inspectionId: string, status: 'appr
 
 export async function addBehaviorObservation(data: any, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
-    const collectionRef = collection(db, `tenants/${tenantId}/behaviorObservations`);
+    const collectionRef = collection(db, `behaviorObservations`);
     await addDoc(collectionRef, {
         ...data,
         observerId: user.id,
