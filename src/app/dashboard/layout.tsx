@@ -4,6 +4,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from "next/navigation";
+import { DataProvider } from '@/modules/data/DataProvider';
 import { useAuth } from "@/modules/auth/useAuth";
 import { useAppState } from "@/modules/data/useData";
 import { Sidebar } from "@/components/sidebar";
@@ -30,11 +31,7 @@ import { Timestamp } from "firebase/firestore";
 import { UserRole, type SupplierPayment, type MaterialRequest, type PurchaseRequest, type Supplier, type Tenant } from "@/modules/core/lib/data";
 import { ROLES } from '@/modules/core/lib/permissions';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, authLoading, logout, tenants, currentTenantId, setCurrentTenantId } = useAuth();
   const { 
     requests, 
@@ -261,7 +258,7 @@ export default function DashboardLayout({
                   <p className="text-xs text-primary font-medium pt-1">{getRoleDisplayName(user.role)}</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                 {user.role === 'superadmin' && (
+                 {user.role === 'super-admin' && (
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <Users className="mr-2 h-4 w-4" />
@@ -298,7 +295,16 @@ export default function DashboardLayout({
            </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
+        
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <DataProvider>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </DataProvider>
   );
 }

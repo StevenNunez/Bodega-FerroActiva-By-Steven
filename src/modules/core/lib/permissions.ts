@@ -1,3 +1,4 @@
+
 // src/modules/core/lib/permissions.ts
 
 import type { UserRole } from "./data";
@@ -109,7 +110,7 @@ const fullTenantAdminPermissions: Permission[] = Object.keys(ALL_PERMISSIONS)
   .filter(p => !['tenants:create', 'tenants:delete', 'tenants:switch', 'module_subscriptions:view'].includes(p)) as Permission[];
 
 export const ROLES: Record<UserRole, { label: string; description: string; permissions: Permission[] }> = {
-    'superadmin': {
+    'super-admin': {
         label: 'Super Admin',
         description: 'Control total de la plataforma y todos los tenants/suscriptores.',
         permissions: Object.keys(ALL_PERMISSIONS) as Permission[],
@@ -196,7 +197,7 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
 };
 
 export const ROLES_ORDER: UserRole[] = [
-  'superadmin',
+  'super-admin',
   'admin',
   'operations',
   'bodega-admin',

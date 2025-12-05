@@ -1,5 +1,3 @@
-
-
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -35,6 +33,7 @@ import {
   Undo2,
   FolderTree, 
   HandCoins,
+  Crown,
 } from 'lucide-react';
 
 import { useAuth } from '@/modules/core/contexts/app-provider';
@@ -80,6 +79,26 @@ const workerNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if (can('tools:view_own')) {
         items.push({ href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' });
+    }
+    return items;
+}
+
+const cphsNavItems = (can: (p: Permission) => boolean) => {
+    const items = [];
+    if (can('module_safety:view')) {
+      items.push({ href: '/dashboard/cphs', icon: LayoutDashboard, label: 'Resumen CPHS' });
+    }
+    if (can('safety_templates:create')) {
+      items.push({ href: '/dashboard/safety/templates', icon: FileUp, label: 'Gestión de Plantillas' });
+    }
+    if (can('safety_checklists:review')) {
+      items.push({ href: '/dashboard/safety/review-checklists', icon: ShieldCheck, label: 'Revisar Checklists' });
+    }
+     if (can('safety_inspections:review')) {
+      items.push({ href: '/dashboard/safety/review-inspections', icon: ShieldCheck, label: 'Revisar Inspecciones' });
+    }
+    if (can('safety_observations:review')) {
+      items.push({ href: '/dashboard/safety/review-observations', icon: ShieldCheck, label: 'Revisar Observaciones' });
     }
     return items;
 }
@@ -143,9 +162,15 @@ const reportsNavItems = (can: (p: Permission) => boolean) => {
     return items;
 };
 
-const subscriptionsNavItems = [
-    { href: '/dashboard/subscriptions', icon: Users, label: 'Gestión de Inquilinos' },
-];
+const subscriptionsNavItems = (can: (p: Permission) => boolean) => {
+    const items = [];
+    if(can('module_subscriptions:view')) {
+        items.push({ href: '/dashboard/subscriptions', icon: Users, label: 'Suscriptores' });
+        items.push({ href: '/dashboard/subscriptions/plans', icon: Crown, label: 'Planes y Permisos' });
+    }
+    return items;
+};
+
 
 const permissionsNavItems = [
     { href: '/dashboard/permissions', icon: ListChecks, label: 'Gestión de Permisos' },
@@ -232,7 +257,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
             title = 'Estadísticas y Reportes';
             break;
         case 'subscriptions':
-            navItems = subscriptionsNavItems;
+            navItems = subscriptionsNavItems(can);
             title = 'Módulo de Suscripciones';
             break;
         case 'permissions':
@@ -250,6 +275,10 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
         case 'worker':
             title = 'Módulo Herramientas';
             navItems = workerNavItems(can);
+            break;
+        case 'cphs':
+            title = 'Módulo Comité Paritario';
+            navItems = cphsNavItems(can);
             break;
         case 'profile':
             navItems = [];
@@ -295,7 +324,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
             )})}
           </nav>
         </div>
-        { user?.role === 'superadmin' &&
+        { user?.role === 'super-admin' &&
             <div className="mt-auto p-4 border-t">
                 <TenantSwitcher />
             </div>

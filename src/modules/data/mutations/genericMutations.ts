@@ -16,9 +16,9 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/modules/core/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { ROLES as ROLES_DEFAULT } from '@/modules/core/lib/permissions';
+import { ROLES as ROLES_DEFAULT, Permission } from '@/modules/core/lib/permissions';
 import { nanoid } from 'nanoid';
-import type { UserRole } from '@/modules/core/lib/data';
+import type { UserRole, Tenant } from '@/modules/core/lib/data';
 
 type Context = {
   user: any;
@@ -54,9 +54,13 @@ export async function addTenant({ tenantName, tenantId, adminName, adminEmail }:
     // await batch.commit();
 }
 
+export async function updateTenant(tenantId: string, data: Partial<Tenant>, { db }: Context) {
+    const tenantRef = doc(db, `tenants`, tenantId);
+    await updateDoc(tenantRef, data);
+}
+
 // --- User ---
 export async function updateUser(userId: string, data: any, { db, tenantId }: Context) {
-    if (!tenantId) throw new Error("Inquilino no válido.");
     const userRef = doc(db, `users`, userId);
     await updateDoc(userRef, data);
 }
@@ -255,3 +259,9 @@ export async function updateRolePermissions(role: UserRole, permission: any, che
     }
   });
 }
+
+export async function updatePlanPermissions(planId: string, permissions: Permission[], { db }: Context) {
+    const planRef = doc(db, "subscriptionPlans", planId);
+    await updateDoc(planRef, { allowedPermissions: permissions });
+}
+

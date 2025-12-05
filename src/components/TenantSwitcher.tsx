@@ -16,7 +16,7 @@ import type { Tenant } from "@/modules/core/lib/data";
 export function TenantSwitcher() {
   const { user, tenants, currentTenantId, setCurrentTenantId } = useAuth();
 
-  if (user?.role !== "superadmin" || !tenants || tenants.length === 0) return null;
+  if (user?.role !== "super-admin" || !tenants || tenants.length === 0) return null;
 
   const currentTenant = tenants.find((t: Tenant) => t.tenantId === currentTenantId);
 

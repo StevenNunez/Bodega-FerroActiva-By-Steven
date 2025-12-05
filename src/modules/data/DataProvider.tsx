@@ -64,6 +64,7 @@ import {
   useChecklistTemplates,
   useBehaviorObservations,
   useStockMovements,
+  useSubscriptionPlans,
 } from "./collections";
 import { AppDataState, AppStateAction, AppStateContextType } from './types';
 import * as materialRequestMutations from './mutations/materialRequestMutations';
@@ -77,6 +78,7 @@ import * as paymentMutations from './mutations/paymentMutations';
 const initialState: AppDataState = {
     isLoading: true,
     roles: ROLES_DEFAULT,
+    subscriptionPlans: PLANS,
     users: [],
     materials: [],
     tools: [],
@@ -105,6 +107,8 @@ const appReducer = (state: AppDataState, action: AppStateAction): AppDataState =
             return { ...state, [action.payload.collection]: action.payload.data };
         case 'SET_ROLES':
             return { ...state, roles: action.payload };
+        case 'SET_PLANS':
+            return { ...state, subscriptionPlans: action.payload };
         case 'SET_LOADING':
             return { ...state, isLoading: action.payload };
         default:
@@ -145,6 +149,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const behaviorObservationsData = useBehaviorObservations(tenantId);
     const rolesData = useRoles();
     const stockMovementsData = useStockMovements(tenantId);
+    const subscriptionPlansData = useSubscriptionPlans();
 
     useEffect(() => {
         if (!user) return;
@@ -186,6 +191,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
         const rolesToUse = rolesData && Object.keys(rolesData).length > 0 ? rolesData : ROLES_DEFAULT;
         dispatch({ type: "SET_ROLES", payload: rolesToUse });
+
+        const plansToUse = subscriptionPlansData && Object.keys(subscriptionPlansData).length > 0 ? subscriptionPlansData : PLANS;
+        dispatch({ type: "SET_PLANS", payload: plansToUse });
     
         dispatch({ type: "SET_LOADING", payload: false });
     
@@ -194,12 +202,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
         unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
         attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
-        checklistTemplatesData, behaviorObservationsData, rolesData, stockMovementsData
+        checklistTemplatesData, behaviorObservationsData, rolesData, stockMovementsData,
+        subscriptionPlansData
     ]);
 
     const can = useCallback((permission: Permission): boolean => {
       if (!user) return false;
-      if (user.role === 'superadmin' || user.role === 'admin' || user.role === 'operations') return true;
+      if (user.role === 'super-admin' || user.role === 'admin' || user.role === 'operations') return true;
     
       const userRolePermissions = state.roles[user.role]?.permissions || [];
     
@@ -306,15 +315,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       
       // Permissions
       updateRolePermissions: bindContext(genericMutations.updateRolePermissions),
+      updatePlanPermissions: bindContext(genericMutations.updatePlanPermissions),
       
       // Purchase Orders
       generatePurchaseOrder: bindContext(purchaseRequestMutations.generatePurchaseOrder),
+
+      // Tenant
+      updateTenant: bindContext(genericMutations.updateTenant),
     };
 
     const value: AppStateContextType = {
         ...state,
         isLoading: state.isLoading,
         roles: state.roles,
+        subscriptionPlans: state.subscriptionPlans,
         can,
         notify,
         ...functions,

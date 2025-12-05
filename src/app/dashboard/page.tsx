@@ -77,17 +77,20 @@ export default function DashboardHubPage() {
     { href: '/dashboard/payments', icon: DollarSign, title: "Módulo de Pagos", description: "Gestiona las facturas y pagos a proveedores.", permission: 'module_payments:view' },
     { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza consumos y genera informes.", permission: 'module_reports:view' },
     { href: '/dashboard/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'permissions:manage' },
-    { href: '/dashboard/worker', icon: Wrench, title: "Módulo Herramientas", description: "Consulta el historial de herramientas a tu cargo.", roles: ['worker', 'cphs'] },
+    { href: '/dashboard/worker', icon: Wrench, title: "Módulo Herramientas", description: "Consulta el historial de herramientas a tu cargo.", roles: ['worker'] },
     { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tareas de seguridad.", roles: ['supervisor', 'apr', 'bodega-admin'] },
+    { href: '/dashboard/cphs', icon: ShieldCheck, title: "Módulo Comité Paritario", description: "Accede a las herramientas de gestión de seguridad del comité.", roles: ['cphs'] },
   ];
 
-  const finalModules = allModules.filter(m => {
-    if (user.role === 'superadmin') return true;
-    if (m.superadminOnly) return false;
-    if (m.roles) return m.roles.includes(user.role);
-    if (m.permission) return can(m.permission);
-    return false;
-  }).filter((value, index, self) => self.findIndex(v => v.href === value.href) === index);
+  const visibleModules = React.useMemo(() => {
+    return allModules.filter(m => {
+        if (user.role === 'super-admin') return true;
+        if (m.superadminOnly) return false;
+        if (m.roles) return m.roles.includes(user.role);
+        if (m.permission) return can(m.permission);
+        return false; // No mostrar si no cumple ninguna condición explícita
+    }).filter((value, index, self) => self.findIndex(v => v.href === value.href) === index);
+  }, [user, can]);
   
   return (
     <div className="flex flex-col gap-8">
@@ -96,7 +99,7 @@ export default function DashboardHubPage() {
         description="Selecciona el módulo al que deseas acceder o gestiona tu perfil."
       />
 
-      {finalModules.length === 0 && user.role !== 'guardia' && (
+      {visibleModules.length === 0 && user.role !== 'guardia' && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Sin Módulos Asignados</AlertTitle>
@@ -116,7 +119,7 @@ export default function DashboardHubPage() {
           description="Consulta tu información personal y de planilla."
         />
 
-        {finalModules.map(module => (
+        {visibleModules.map(module => (
           <ModuleCard key={module.href} {...module} />
         ))}
       </div>

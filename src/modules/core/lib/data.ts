@@ -5,7 +5,7 @@ import { Timestamp, FieldValue } from "firebase/firestore";
 // This type is used when writing data to Firestore
 export type FirestoreWriteableDate = Date | Timestamp | FieldValue;
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "superadmin" | "bodega-admin" | "cphs";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin" | "bodega-admin" | "cphs";
 
 export interface Tenant {
   id: string;
@@ -26,6 +26,7 @@ export interface SubscriptionPlan {
   maxRequests?: number;
   storageLimitMB?: number;
   expiresAt?: Timestamp;
+  allowedPermissions?: string[];
 }
 
 export interface User {

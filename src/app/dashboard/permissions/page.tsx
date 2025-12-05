@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from "react";
@@ -40,7 +39,7 @@ const RoleCard = ({
             const perm = PERMISSIONS[key];
             const group = perm.group || 'General';
 
-            if (authUser?.role !== 'superadmin' && group === 'Plataforma') {
+            if (authUser?.role !== 'super-admin' && group === 'Plataforma') {
                 return acc;
             }
 
@@ -130,11 +129,11 @@ export default function PermissionsPage() {
               label: defaultRole.label,
               description: defaultRole.description,
               permissions: dbRole?.permissions || defaultRole.permissions,
-              isEditable: canManage || user.role === 'superadmin'
+              isEditable: canManage || user.role === 'super-admin'
             };
           })
           .filter(Boolean)
-          .filter(role => user.role === 'superadmin' || role!.key !== 'superadmin');
+          .filter(role => user.role === 'super-admin' || role!.key !== 'super-admin');
     }, [user, roles, can]);
 
     if (!can('module_permissions:view')) {
@@ -156,7 +155,7 @@ export default function PermissionsPage() {
                 description="Visualiza y edita las capacidades de cada rol en el sistema."
             />
             
-            {!can('permissions:manage') && user?.role !== 'superadmin' && (
+            {!can('permissions:manage') && user?.role !== 'super-admin' && (
                 <Alert>
                     <Shield className="h-4 w-4" />
                     <AlertTitle>Modo de Solo Lectura</AlertTitle>

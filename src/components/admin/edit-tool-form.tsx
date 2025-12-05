@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,20 +9,27 @@ import { useToast } from '@/modules/core/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, QrCode } from 'lucide-react';
 import { Tool } from '@/modules/core/lib/data';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 const FormSchema = z.object({
-  name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
+  name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres.').max(100),
 });
 
 type FormData = z.infer<typeof FormSchema>;
 
 interface EditToolFormProps {
-    tool: Tool;
-    isOpen: boolean;
-    onClose: () => void;
+  tool: Tool | null;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export function EditToolForm({ tool, isOpen, onClose }: EditToolFormProps) {
@@ -32,32 +40,31 @@ export function EditToolForm({ tool, isOpen, onClose }: EditToolFormProps) {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
-    defaultValues: {
-        name: tool.name,
-    }
   });
 
   useEffect(() => {
-      if(tool) {
-          reset({
-            name: tool.name,
-          });
-      }
-  }, [tool, reset]);
+    if (tool) {
+      setValue('name', tool.name);
+    }
+  }, [tool, setValue]);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
+    if (!tool) return;
+
     try {
       await updateTool(tool.id, data);
       toast({
-        title: 'Herramienta Actualizada',
-        description: `El nombre de la herramienta ha sido guardado.`,
+        title: 'Herramienta actualizada',
+        description: `Se ha cambiado el nombre a "${data.name}".`,
       });
       onClose();
+      reset();
     } catch (error) {
-       toast({
+      toast({
         variant: 'destructive',
         title: 'Error',
         description: 'No se pudo actualizar la herramienta.',
@@ -66,39 +73,57 @@ export function EditToolForm({ tool, isOpen, onClose }: EditToolFormProps) {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[480px]">
-            <DialogHeader>
-                <DialogTitle>Editar Herramienta</DialogTitle>
-                <DialogDescription>
-                    Modifica el nombre de la herramienta. El código QR no cambiará.
-                </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
-                <div className="space-y-2">
-                    <Label htmlFor="tool-name">Nombre de la Herramienta</Label>
-                    <Input id="tool-name" placeholder="Ej: Martillo de bola" {...register('name')} />
-                    {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-                </div>
-                
-                 <div className="space-y-2">
-                    <Label htmlFor="tool-qrcode">Código QR</Label>
-                    <Input id="tool-qrcode" value={tool.qrCode} disabled />
-                </div>
-                
-                <DialogFooter>
-                    <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-                    <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                        <Save className="mr-2 h-4 w-4" />
-                        )}
-                        Guardar Cambios
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar Herramienta</DialogTitle>
+          <DialogDescription>
+            Solo puedes modificar el nombre. El código QR permanece igual.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="name">Nombre de la herramienta</Label>
+            <Input
+              id="name"
+              placeholder="Ej: Taladro percutor 18V"
+              {...register('name')}
+              autoFocus
+            />
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Código QR (no editable)</Label>
+            <div className="flex items-center gap-3 p-3 bg-muted rounded-md">
+              <QrCode className="h-5 w-5 text-muted-foreground" />
+              <code className="text-sm font-mono">{tool?.qrCode}</code>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Guardar cambios
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
     </Dialog>
   );
 }

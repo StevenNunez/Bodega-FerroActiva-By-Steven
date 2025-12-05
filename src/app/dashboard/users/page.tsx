@@ -40,7 +40,7 @@ export default function AdminUsersPage() {
     
     const getRoleBadgeVariant = (role: UserRole): "default" | "secondary" | "destructive" | "outline" => {
         switch (role) {
-            case 'superadmin':
+            case 'super-admin':
             case 'admin': return 'destructive';
             case 'operations': return 'default';
             case 'bodega-admin': return 'secondary';

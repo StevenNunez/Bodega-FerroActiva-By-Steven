@@ -88,7 +88,7 @@ export default function AttendanceDashboardPage() {
         const safeLogs: AttendanceLog[] = attendanceLogs || [];
 
         const relevantUsers = safeUsers.filter(
-            (u: User) => u.role !== "guardia" && u.role !== "superadmin"
+            (u: User) => u.role !== "guardia" && u.role !== "super-admin"
         );
 
         const todaysLogs = safeLogs.filter((log: AttendanceLog) => log.date === todayStr);

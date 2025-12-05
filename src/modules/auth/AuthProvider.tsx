@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const can = useCallback(
     (permission: Permission): boolean => {
       if (!user) return false;
-      if (user.role === 'superadmin' || user.role === 'admin' || user.role === 'operations') return true;
+      if (user.role === 'super-admin' || user.role === 'admin' || user.role === 'operations') return true;
       const userPermissions = ROLES_DEFAULT[user.role]?.permissions;
       return !!userPermissions?.includes(permission);
     },
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   const setCurrentTenantId = (tenantId: string | null) => {
     _setCurrentTenantId(tenantId);
-    if (user?.role === 'superadmin') {
+    if (user?.role === 'super-admin') {
         if (tenantId) {
             localStorage.setItem("selectedTenantId", tenantId);
         } else {
@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userDoc.exists()) {
           const userData = { id: userDoc.id, ...userDoc.data() } as User;
           setUser(userData);
-          if (userData.role !== 'superadmin') {
+          if (userData.role !== 'super-admin') {
             _setCurrentTenantId(userData.tenantId);
           } else {
             const savedTenantId = localStorage.getItem('selectedTenantId');
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (user?.role === 'superadmin') {
+    if (user?.role === 'super-admin') {
       const q = query(collection(db, 'tenants'));
       const unsubscribe = onSnapshot(
         q,
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const tenantToUse =
-      user?.role === 'superadmin' ? currentTenantId : user?.tenantId;
+      user?.role === 'super-admin' ? currentTenantId : user?.tenantId;
     if (tenantToUse) {
       const subRef = doc(db, 'subscriptions', tenantToUse);
       const unsubscribe = onSnapshot(subRef, (snap) => {
@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       });
       return () => unsubscribe();
-    } else if (user?.role === 'superadmin'){
+    } else if (user?.role === 'super-admin'){
       setSubscription(PLANS.enterprise as SubscriptionPlan); 
     } else {
       setSubscription(null);
@@ -187,7 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getTenantId = useCallback(() => {
     if (!user) return null;
-    return user.role === 'superadmin' ? currentTenantId : user.tenantId;
+    return user.role === 'super-admin' ? currentTenantId : user.tenantId;
   }, [user, currentTenantId]);
 
   const login = (email: string, pass: string) =>

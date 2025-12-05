@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -27,7 +28,7 @@ const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mo
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'superadmin', 'cphs'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin', 'cphs'], { required_error: 'Debes seleccionar un rol.' }),
   rut: z.string().optional(),
   phone: z.string().optional(),
   cargo: z.string().optional(),
@@ -53,8 +54,8 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
 
   const canEditRole = React.useMemo(() => {
     if (!authUser) return false;
-    if (authUser.role === 'superadmin') return true;
-    if (can('users:edit') && user.role !== 'superadmin') {
+    if (authUser.role === 'super-admin') return true;
+    if (can('users:edit') && user.role !== 'super-admin') {
       return true;
     }
     return false;
@@ -146,7 +147,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {Object.entries(ROLES).map(([key, value]) => (
-                                            (authUser?.role === 'superadmin' || key !== 'superadmin') && (
+                                            (authUser?.role === 'super-admin' || key !== 'super-admin') && (
                                                 <SelectItem key={key} value={key}>
                                                     {value.label}
                                                 </SelectItem>

@@ -1,272 +1,381 @@
-
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { useAppState } from "@/modules/core/contexts/app-provider";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, MoreHorizontal, Edit, Loader2, QrCode } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Trash2, MoreHorizontal, Edit, QrCode } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { Tool as ToolType, ToolLog, User } from "@/modules/core/lib/data";
-import { cn } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EditToolForm } from "@/components/admin/edit-tool-form";
 import { ToolCheckoutCard } from "@/components/admin/tool-checkout-card";
 import { useToast } from "@/modules/core/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { Tool as ToolType, ToolLog, User } from "@/modules/core/lib/data";
 
+const ITEMS_PER_PAGE = 10;
 
-export default function AdminToolsPage() {
+// Hook optimizado: datos de herramientas
+function useToolsData() {
   const { users, toolLogs, tools, deleteTool, isLoading, can } = useAppState();
-  const [editingTool, setEditingTool] = useState<ToolType | null>(null);
-  const [toolSearchTerm, setToolSearchTerm] = useState("");
-  const [toolStatusFilter, setToolStatusFilter] = useState<"all" | "Disponible" | "Ocupado">("all");
-  const [toolPage, setToolPage] = useState(1);
-  const itemsPerPage = 5;
   const { toast } = useToast();
-  
-  const canDeleteTools = can('tools:delete');
+  const canDelete = can("tools:delete");
 
-  const checkedOutTools = useMemo(() => new Map((toolLogs || []).filter((log: ToolLog) => log.returnDate === null).map((log: ToolLog) => [log.toolId, log])), [toolLogs]);
+  const checkedOutMap = useMemo(() => {
+    const map = new Map<string, ToolLog>();
+    toolLogs
+      ?.filter((log): log is ToolLog & { returnDate: null } => log.returnDate === null)
+      .forEach((log) => map.set(log.toolId, log));
+    return map;
+  }, [toolLogs]);
 
-  const getToolCheckoutInfo = useMemo(() => {
-    const workerMap = new Map((users || []).map((u: User) => [u.id, u.name]));
-    return (toolId: string) => {
-      const log: ToolLog | undefined = checkedOutTools.get(toolId);
+  const userNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    users?.forEach((u) => map.set(u.id, u.name));
+    return map;
+  }, [users]);
+
+  const getCheckoutInfo = useCallback(
+    (toolId: string) => {
+      const log = checkedOutMap.get(toolId);
       if (!log) return { status: "Disponible" as const, workerName: null };
-      
-      const workerName = workerMap.get(log.userId) ?? log.userName ?? "N/A";
-      
+      const workerName = userNameMap.get(log.userId) ?? log.userName ?? "Desconocido";
       return { status: "Ocupado" as const, workerName };
-    };
-  }, [checkedOutTools, users]);
+    },
+    [checkedOutMap, userNameMap]
+  );
+
+  const handleDelete = useCallback(
+    async (toolId: string, toolName: string) => {
+      try {
+        await deleteTool(toolId);
+        toast({
+          title: "Herramienta eliminada",
+          description: `${toolName} ha sido eliminada correctamente.`,
+        });
+      } catch (err) {
+        toast({
+          variant: "destructive",
+          title: "Error al eliminar",
+          description: err instanceof Error ? err.message : "No se pudo eliminar la herramienta.",
+        });
+      }
+    },
+    [deleteTool, toast]
+  );
+
+  return { tools: tools || [], isLoading, canDelete, getCheckoutInfo, handleDelete };
+}
+
+// Hook de filtrado y paginación
+function useToolFilteringAndPagination(tools: ToolType[], getCheckoutInfo: (id: string) => any) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "Disponible" | "Ocupado">("all");
+  const [page, setPage] = useState(1);
 
   const filteredTools = useMemo(() => {
-    let filtered: ToolType[] = tools || [];
-    if (toolSearchTerm) {
-      filtered = filtered.filter(tool => 
-        tool.name.toLowerCase().includes(toolSearchTerm.toLowerCase())
-      );
-    }
-    if (toolStatusFilter !== "all") {
-      filtered = filtered.filter((tool) => getToolCheckoutInfo(tool.id).status === toolStatusFilter);
-    }
-    return filtered;
-  }, [tools, toolStatusFilter, getToolCheckoutInfo, toolSearchTerm]);
+    return tools.filter((tool) => {
+      const matchesSearch = searchTerm
+        ? tool.name.toLowerCase().includes(searchTerm.toLowerCase())
+        : true;
+      const matchesStatus =
+        statusFilter === "all" || getCheckoutInfo(tool.id).status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [tools, searchTerm, statusFilter, getCheckoutInfo]);
 
-  const paginatedTools = filteredTools.slice((toolPage - 1) * itemsPerPage, toolPage * itemsPerPage);
-  const totalToolPages = Math.ceil(filteredTools.length / itemsPerPage);
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredTools.length / ITEMS_PER_PAGE));
+  const paginatedTools = filteredTools.slice(
+    (page - 1) * ITEMS_PER_PAGE,
+    page * ITEMS_PER_PAGE
+  );
 
-  const handleDeleteTool = async (toolId: string, toolName: string) => {
-    try {
-      await deleteTool(toolId);
-      toast({
-        title: "Herramienta Eliminada",
-        description: `La herramienta ${toolName} ha sido eliminada correctamente.`,
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error al eliminar",
-        description: error instanceof Error ? error.message : "No se pudo eliminar la herramienta.",
-      });
-    }
+  return {
+    searchTerm,
+    setSearchTerm,
+    statusFilter,
+    setStatusFilter,
+    page,
+    setPage: (p: number) => setPage(Math.max(1, Math.min(p, totalPages))),
+    paginatedTools,
+    totalPages,
+    hasResults: filteredTools.length > 0,
+    totalFiltered: filteredTools.length,
+  };
+}
+
+export default function AdminToolsPage() {
+  const [editingTool, setEditingTool] = useState<ToolType | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null);
+
+  const { tools, isLoading, getCheckoutInfo, handleDelete } = useToolsData();
+  const {
+    searchTerm,
+    setSearchTerm,
+    statusFilter,
+    setStatusFilter,
+    page,
+    setPage,
+    paginatedTools,
+    totalPages,
+    totalFiltered,
+  } = useToolFilteringAndPagination(tools, getCheckoutInfo);
+
+  const onEdit = (tool: ToolType) => {
+    setEditingTool(tool);
+  };
+
+  const onDelete = (tool: ToolType) => {
+    const info = getCheckoutInfo(tool.id);
+    if (info.status === "Ocupado") return;
+    setDeleteCandidate({ id: tool.id, name: tool.name });
   };
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title="Gestión de Herramientas" description="Administra el inventario y el ciclo de vida de las herramientas." />
+      <PageHeader
+        title="Gestión de Herramientas"
+        description="Administra el inventario, préstamos y códigos QR de todas las herramientas."
+      />
 
       {editingTool && (
-        <EditToolForm tool={editingTool} isOpen={!!editingTool} onClose={() => setEditingTool(null)} />
+        <EditToolForm
+          tool={editingTool}
+          isOpen={!!editingTool}
+          onClose={() => setEditingTool(null)}
+        />
       )}
 
       <ToolCheckoutCard />
 
-      <div className="grid grid-cols-1 gap-8">
-        <div className="space-y-8">
-          <Card className="!max-w-none">
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <CardTitle>Inventario de Herramientas</CardTitle>
-                    <CardDescription>Lista completa de todas las herramientas y su estado actual.</CardDescription>
-                  </div>
-                  <Button asChild>
-                      <Link href="/dashboard/admin/tools/print-qrs">
-                          <QrCode className="mr-2 h-4 w-4" />
-                          Imprimir Códigos QR
-                      </Link>
-                  </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="p-6 space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <Input 
-                      placeholder="Buscar herramienta por nombre..."
-                      value={toolSearchTerm}
-                      onChange={(e) => setToolSearchTerm(e.target.value)}
-                      className="flex-grow"
-                    />
-                    <div className="w-full sm:w-[180px]">
-                      <Select
-                        value={toolStatusFilter}
-                        onValueChange={(value) => {
-                          setToolStatusFilter(value as "all" | "Disponible" | "Ocupado");
-                          setToolPage(1);
-                        }}
-                      >
-                        <SelectTrigger id="tool-status-filter" aria-label="Filtrar por estado">
-                          <SelectValue placeholder="Todos" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos</SelectItem>
-                          <SelectItem value="Disponible">Disponible</SelectItem>
-                          <SelectItem value="Ocupado">Ocupado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                </div>
-                <div className="relative overflow-x-auto max-w-full">
-                  <div className="min-w-[800px]">
-                    <Table>
-                      <TableHeader className="sticky top-0 bg-card">
-                        <TableRow>
-                          <TableHead className="w-[200px]">Nombre</TableHead>
-                          <TableHead className="w-[100px]">Código QR</TableHead>
-                          <TableHead className="w-[150px]">Estado</TableHead>
-                          <TableHead className="w-[200px]">En posesión de</TableHead>
-                          <TableHead className="w-[150px] text-right">Acciones</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                                </TableCell>
-                            </TableRow>
-                        ) : paginatedTools.length > 0 ? (
-                          paginatedTools.map((tool) => {
-                            const checkoutInfo = getToolCheckoutInfo(tool.id);
-                            return (
-                              <TableRow key={tool.id}>
-                                <TableCell className="font-medium max-w-[200px] truncate">{tool.name}</TableCell>
-                                <TableCell>
-                                  <div className="p-1 bg-white rounded-md w-fit">
-                                    <QRCodeSVG value={tool.qrCode} size={40} />
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    className={cn(
-                                      checkoutInfo.status === "Disponible" ? "bg-green-600 hover:bg-green-700" : "bg-orange-600 hover:bg-orange-700",
-                                      "text-white"
-                                    )}
-                                  >
-                                    {checkoutInfo.status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {checkoutInfo.workerName ?? "---"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" className="h-8 w-8 p-0" aria-label={`Abrir menú para ${tool.name}`}>
-                                        <span className="sr-only">Abrir menú</span>
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => setEditingTool(tool)}>
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        <span>Editar</span>
-                                      </DropdownMenuItem>
-                                      {canDeleteTools && (
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                            <DropdownMenuItem
-                                                onSelect={(e) => e.preventDefault()}
-                                                disabled={checkoutInfo.status !== "Disponible"}
-                                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                                            >
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                <span>Eliminar</span>
-                                            </DropdownMenuItem>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Estás seguro de eliminar {tool.name}?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                Esta acción no se puede deshacer. Se eliminará permanentemente la herramienta de la base de datos.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                className="bg-destructive hover:bg-destructive/90"
-                                                onClick={() => handleDeleteTool(tool.id, tool.name)}
-                                                >
-                                                Sí, eliminar herramienta
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                      )}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
-                              No se encontraron herramientas.
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-                {totalToolPages > 1 && (
-                  <div className="flex justify-between items-center mt-4 px-6 pb-6">
-                    <Button
-                      variant="outline"
-                      disabled={toolPage === 1}
-                      onClick={() => setToolPage((prev) => prev - 1)}
-                      aria-label="Página anterior de herramientas"
-                    >
-                      Anterior
-                    </Button>
-                    <span>
-                      Página {toolPage} de {totalToolPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      disabled={toolPage === totalToolPages}
-                      onClick={() => setToolPage((prev) => prev + 1)}
-                      aria-label="Página siguiente de herramientas"
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle>Inventario de Herramientas</CardTitle>
+              <CardDescription>
+                {tools.length} herramienta{tools.length !== 1 ? "s" : ""} en total
+                {totalFiltered !== tools.length && ` · ${totalFiltered} filtradas · ${paginatedTools.length} mostradas`}
+              </CardDescription>
+            </div>
+            <Button asChild>
+              <Link href="/dashboard/admin/tools/print-qrs">
+                <QrCode className="mr-2 h-4 w-4" />
+                Imprimir Códigos QR
+              </Link>
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          {/* Filtros */}
+          <div className="p-6 border-b space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Input
+                placeholder="Buscar por nombre..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="sm:max-w-sm"
+              />
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="Disponible">Disponibles</SelectItem>
+                  <SelectItem value="Ocupado">Prestadas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Tabla */}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead className="w-24 text-center">QR</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>En posesión de</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-32 text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                      <span className="sr-only">Cargando herramientas...</span>
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedTools.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                      {searchTerm || statusFilter !== "all"
+                        ? "No se encontraron herramientas con los filtros aplicados."
+                        : "Aún no hay herramientas registradas."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedTools.map((tool) => {
+                    const info = getCheckoutInfo(tool.id);
+                    const isCheckedOut = info.status === "Ocupado";
+
+                    return (
+                      <TableRow key={tool.id} className="hover:bg-muted/50">
+                        <TableCell className="font-medium">{tool.name}</TableCell>
+                        <TableCell>
+                          <div className="p-2 bg-white rounded border shadow-sm mx-auto w-fit">
+                            <QRCodeSVG value={tool.qrCode} size={48} level="M" />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={info.status === "Disponible" ? "default" : "destructive"}
+                            className={cn(
+                              "font-medium",
+                              info.status === "Disponible"
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                : "bg-orange-600 hover:bg-orange-700 text-white"
+                            )}
+                          >
+                            {info.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {info.workerName ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Acciones para {tool.name}</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => onEdit(tool)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Editar nombre
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                disabled={isCheckedOut}
+                                onSelect={() => onDelete(tool)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Eliminar herramienta
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, totalFiltered)} de {totalFiltered}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage(page - 1)}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === totalPages}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* AlertDialog separado para mejor control */}
+      <AlertDialog open={!!deleteCandidate} onOpenChange={() => setDeleteCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              ¿Eliminar la herramienta "{deleteCandidate?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción es permanente y no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteCandidate) {
+                  handleDelete(deleteCandidate.id, deleteCandidate.name);
+                  setDeleteCandidate(null);
+                }
+              }}
+            >
+              Sí, eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

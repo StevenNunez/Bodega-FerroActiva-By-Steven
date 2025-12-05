@@ -18,3 +18,4 @@ export * from './useSafetyInspections';
 export * from './useChecklistTemplates';
 export * from './useBehaviorObservations';
 export * from './useStockMovements';
+export * from './useSubscriptionPlans';

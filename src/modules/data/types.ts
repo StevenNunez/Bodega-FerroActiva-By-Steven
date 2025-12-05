@@ -19,13 +19,15 @@ import {
   ChecklistTemplate,
   BehaviorObservation,
   StockMovement,
-  UserRole
+  UserRole,
+  Tenant
 } from '../core/lib/data';
-import { ROLES as ROLES_DEFAULT, Permission } from '@/modules/core/lib/permissions';
+import { ROLES as ROLES_DEFAULT, Permission, PLANS } from '@/modules/core/lib/permissions';
 
 export interface AppDataState {
   isLoading: boolean;
   roles: typeof ROLES_DEFAULT;
+  subscriptionPlans: typeof PLANS;
   users: User[];
   materials: Material[];
   tools: Tool[];
@@ -87,6 +89,7 @@ export interface AppStateContextType extends AppDataState {
   addRequestToLot: (requestId: string, lotId: string) => Promise<void>;
   removeRequestFromLot: (requestId: string) => Promise<void>;
   deleteLot: (lotId: string) => Promise<void>;
+  updateTenant: (tenantId: string, data: Partial<Tenant>) => Promise<void>;
 
   // Tools
   addTool: (name: string) => Promise<void>;
@@ -122,9 +125,11 @@ export interface AppStateContextType extends AppDataState {
   
   // Permissions
   updateRolePermissions: (role: UserRole, permission: Permission, checked: boolean) => Promise<void>;
+  updatePlanPermissions: (planId: string, permissions: Permission[]) => Promise<void>;
 }
 
 export type AppStateAction =
   | { type: 'SET_DATA'; payload: { collection: keyof AppDataState; data: any[] } }
   | { type: 'SET_ROLES'; payload: typeof ROLES_DEFAULT }
+  | { type: 'SET_PLANS'; payload: typeof PLANS }
   | { type: 'SET_LOADING'; payload: boolean };

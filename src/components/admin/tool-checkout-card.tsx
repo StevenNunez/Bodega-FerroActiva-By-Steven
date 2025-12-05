@@ -5,7 +5,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRightLeft, User, ArrowRight, X, ScanLine } from 'lucide-react';
+import { ArrowRightLeft, User, ArrowRight, X, ScanLine, ChevronsUpDown, Check } from 'lucide-react';
 import type { User as UserType, Tool as ToolType, ToolLog } from '@/modules/core/lib/data';
 import { useToast } from '@/modules/core/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,6 +14,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '../ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { cn } from '@/lib/utils';
+
 
 type ScanPurpose = 'checkout-worker' | 'checkout-tool' | 'return-tool';
 
@@ -32,7 +36,9 @@ export function ToolCheckoutCard() {
   const [checkoutState, setCheckoutState] = useState<{ worker?: UserType; tools: ToolType[] }>({ tools: [] });
   const [returnMode, setReturnMode] = useState(false);
   const [manualWorkerId, setManualWorkerId] = useState('');
+  const [workerPopoverOpen, setWorkerPopoverOpen] = useState(false);
   const [manualToolId, setManualToolId] = useState('');
+  const [toolPopoverOpen, setToolPopoverOpen] = useState(false);
   const [pistolInput, setPistolInput] = useState('');
   const [isDamaged, setIsDamaged] = useState(false);
   const [returnNotes, setReturnNotes] = useState('');
@@ -43,14 +49,14 @@ export function ToolCheckoutCard() {
   }, [checkoutState]);
 
   const { workers, checkedOutTools, availableTools } = useMemo(() => {
-    const activeWorkers = (users || []).filter((u: UserType) => u.role !== 'guardia');
+    const activeWorkers = (users || []).filter((u: UserType) => u.role !== 'guardia').sort((a,b) => a.name.localeCompare(b.name));
     const checkedOutToolIds = new Set<string>(
       (toolLogs || []).filter((log: ToolLog) => log.returnDate === null).map((log: ToolLog) => log.toolId)
     );
     return {
       workers: activeWorkers,
-      checkedOutTools: (tools || []).filter((tool: ToolType) => checkedOutToolIds.has(tool.id)),
-      availableTools: (tools || []).filter((tool: ToolType) => !checkedOutToolIds.has(tool.id)),
+      checkedOutTools: (tools || []).filter((tool: ToolType) => checkedOutToolIds.has(tool.id)).sort((a,b) => a.name.localeCompare(b.name)),
+      availableTools: (tools || []).filter((tool: ToolType) => !checkedOutToolIds.has(tool.id)).sort((a,b) => a.name.localeCompare(b.name)),
     };
   }, [users, tools, toolLogs]);
 
@@ -229,6 +235,7 @@ export function ToolCheckoutCard() {
     if (worker) {
       setCheckoutState({ worker, tools: [] });
       setManualWorkerId(workerId);
+      setWorkerPopoverOpen(false);
     }
   };
 
@@ -295,34 +302,88 @@ export function ToolCheckoutCard() {
               <>
                 <div className="space-y-2">
                   <Label>1. Selecciona Trabajador</Label>
-                  <Select value={manualWorkerId} onValueChange={handleManualWorkerSelect}>
-                    <SelectTrigger><SelectValue placeholder="Elige un trabajador..." /></SelectTrigger>
-                    <SelectContent>
-                      {workers.map((w: UserType) => (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={workerPopoverOpen} onOpenChange={setWorkerPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" className="w-full justify-between">
+                        <span className="truncate">
+                          {manualWorkerId
+                            ? workers.find((w: UserType) => w.id === manualWorkerId)?.name
+                            : "Elige un trabajador..."}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar trabajador..." />
+                        <CommandList>
+                          <CommandEmpty>No se encontró el trabajador.</CommandEmpty>
+                          <CommandGroup>
+                            {workers.map((w: UserType) => (
+                              <CommandItem
+                                key={w.id}
+                                value={w.name}
+                                onSelect={() => handleManualWorkerSelect(w.id)}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    manualWorkerId === w.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {w.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
-                  <Label>2. Agrega Herramienta</Label>
-                  <div className="flex gap-2">
-                    <Select value={manualToolId} onValueChange={setManualToolId} disabled={!checkoutState.worker}>
-                      <SelectTrigger><SelectValue placeholder="Elige una herramienta..." /></SelectTrigger>
-                      <SelectContent>
-                        {availableTools.map((t: ToolType) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.name} {t.qrCode ? `(${t.qrCode})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleManualToolSelect} disabled={!manualToolId || !checkoutState.worker}>
-                      Añadir
-                    </Button>
-                  </div>
+                    <Label>2. Agrega Herramienta</Label>
+                    <div className="flex gap-2">
+                        <Popover open={toolPopoverOpen} onOpenChange={setToolPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" className="w-full justify-between" disabled={!checkoutState.worker}>
+                                    <span className="truncate">
+                                    {manualToolId
+                                        ? availableTools.find((t: ToolType) => t.id === manualToolId)?.name
+                                        : "Elige una herramienta..."}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Buscar herramienta..." />
+                                    <CommandList>
+                                    <CommandEmpty>No hay herramientas disponibles.</CommandEmpty>
+                                    <CommandGroup>
+                                        {availableTools.map((t: ToolType) => (
+                                        <CommandItem
+                                            key={t.id}
+                                            value={t.name}
+                                            onSelect={() => {
+                                                setManualToolId(t.id);
+                                                setToolPopoverOpen(false);
+                                            }}
+                                        >
+                                            <Check
+                                                className={cn("mr-2 h-4 w-4", manualToolId === t.id ? "opacity-100" : "opacity-0")}
+                                            />
+                                            {t.name}
+                                        </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                        <Button onClick={handleManualToolSelect} disabled={!manualToolId || !checkoutState.worker}>
+                            Añadir
+                        </Button>
+                    </div>
                 </div>
               </>
             ) : (
@@ -334,7 +395,7 @@ export function ToolCheckoutCard() {
                     <SelectContent>
                       {checkedOutTools.map((t: ToolType) => (
                         <SelectItem key={t.id} value={t.id}>
-                          {t.name} {t.qrCode ? `(${t.qrCode})` : ''}
+                          {t.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -473,4 +534,3 @@ export function ToolCheckoutCard() {
       </Card>
     );
 }
-
