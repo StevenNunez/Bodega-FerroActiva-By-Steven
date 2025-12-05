@@ -4,21 +4,19 @@ const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
 
-  // DESACTIVAR TURBOPACK (Firebase App Hosting NO lo soporta aún)
-  experimental: {
-    turbopack: false,
-  },
-
-  // Soporte para alias @/ (si usas tsconfig paths)
-  webpack(config) {
-    if (!config.resolve.plugins) {
-      config.resolve.plugins = [];
-    }
+  // ESTO ES LO QUE NECESITAS: FORZAR WEBPACK Y DESACTIVAR TURBOPACK
+  // https://nextjs.org/docs/messages/turbopack-webpack-config
+  webpack: (config) => {
+    // Soporte para alias @/
+    if (!config.resolve.plugins) config.resolve.plugins = [];
     config.resolve.plugins.push(new TsconfigPathsPlugin());
+
     return config;
   },
+
+  // Esto le dice a Next.js: "NO uses Turbopack, usa Webpack"
+  turbopack: {}, // ← objeto vacío = Turbopack desactivado
 };
 
 module.exports = nextConfig;
