@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Trash2, MoreHorizontal, Edit, QrCode } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { QRCodeSVG } from "qrcode.react";
+import QRCode from "react-qr-code";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +39,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { EditToolForm } from "@/components/admin/edit-tool-form";
 import { ToolCheckoutCard } from "@/components/admin/tool-checkout-card";
@@ -148,7 +149,7 @@ export default function AdminToolsPage() {
   const [editingTool, setEditingTool] = useState<ToolType | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null);
 
-  const { tools, isLoading, getCheckoutInfo, handleDelete } = useToolsData();
+  const { tools, isLoading, getCheckoutInfo, handleDelete, canDelete } = useToolsData();
   const {
     searchTerm,
     setSearchTerm,
@@ -268,7 +269,7 @@ export default function AdminToolsPage() {
                         <TableCell className="font-medium">{tool.name}</TableCell>
                         <TableCell>
                           <div className="p-2 bg-white rounded border shadow-sm mx-auto w-fit">
-                            <QRCodeSVG value={tool.qrCode} size={48} level="M" />
+                            <QRCode value={tool.qrCode} size={48} />
                           </div>
                         </TableCell>
                         <TableCell>
@@ -301,14 +302,39 @@ export default function AdminToolsPage() {
                                 Editar nombre
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                disabled={isCheckedOut}
-                                onSelect={() => onDelete(tool)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Eliminar herramienta
-                              </DropdownMenuItem>
+                              {canDelete && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      disabled={isCheckedOut}
+                                      onSelect={(e) => e.preventDefault()}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Eliminar herramienta
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        ¿Eliminar la herramienta "{tool.name}"?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta acción es permanente y no se puede deshacer.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        className="bg-destructive hover:bg-destructive/90"
+                                        onClick={() => onDelete(tool)}
+                                      >
+                                        Sí, eliminar
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -348,34 +374,6 @@ export default function AdminToolsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* AlertDialog separado para mejor control */}
-      <AlertDialog open={!!deleteCandidate} onOpenChange={() => setDeleteCandidate(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              ¿Eliminar la herramienta "{deleteCandidate?.name}"?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción es permanente y no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90"
-              onClick={() => {
-                if (deleteCandidate) {
-                  handleDelete(deleteCandidate.id, deleteCandidate.name);
-                  setDeleteCandidate(null);
-                }
-              }}
-            >
-              Sí, eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

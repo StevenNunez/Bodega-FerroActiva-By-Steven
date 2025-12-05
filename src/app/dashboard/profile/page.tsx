@@ -18,7 +18,7 @@ import {
   HeartPulse, 
   Users 
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import QRCode from "react-qr-code";
 import { ChangePasswordDialog } from '@/components/change-password-dialog';
 import { ChangeEmailDialog } from '@/components/change-email-dialog';
 import { EditUserForm } from '@/components/admin/edit-user-form';
@@ -139,7 +139,7 @@ export default function ProfilePage() {
                         </CardHeader>
                         <CardContent className="flex flex-col items-center justify-center text-center pt-6 pb-8">
                             <div className="p-3 bg-white rounded-xl shadow-sm border mb-4">
-                                <QRCodeSVG 
+                                <QRCode 
                                     value={user.qrCode || user.id} // Fallback al ID si no hay QR code específico
                                     size={160}
                                     level="H" // High error correction level

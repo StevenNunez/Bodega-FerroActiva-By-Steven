@@ -1,11 +1,10 @@
-
 "use client";
 
 import React, { useState, useMemo } from "react";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { QRCodeSVG } from "qrcode.react";
+import QRCode from "react-qr-code";
 import { Printer, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -94,7 +93,7 @@ export default function PrintUserQrPage() {
                             <p className="text-sm text-muted-foreground">{getRoleDisplayName(user.role)}</p>
                         </div>
                         <div className="p-1 bg-white rounded-md my-2">
-                            <QRCodeSVG value={user.qrCode} size={128} className="w-full max-w-[128px] h-auto" />
+                            <QRCode value={user.qrCode} size={128} style={{ height: "auto", maxWidth: "100%", width: "100%" }} />
                         </div>
                         <div className='text-center'>
                             <p className="text-xs font-mono text-muted-foreground">{user.id}</p>
