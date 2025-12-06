@@ -22,23 +22,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Unit, MaterialCategory, Material } from "@/modules/core/lib/data";
 
 
-const FormSchema = z.object({
-  isNewMaterial: z.boolean().default(false),
-  materialId: z.string().optional(),
-  name: z.string().optional(),
-  unit: z.string().optional(),
-  categoryId: z.string().optional(),
-  quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
-  justification: z.string().min(5, "La justificación es requerida (mín. 5 caracteres)."),
-}).refine(data => {
-    if (data.isNewMaterial) {
-        return data.name && data.name.length >= 3 && data.unit && data.unit.length > 0 && data.categoryId;
-    }
-    return !!data.materialId;
-}, {
-    message: "Completa los campos requeridos para el material.",
-    path: ['isNewMaterial'],
-});
+const FormSchema = z.discriminatedUnion("isNewMaterial", [
+  z.object({
+    isNewMaterial: z.literal(false),
+    materialId: z.string({ required_error: "Debes seleccionar un material existente." }).min(1, "Debes seleccionar un material existente."),
+    quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
+    justification: z.string().min(5, "La justificación es requerida (mín. 5 caracteres)."),
+  }),
+  z.object({
+    isNewMaterial: z.literal(true),
+    name: z.string().min(3, "El nombre del material es requerido."),
+    unit: z.string().min(1, "La unidad es requerida."),
+    categoryId: z.string({ required_error: "La categoría es requerida." }),
+    quantity: z.coerce.number().min(1, "La cantidad debe ser al menos 1."),
+    justification: z.string().min(5, "La justificación es requerida (mín. 5 caracteres)."),
+  }),
+]);
 
 type FormData = z.infer<typeof FormSchema>;
 
@@ -54,40 +53,46 @@ export default function ManualStockEntryPage() {
     register,
     handleSubmit,
     setValue,
+    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       isNewMaterial: false,
-    }
+      quantity: 0,
+      justification: "",
+    },
   });
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
         if (data.isNewMaterial) {
-            if (!data.name || !data.unit || !data.categoryId) {
-                 toast({ variant: "destructive", title: "Error", description: "Nombre, unidad y categoría son requeridos para un nuevo material." });
-                 return;
+             if (!data.name || !data.unit || !data.categoryId) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Completa todos los campos requeridos para el nuevo material.'});
+                return;
             }
+            const category = (materialCategories || []).find(c => c.id === data.categoryId);
+            
             await addMaterial({
                 name: data.name,
                 stock: data.quantity,
                 unit: data.unit,
-                categoryId: data.categoryId,
+                categoryId: data.categoryId, 
+                category: category?.name || 'Desconocida',
                 supplierId: null,
                 justification: data.justification,
             });
             toast({ title: "Éxito", description: "El nuevo material ha sido creado y el stock inicial registrado." });
         } else {
             if (!data.materialId) {
-                toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un material existente." });
-                return;
+                 toast({ variant: 'destructive', title: 'Error', description: 'Debes seleccionar un material existente.'});
+                 return;
             }
             await addManualStockEntry(data.materialId, data.quantity, data.justification);
             toast({ title: "Éxito", description: "El ingreso de stock ha sido registrado correctamente." });
         }
-      reset({ materialId: undefined, quantity: 0, justification: "", name: "", unit: "", categoryId: "", isNewMaterial: false });
+      reset({ isNewMaterial: false, materialId: '', quantity: 0, justification: '' });
       setIsNewMaterial(false);
     } catch (error) {
       toast({
@@ -120,8 +125,11 @@ export default function ManualStockEntryPage() {
                     checked={isNewMaterial}
                     onCheckedChange={(checked) => {
                         setIsNewMaterial(checked);
-                        setValue('isNewMaterial', checked);
-                        reset({ materialId: undefined, name: "", unit: "", categoryId: "", quantity: 0, justification: "" });
+                         if (checked) {
+                            reset({ isNewMaterial: true, name: '', unit: '', categoryId: '', quantity: 0, justification: '' });
+                        } else {
+                            reset({ isNewMaterial: false, materialId: '', quantity: 0, justification: '' });
+                        }
                     }}
                 />
                 <Label htmlFor="isNewMaterial">Crear Nuevo Material</Label>
@@ -132,12 +140,12 @@ export default function ManualStockEntryPage() {
                     <div className="space-y-2">
                         <Label htmlFor="name">Nombre del Nuevo Material</Label>
                         <Input id="name" placeholder="Ej: Plancha de OSB 9mm" {...register('name')} />
-                         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+                         {(errors as any).name && <p className="text-xs text-destructive">{(errors as any).name.message}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-2">
                             <Label htmlFor="unit">Unidad</Label>
-                            <Controller
+                             <Controller
                                 name="unit"
                                 control={control}
                                 render={({ field }) => (
@@ -150,16 +158,36 @@ export default function ManualStockEntryPage() {
                                     </PopoverTrigger>
                                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                                         <Command>
-                                        <CommandInput 
-                                            placeholder="Buscar o crear..."
-                                            onValueChange={(val) => setValue('unit', val, { shouldValidate: true })}
+                                        <CommandInput
+                                            placeholder="Buscar o crear unidad..."
+                                            onValueChange={(currentValue) => field.onChange(currentValue)}
                                             value={field.value || ''}
                                         />
                                         <CommandList>
-                                            <CommandEmpty><Button className="w-full" variant="outline" onClick={() => setUnitPopoverOpen(false)}>Usar "{field.value}"</Button></CommandEmpty>
+                                            <CommandEmpty>
+                                            <div className="p-1">
+                                                <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="w-full"
+                                                onClick={() => {
+                                                    setUnitPopoverOpen(false);
+                                                }}
+                                                >
+                                                Usar "{field.value}"
+                                                </Button>
+                                            </div>
+                                            </CommandEmpty>
                                             <CommandGroup>
                                             {(units || []).map((u: Unit) => (
-                                                <CommandItem key={u.id} value={u.name} onSelect={() => { setValue("unit", u.name, { shouldValidate: true }); setUnitPopoverOpen(false); }}>
+                                                <CommandItem
+                                                key={u.id}
+                                                value={u.name}
+                                                onSelect={(currentValue) => {
+                                                    field.onChange(currentValue);
+                                                    setUnitPopoverOpen(false);
+                                                }}
+                                                >
                                                 <Check className={cn("mr-2 h-4 w-4", field.value === u.name ? "opacity-100" : "opacity-0")} />
                                                 {u.name}
                                                 </CommandItem>
@@ -171,7 +199,7 @@ export default function ManualStockEntryPage() {
                                     </Popover>
                                 )}
                             />
-                            {errors.unit && <p className="text-xs text-destructive">{errors.unit.message}</p>}
+                            {(errors as any).unit && <p className="text-xs text-destructive">{(errors as any).unit.message}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="categoryId">Categoría</Label>
@@ -187,7 +215,7 @@ export default function ManualStockEntryPage() {
                                     </Select>
                                 )}
                             />
-                             {errors.categoryId && <p className="text-xs text-destructive">{errors.categoryId.message}</p>}
+                             {(errors as any).categoryId && <p className="text-xs text-destructive">{(errors as any).categoryId.message}</p>}
                         </div>
                     </div>
                 </>
@@ -243,9 +271,7 @@ export default function ManualStockEntryPage() {
                     </Popover>
                     )}
                 />
-                {errors.materialId && (
-                    <p className="text-xs text-destructive">{errors.materialId.message}</p>
-                )}
+                 {(errors as any).materialId && <p className="text-xs text-destructive">{(errors as any).materialId.message}</p>}
                 </div>
             )}
 
@@ -286,5 +312,3 @@ export default function ManualStockEntryPage() {
     </div>
   );
 }
-
-    

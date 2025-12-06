@@ -107,7 +107,23 @@ export async function addMaterial(data: any, { user, tenantId, db }: Context) {
 export async function updateMaterial(materialId: string, data: any, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
     const materialRef = doc(db, `materials`, materialId);
-    await updateDoc(materialRef, data);
+    
+    const categoryQuery = query(collection(db, 'materialCategories'), where('id', '==', data.categoryId));
+    const categorySnap = await getDocs(categoryQuery);
+    
+    let categoryName = 'Sin Categoría';
+    if (!categorySnap.empty) {
+        categoryName = categorySnap.docs[0].data().name;
+    }
+
+    const updateData = {
+        ...data,
+        category: categoryName
+    };
+    delete updateData.categoryId;
+
+
+    await updateDoc(materialRef, updateData);
 }
 
 export async function deleteMaterial(materialId: string, { tenantId, db }: Context) {
@@ -148,7 +164,8 @@ export async function addManualStockEntry(materialId: string, quantity: number, 
 // --- Categories & Units ---
 export async function addMaterialCategory(name: string, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
-    await addDoc(collection(db, `materialCategories`), { name, tenantId });
+    const ref = doc(collection(db, 'materialCategories'));
+    await setDoc(ref, { id: ref.id, name, tenantId });
 }
 
 export async function updateMaterialCategory(id: string, name: string, { tenantId, db }: Context) {
@@ -163,7 +180,8 @@ export async function deleteMaterialCategory(id: string, { tenantId, db }: Conte
 
 export async function addUnit(name: string, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
-    await addDoc(collection(db, `units`), { name, tenantId });
+    const ref = doc(collection(db, 'units'));
+    await setDoc(ref, { id: ref.id, name, tenantId });
 }
 
 export async function deleteUnit(id: string, { tenantId, db }: Context) {
@@ -264,4 +282,3 @@ export async function updatePlanPermissions(planId: string, permissions: Permiss
     const planRef = doc(db, "subscriptionPlans", planId);
     await updateDoc(planRef, { allowedPermissions: permissions });
 }
-

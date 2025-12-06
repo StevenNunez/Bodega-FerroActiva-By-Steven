@@ -44,7 +44,7 @@ export async function addPurchaseRequest(
     status: 'pending',
     createdAt: serverTimestamp(),
     tenantId: tenantId,
-    requesterName: user.name,
+    requesterName: user.name, // This was missing
   };
 
   const collectionRef = collection(db, `purchaseRequests`);
