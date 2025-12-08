@@ -11,36 +11,30 @@ import {
   CardDescription,
   CardContent,
 } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import {
   Package,
   Wrench,
   ArrowRight,
   AlertTriangle,
-  FolderTree,
-  Ruler,
-  ShoppingCart,
-  Briefcase,
   PackagePlus,
-  FileText,
-  Edit,
-  CalendarCheck,
-  Clock,
-  BookOpen,
-  FileBarChart,
+  PackageOpen,
+  PackageCheck,
+  PlusCircle,
+  RotateCcw,
+  History,
+  TrendingDown,
   User as UserIcon,
-  ListChecks,
-  DollarSign,
-  ShieldCheck,
-  ShieldAlert,
-  ClipboardPaste,
-  BarChart3,
-  QrCode,
-  Undo2,
-  HandCoins,
+  ArrowUpRight,
+  ArrowDownLeft
 } from 'lucide-react';
 import { StatCard } from '@/components/admin/stat-card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Timestamp } from 'firebase/firestore';
+import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
 import type {
   Material,
   MaterialRequest,
@@ -50,371 +44,333 @@ import type {
   ToolLog,
   User,
 } from '@/modules/core/lib/data';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
-type CompatibleMaterialRequest = MaterialRequest & {
-  materialId?: string;
+// --- Tipos Auxiliares para la Vista ---
+type ActivityItem = {
+  id: string;
+  date: Date;
+  title: string;
+  subtitle: string;
+  user: string;
+  type: 'entry' | 'exit' | 'warning';
   quantity?: number;
-  items?: { materialId: string; quantity: number }[];
 };
 
 export default function WarehouseHubPage() {
   const {
-    materials,
-    tools,
-    requests,
-    toolLogs,
-    returnRequests,
-    stockMovements,
-    users,
-    can,
-    isLoading,
+    materials = [],
+    tools = [],
+    requests = [],
+    toolLogs = [],
+    returnRequests = [],
+    stockMovements = [],
+    users = [],
   } = useAppState();
 
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const [categoryFilter, setCategoryFilter] = React.useState('all');
+  // --- Helpers & Memos ---
 
-  const toDate = (
-    date: Date | Timestamp | null | undefined
-  ): Date | null => {
+  // Optimización: Mapa de usuarios para búsqueda O(1)
+  const userMap = React.useMemo(() => {
+    const map = new Map<string, User>();
+    users.forEach((u) => map.set(u.id, u));
+    return map;
+  }, [users]);
+
+  // Optimización: Mapa de materiales
+  const materialMap = React.useMemo(() => {
+    const map = new Map<string, Material>();
+    materials.forEach((m) => map.set(m.id, m));
+    return map;
+  }, [materials]);
+
+  const toDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
     return date instanceof Timestamp ? date.toDate() : (date as Date);
   };
 
-  const formatDate = (
-    date: Date | Timestamp | null | undefined
-  ): string => {
-    const jsDate = toDate(date);
-    if (!jsDate) return 'Fecha no disponible';
-    return jsDate.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const getRelativeTime = (date: Date | null) => {
+    if (!date) return '';
+    try {
+        return formatDistanceToNow(date, { addSuffix: true, locale: es });
+    } catch (e) {
+        return 'Fecha inválida';
+    }
   };
 
-  const materialMap = React.useMemo(
-    () => new Map((materials || []).map((m: Material) => [m.id, m])),
-    [materials]
-  );
-
+  // --- Estadísticas Principales ---
   const stats = React.useMemo(() => {
-    const safeMaterials: Material[] = materials || [];
-    const safeTools: Tool[] = tools || [];
-    const safeToolLogs: ToolLog[] = toolLogs || [];
-
     const checkedOutToolsCount = new Set(
-      safeToolLogs
-        .filter((log: ToolLog) => log.returnDate === null)
-        .map((log: ToolLog) => log.toolId)
+      toolLogs
+        .filter((log) => log.returnDate === null)
+        .map((log) => log.toolId)
     ).size;
 
     return {
-      totalMaterials: safeMaterials.length,
-      totalTools: safeTools.length,
+      totalMaterials: materials.length,
+      totalTools: tools.length,
       toolsInUse: checkedOutToolsCount,
-      toolsAvailable: safeTools.length - checkedOutToolsCount,
+      toolsAvailable: Math.max(0, tools.length - checkedOutToolsCount),
     };
   }, [materials, tools, toolLogs]);
 
+  // --- Stock Bajo (Top 10 críticos) ---
   const lowStockMaterials = React.useMemo(() => {
-    if (!materials) return [];
     return materials
-      .filter((m: Material) => m.stock < 10)
-      .sort((a: Material, b: Material) => a.stock - b.stock)
-      .slice(0, 5);
+      .filter((m) => !m.archived && m.stock <= 10) // Ajusté a <= para incluir el 10
+      .sort((a, b) => a.stock - b.stock) // Menor stock primero
+      .slice(0, 5); // Top 5 para no saturar la UI inicial
   }, [materials]);
 
-  const recentApprovedRequests = React.useMemo(() => {
-    if (!requests) return [];
-    return (requests as CompatibleMaterialRequest[])
-      .filter(
-        (r: CompatibleMaterialRequest) =>
-          r.status === 'approved' && (r.approvalDate || r.createdAt)
-      )
-      .sort((a: CompatibleMaterialRequest, b: CompatibleMaterialRequest) => {
+  // --- Actividad Reciente (Salidas) ---
+  const recentExits: ActivityItem[] = React.useMemo(() => {
+    return requests
+      .filter((r) => r.status === 'approved' && (r.approvalDate || r.createdAt))
+      .sort((a, b) => {
         const dateA = toDate(a.approvalDate || a.createdAt)?.getTime() || 0;
         const dateB = toDate(b.approvalDate || b.createdAt)?.getTime() || 0;
         return dateB - dateA;
       })
-      .slice(0, 5);
-  }, [requests]);
+      .slice(0, 10)
+      .map((r: any) => {
+        const date = toDate(r.approvalDate || r.createdAt) || new Date();
+        const supervisorName = userMap.get(r.supervisorId)?.name || 'Desconocido';
+        // Lógica para obtener nombre del material (soporte legacy y array)
+        let title = 'Solicitud de Material';
+        const items = r.items || (r.materialId ? [{ materialId: r.materialId, quantity: r.quantity || 0 }] : []);
+        
+        if (items.length === 1) {
+            const matName = materialMap.get(items[0].materialId)?.name || 'Material';
+            title = `${items[0].quantity} x ${matName}`;
+        } else if (items.length > 1) {
+            title = `${items.length} materiales varios`;
+        } else if (r.materialName) {
+            title = `${r.quantity} x ${r.materialName}`;
+        }
 
-  const recentEntries = React.useMemo(() => {
-    const completedReturns = (returnRequests || [])
-      .filter((r: ReturnRequest) => r.status === 'completed' && r.completionDate)
-      .map((r: ReturnRequest) => ({
+        return {
+          id: r.id,
+          date,
+          title,
+          subtitle: `Destino: ${r.area}`,
+          user: supervisorName,
+          type: 'exit',
+        };
+      });
+  }, [requests, userMap, materialMap]);
+
+  // --- Actividad Reciente (Entradas) ---
+  const recentEntries: ActivityItem[] = React.useMemo(() => {
+    const returns = returnRequests
+      .filter((r) => r.status === 'completed' && r.completionDate)
+      .map((r) => ({
         id: r.id,
-        date: toDate(r.completionDate),
-        type: 'Devolución',
-        description: `${r.quantity} x ${r.materialName}`,
-        user: r.supervisorName,
+        date: toDate(r.completionDate)!,
+        title: `${r.quantity} x ${r.materialName}`,
+        subtitle: 'Devolución de obra',
+        user: r.supervisorName || 'Desconocido',
+        type: 'entry' as const,
       }));
 
-    const manualEntries = (stockMovements || [])
-      .filter(
-        (m: StockMovement) =>
-          m.type === 'manual-entry' && m.quantityChange > 0
-      )
-      .map((m: StockMovement) => ({
+    const manuals = stockMovements
+      .filter((m) => m.type === 'manual-entry' && m.quantityChange > 0)
+      .map((m) => ({
         id: m.id,
-        date: toDate(m.date),
-        type: 'Ingreso Manual',
-        description: `${m.quantityChange} x ${m.materialName}`,
-        user: m.userName,
+        date: toDate(m.date)!,
+        title: `${m.quantityChange} x ${m.materialName}`,
+        subtitle: 'Ingreso Manual / Compra',
+        user: m.userName || 'Admin',
+        type: 'entry' as const,
       }));
 
-    return [...completedReturns, ...manualEntries]
-      .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0))
-      .slice(0, 5);
+    return [...returns, ...manuals]
+      .sort((a, b) => b.date.getTime() - a.date.getTime())
+      .slice(0, 10);
   }, [returnRequests, stockMovements]);
 
-  const navigationCards = [
-    {
-      href: '/dashboard/admin/tools',
-      icon: Wrench,
-      title: 'Gestión de Herramientas',
-      description: 'Crea, edita y gestiona el inventario de herramientas.',
-      permission: 'tools:create',
-    },
-    {
-      href: '/dashboard/admin/materials',
-      icon: Package,
-      title: 'Gestión de Materiales',
-      description:
-        'Administra el catálogo y stock de todos los materiales.',
-      permission: 'materials:create',
-    },
-    {
-      href: '/dashboard/purchasing/categories',
-      icon: FolderTree,
-      title: 'Gestión de Categorías',
-      description: 'Organiza tus materiales y proveedores.',
-      permission: 'categories:create',
-    },
-    {
-      href: '/dashboard/admin/units',
-      icon: Ruler,
-      title: 'Gestión de Unidades',
-      description: 'Define las unidades de medida para tus materiales.',
-      permission: 'units:create',
-    },
-    {
-      href: '/dashboard/purchasing',
-      icon: ShoppingCart,
-      title: 'Ir a Módulo de Compras',
-      description:
-        'Gestiona solicitudes, lotes y órdenes de compra.',
-      permission: 'module_purchasing:view',
-    },
-  ];
-
-  const visibleNavCards = navigationCards.filter((m) =>
-    can(m.permission as any)
-  );
-
-  const categories = React.useMemo(() => {
-    const allCats = (materials || [])
-      .map((m: Material) => m.category)
-      .filter(
-        (cat: string | null | undefined): cat is string =>
-          typeof cat === 'string'
-      );
-    const uniqueCats = [...new Set<string>(allCats)];
-    return uniqueCats.sort();
-  }, [materials]);
-
-  const filteredMaterials = React.useMemo(() => {
-    let filtered = (materials || []).filter((m: Material) => !m.archived);
-    if (searchTerm) {
-      filtered = filtered.filter((material: Material) =>
-        material.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(
-        (material: Material) => material.category === categoryFilter
-      );
-    }
-    return filtered;
-  }, [materials, searchTerm, categoryFilter]);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 pb-10 fade-in">
       <PageHeader
-        title="Resumen de Bodega"
-        description="Una vista rápida del estado actual de tu inventario y actividad reciente."
+        title="Centro de Control de Bodega"
+        description="Vista general del inventario, alertas y movimientos recientes."
       />
 
+      {/* 1. SECCIÓN DE ACCIONES RÁPIDAS (MEJORA DE UX) */}
+      <section>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link href="/dashboard/supervisor/request" passHref>
+                <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2 hover:border-primary hover:bg-primary/5 transition-all">
+                    <PlusCircle className="h-6 w-6 text-primary" />
+                    <span className="font-semibold">Nueva Solicitud</span>
+                </Button>
+            </Link>
+            <Link href="/dashboard/supervisor/return-request" passHref>
+                <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2 hover:border-blue-500 hover:bg-blue-50/50 transition-all">
+                    <RotateCcw className="h-6 w-6 text-blue-500" />
+                    <span className="font-semibold">Devolver Material</span>
+                </Button>
+            </Link>
+            <Link href="/dashboard/admin/manual-stock-entry" passHref>
+                <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2 hover:border-amber-500 hover:bg-amber-50/50 transition-all">
+                    <PackagePlus className="h-6 w-6 text-amber-500" />
+                    <span className="font-semibold">Ingreso Stock</span>
+                </Button>
+            </Link>
+            <Link href="/dashboard/admin/tools" passHref>
+                <Button variant="outline" className="w-full h-auto py-4 flex flex-col gap-2 hover:border-purple-500 hover:bg-purple-50/50 transition-all">
+                    <Wrench className="h-6 w-6 text-purple-500" />
+                    <span className="font-semibold">Herramientas</span>
+                </Button>
+            </Link>
+          </div>
+      </section>
+
+      {/* 2. STATS CARDS */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Materiales" value={stats.totalMaterials} icon={Package} />
-        <StatCard title="Herramientas Totales" value={stats.totalTools} icon={Wrench} />
-        <StatCard title="Herramientas en Uso" value={stats.toolsInUse} icon={ArrowRight} color="text-red-500" />
-        <StatCard title="Herramientas Disponibles" value={stats.toolsAvailable} icon={ArrowRight} color="text-green-500" />
+        <StatCard title="Materiales Únicos" value={stats.totalMaterials} icon={Package} />
+        <StatCard title="Total Herramientas" value={stats.totalTools} icon={Wrench} />
+        <StatCard title="En Uso (Obra)" value={stats.toolsInUse} icon={ArrowRight} color="text-amber-500" />
+        <StatCard title="Disponibles" value={stats.toolsAvailable} icon={PackageCheck} color="text-green-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-amber-500">
-                <AlertTriangle /> Alertas de Stock Bajo
-              </CardTitle>
-              <CardDescription>
-                Materiales que están por agotarse (menos de 10 unidades).
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {lowStockMaterials.length > 0 ? (
-                <ul className="space-y-3">
-                  {lowStockMaterials.map((material: Material) => (
-                    <li
-                      key={material.id}
-                      className="text-sm p-3 rounded-lg border bg-muted/50 flex justify-between items-center"
-                    >
-                      <div>
-                        <p className="font-semibold">{material.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {material.category}
-                        </p>
-                      </div>
-                      <span className="font-mono font-bold text-lg text-red-500">
-                        {material.stock.toLocaleString()}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
-                  <p>¡Todo en orden! No hay materiales con stock bajo.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package /> Stock Disponible en Bodega
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Input
-                  placeholder="Buscar material..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <Select
-                  value={categoryFilter}
-                  onValueChange={setCategoryFilter}
-                >
-                  <SelectTrigger className="w-full sm:w-[220px]">
-                    <SelectValue placeholder="Filtrar por categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">
-                      Todas las categorías
-                    </SelectItem>
-                    {categories.map((cat: string) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <ScrollArea className="h-96 border rounded-md">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-card">
-                    <TableRow>
-                      <TableHead>Material</TableHead>
-                      <TableHead className="w-[100px] text-right">
-                        Stock
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={2}
-                          className="h-24 text-center"
-                        >
-                          Cargando...
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredMaterials.length > 0 ? (
-                      filteredMaterials.map((material: Material) => (
-                        <TableRow key={material.id}>
-                          <TableCell>
-                            <p className="font-medium">{material.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {material.category}
-                            </p>
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {material.stock.toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))
+        
+        {/* 3. COLUMNA IZQUIERDA: ALERTAS DE STOCK (VISUAL MEJORADO) */}
+        <div className="lg:col-span-1 space-y-6">
+            <Card className="border-l-4 border-l-red-500 shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-red-600">
+                        <TrendingDown className="h-5 w-5" /> Stock Crítico
+                    </CardTitle>
+                    <CardDescription>
+                        Materiales con 10 o menos unidades.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {lowStockMaterials.length > 0 ? (
+                        <div className="space-y-4">
+                            {lowStockMaterials.map((material) => {
+                                // Calculamos porcentaje visual (asumiendo 20 como base "sana" visualmente)
+                                const percentage = Math.min((material.stock / 20) * 100, 100);
+                                return (
+                                    <div key={material.id} className="space-y-1.5">
+                                        <div className="flex justify-between items-end">
+                                            <div>
+                                                <p className="font-medium text-sm text-foreground">{material.name}</p>
+                                                <p className="text-xs text-muted-foreground">{material.category}</p>
+                                            </div>
+                                            <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50 dark:bg-red-950 dark:text-red-300 font-mono">
+                                                {material.stock} {material.unit}
+                                            </Badge>
+                                        </div>
+                                        <Progress value={percentage} className="h-2 bg-red-100 dark:bg-red-900/50" />
+                                    </div>
+                                );
+                            })}
+                            <Link href="/dashboard/admin/materials" className="block mt-4">
+                                <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground">
+                                    Ver inventario completo <ArrowRight className="ml-1 h-3 w-3" />
+                                </Button>
+                            </Link>
+                        </div>
                     ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={2}
-                          className="h-24 text-center"
-                        >
-                          No se encontraron materiales.
-                        </TableCell>
-                      </TableRow>
+                        <div className="flex flex-col items-center justify-center text-center text-muted-foreground py-8">
+                            <PackageCheck className="h-10 w-10 text-green-500 mb-2 opacity-50" />
+                            <p className="text-sm">Todo el stock está saludable.</p>
+                        </div>
                     )}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                </CardContent>
+            </Card>
         </div>
 
-        <div className="space-y-8">
-          {visibleNavCards.map((module) => (
-            <Link href={module.href} className="group" key={module.href}>
-              <Card className="h-full transition-all duration-300 ease-in-out hover:border-primary hover:shadow-lg hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <module.icon className="h-6 w-6 transition-transform group-hover:scale-110" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">
-                      {module.title}
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs">
-                      {module.description}
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+        {/* 4. COLUMNA DERECHA: ACTIVIDAD RECIENTE (TABLERO UNIFICADO VISUALMENTE) */}
+        <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+                {/* SALIDAS RECIENTES */}
+                <Card className="flex flex-col h-full">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <ArrowUpRight className="h-5 w-5 text-orange-500" /> Salidas Recientes
+                        </CardTitle>
+                        <CardDescription>Entregas de material a obra</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1">
+                        <ScrollArea className="h-[400px] pr-4">
+                            {recentExits.length > 0 ? (
+                                <ul className="space-y-4">
+                                    {recentExits.map((item) => (
+                                        <li key={item.id} className="flex gap-3 items-start">
+                                            <div className="mt-1 bg-orange-100 dark:bg-orange-950 p-1.5 rounded-full shrink-0">
+                                                <PackageOpen className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                                            </div>
+                                            <div className="space-y-0.5 w-full">
+                                                <p className="text-sm font-medium leading-none">{item.title}</p>
+                                                <p className="text-xs text-muted-foreground">{item.subtitle}</p>
+                                                <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-dashed">
+                                                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                        <UserIcon className="h-3 w-3" /> {item.user.split(' ')[0]}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        {getRelativeTime(item.date)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-sm text-muted-foreground italic">
+                                    No hay salidas registradas recientemente.
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+
+                {/* INGRESOS RECIENTES */}
+                <Card className="flex flex-col h-full">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <ArrowDownLeft className="h-5 w-5 text-green-500" /> Ingresos Recientes
+                        </CardTitle>
+                        <CardDescription>Devoluciones y compras</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1">
+                        <ScrollArea className="h-[400px] pr-4">
+                             {recentEntries.length > 0 ? (
+                                <ul className="space-y-4">
+                                    {recentEntries.map((item) => (
+                                        <li key={item.id} className="flex gap-3 items-start">
+                                            <div className="mt-1 bg-green-100 dark:bg-green-950 p-1.5 rounded-full shrink-0">
+                                                <PackageCheck className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                            </div>
+                                            <div className="space-y-0.5 w-full">
+                                                <p className="text-sm font-medium leading-none">{item.title}</p>
+                                                <p className="text-xs text-muted-foreground">{item.subtitle}</p>
+                                                <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-dashed">
+                                                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                        <UserIcon className="h-3 w-3" /> {item.user.split(' ')[0]}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        {getRelativeTime(item.date)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-sm text-muted-foreground italic">
+                                    No hay ingresos registrados recientemente.
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
       </div>
     </div>
   );
 }
+
