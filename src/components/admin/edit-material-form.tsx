@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty, CommandGroup } from "@/components/ui/command";
 import { ChevronsUpDown, Check, Loader2, Save } from "lucide-react";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import { useAppState } from "@/modules/core/contexts/app-provider";
+import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
 import { cn } from "@/lib/utils";
 import { Material, Unit, MaterialCategory, Supplier } from "@/modules/core/lib/data";
 
@@ -39,11 +39,12 @@ export function EditMaterialForm({
   material,
 }: EditMaterialFormProps) {
   const { toast } = useToast();
-  const { updateMaterial, units, materialCategories, suppliers, can } = useAppState();
+  const { updateMaterial, units, materialCategories, suppliers } = useAppState();
+  const { user } = useAuth();
   const [unitPopoverOpen, setUnitPopoverOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canEditStock = can('stock:add_manual');
+  const canEditStock = user?.role === 'super-admin' || user?.role === 'admin';
 
   const {
     register,

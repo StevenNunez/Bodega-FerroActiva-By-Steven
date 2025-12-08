@@ -32,7 +32,7 @@ const formatDate = (date: Date | Timestamp | undefined | null) => {
 
 export default function ReviewChecklistsPage() {
     const { assignedChecklists, users, isLoading, deleteAssignedChecklist } = useAppState();
-    const { user: authUser } = useAuth();
+    const { user: authUser, can } = useAuth();
     
     const userMap = useMemo(() => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])), [users]);
 
@@ -104,7 +104,7 @@ export default function ReviewChecklistsPage() {
                                                 </div>
                                             </div>
                                         </Link>
-                                         {authUser?.role === 'admin' && (
+                                         {can('safety_checklists:review') && (
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 text-destructive">

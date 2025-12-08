@@ -41,7 +41,7 @@ import { useAuth } from '@/modules/core/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { UserRole } from '@/modules/core/lib/data';
 import type { Permission } from '@/modules/core/lib/permissions';
-import { TenantSwitcher } from './TenantSwitcher';
+import { TenantSwitcher } from '@/components/TenantSwitcher';
 
 interface ModuleCardProps {
   href: string;
@@ -156,9 +156,9 @@ const paymentsNavItems = (can: (p: Permission) => boolean) => {
 const reportsNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if (can('reports:view')) {
-        items.push({ href: '/dashboard/reports', icon: LayoutDashboard, label: 'Resumen' });
-        items.push({ href: '/dashboard/reports/stats', icon: BarChart3, label: 'Estadísticas de Consumo' });
+        items.push({ href: '/dashboard/reports', icon: BarChart3, label: 'Estadísticas de Consumo' });
         items.push({ href: '/dashboard/reports/deliveries', icon: FileBarChart, label: 'Reporte de Entregas' });
+        items.push({ href: '/dashboard/reports/inventory', icon: Warehouse, label: 'Reporte de Inventario' });
     }
     return items;
 };

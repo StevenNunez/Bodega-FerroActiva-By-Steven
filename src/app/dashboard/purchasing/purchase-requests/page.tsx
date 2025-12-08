@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useState, useMemo } from 'react';
 import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
@@ -18,6 +18,7 @@ import {
   Loader2,
   AlertCircle,
   Package,
+  Trash2,
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useToast } from '@/modules/core/hooks/use-toast';
@@ -29,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface ReceiveRequestDialogProps {
   request: PurchaseRequest | null;
@@ -104,8 +106,8 @@ const STATUS_CONFIG: Record<PurchaseRequestStatus, { label: string; icon: React.
 
 
 export default function PurchaseRequestsPage() {
-  const { purchaseRequests, users, materials, receivePurchaseRequest, isLoading } = useAppState();
-  const { user: authUser } = useAuth();
+  const { purchaseRequests, users, materials, receivePurchaseRequest, deletePurchaseRequest, isLoading } = useAppState();
+  const { user: authUser, can } = useAuth();
   const { toast } = useToast();
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
   const [receivingRequest, setReceivingRequest] = useState<PurchaseRequest | null>(null);
@@ -113,18 +115,37 @@ export default function PurchaseRequestsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const itemsPerPage = 10;
+  
+  const canDelete = can('purchase_requests:delete');
 
   const supervisorMap = useMemo(() => new Map<string, string>((users || []).map((u: User) => [u.id, u.name])), [users]);
 
   const getDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
-    return date instanceof Timestamp ? date.toDate() : new Date(date);
+    return date instanceof Timestamp ? date.toDate() : new Date(date as any);
   };
 
   const formatDate = (date: Date | Timestamp | null | undefined): string => {
     const jsDate = getDate(date);
     return jsDate ? jsDate.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A';
   };
+  
+  const handleDeleteRequest = async (requestId: string) => {
+    try {
+      await deletePurchaseRequest(requestId);
+      toast({
+        title: "Solicitud Eliminada",
+        description: "La solicitud de compra ha sido eliminada permanentemente.",
+        variant: "destructive"
+      });
+    } catch(error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la solicitud.",
+        variant: "destructive"
+      })
+    }
+  }
 
   const sortedPurchaseRequests = useMemo(() => {
     return [...(purchaseRequests || [])].sort((a: PurchaseRequest, b: PurchaseRequest) => {
@@ -301,6 +322,29 @@ export default function PurchaseRequestsPage() {
                                     <Button size="sm" onClick={() => setReceivingRequest(req)}>
                                       <PackageCheck className="mr-2 h-4 w-4" /> Recibir
                                     </Button>
+                                  )}
+                                  {canDelete && (
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button size="icon" variant="ghost" className="text-destructive h-8 w-8">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>¿Eliminar esta solicitud?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                   Esta acción eliminará permanentemente la solicitud de compra para "{req.materialName}". Esta acción no se puede deshacer.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteRequest(req.id)} className="bg-destructive hover:bg-destructive/90">
+                                                    Sí, eliminar
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                   )}
                                 </TableCell>
                             </TableRow>
