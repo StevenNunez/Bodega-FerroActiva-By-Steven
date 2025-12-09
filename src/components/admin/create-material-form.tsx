@@ -65,8 +65,10 @@ export function CreateMaterialForm() {
         return;
     }
     try {
+      const category = (materialCategories || []).find(c => c.id === data.categoryId);
       await addMaterial({
           ...data,
+          category: category?.name, // Add category name
           stock: canSetInitialStock ? data.stock : 0, // Force stock to 0 if user is not authorized
           supplierId: data.supplierId === 'ninguno' ? null : data.supplierId
       });
@@ -83,6 +85,15 @@ export function CreateMaterialForm() {
       });
     }
   };
+  
+  const sortedCategories = React.useMemo(() => {
+    return [...(materialCategories || [])].sort((a, b) => a.name.localeCompare(b.name));
+  }, [materialCategories]);
+  
+  const sortedSuppliers = React.useMemo(() => {
+    return [...(suppliers || [])].sort((a,b) => a.name.localeCompare(b.name));
+  }, [suppliers]);
+
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -91,6 +102,27 @@ export function CreateMaterialForm() {
         <Input id="material-name" placeholder="Ej: Tornillos de 1 pulgada" {...register('name')} />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
       </div>
+      
+        <div className="space-y-2">
+            <Label htmlFor="categoryId">Categoría del Material</Label>
+            <Controller
+                name="categoryId"
+                control={control}
+                render={({ field }) => (
+                     <Select onValueChange={field.onChange} value={field.value}>
+                        <SelectTrigger id="categoryId">
+                            <SelectValue placeholder="Selecciona una categoría" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {sortedCategories.map((cat: MaterialCategory) => (
+                                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+            />
+            {errors.categoryId && <p className="text-xs text-destructive">{errors.categoryId.message}</p>}
+        </div>
       
        <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -162,27 +194,6 @@ export function CreateMaterialForm() {
                 {errors.justification && <p className="text-xs text-destructive">{errors.justification.message}</p>}
             </div>
         )}
-
-        <div className="space-y-2">
-            <Label htmlFor="categoryId">Categoría del Material</Label>
-            <Controller
-                name="categoryId"
-                control={control}
-                render={({ field }) => (
-                     <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger id="categoryId">
-                            <SelectValue placeholder="Selecciona una categoría" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {(materialCategories || []).map((cat: MaterialCategory) => (
-                                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                )}
-            />
-            {errors.categoryId && <p className="text-xs text-destructive">{errors.categoryId.message}</p>}
-        </div>
         
          <div className="space-y-2">
             <Label htmlFor="supplierId">Proveedor Preferido (Opcional)</Label>
@@ -196,7 +207,7 @@ export function CreateMaterialForm() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="ninguno">Ninguno</SelectItem>
-                        {(suppliers || []).map((s: Supplier) => (
+                        {sortedSuppliers.map((s: Supplier) => (
                             <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                         ))}
                     </SelectContent>

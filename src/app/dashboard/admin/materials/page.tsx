@@ -1,23 +1,58 @@
-
 "use client";
 
 import React, { useState, useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { CreateMaterialForm } from "@/components/admin/create-material-form";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { PackageCheck, PackageOpen, Edit, Trash2, Archive } from "lucide-react";
+import {
+  PackageCheck,
+  PackageOpen,
+  Edit,
+  Trash2,
+  Archive,
+  Search,
+  Filter,
+  MoreHorizontal,
+  AlertTriangle,
+  Package,
+  History,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Loader2,
+  CheckCircle2,
+  ArchiveRestore,
+  PlusCircle,
+} from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { Material, MaterialRequest, PurchaseRequest, User, Supplier } from "@/modules/core/lib/data";
 import { EditMaterialForm } from "@/components/admin/edit-material-form";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import { Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,39 +68,68 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
+// --- Tipos ---
 type CompatibleMaterialRequest = MaterialRequest & {
-    materialId?: string;
-    quantity?: number;
-    items?: { materialId: string; quantity: number }[];
+  materialId?: string;
+  quantity?: number;
+  items?: { materialId: string; quantity: number }[];
 };
 
 export default function AdminMaterialsPage() {
   const { materials, purchaseRequests, users, requests, suppliers, isLoading, deleteMaterial, updateMaterial, can } = useAppState();
   const { toast } = useToast();
 
+  // Estados
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [showArchived, setShowArchived] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  
   const itemsPerPage = 10;
   
+  // Permisos
   const canCreate = can('materials:create');
   const canEdit = can('materials:edit');
   const canDelete = can('materials:delete');
   const canArchive = can('materials:archive');
+
+  // --- Optimizaciones con useMemo (Mapas O(1)) ---
+  const supplierMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (suppliers || []).forEach(s => {
+        if(s.id) map.set(s.id, s.name);
+    });
+    return map;
+  }, [suppliers]);
+
+  const userMap = useMemo(() => {
+    const map = new Map<string, User>();
+    (users || []).forEach(u => map.set(u.id, u));
+    return map;
+  }, [users]);
+  
+  const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
+
+  // --- Lógica de Negocio ---
 
   const handleDeleteMaterial = async (materialId: string, materialName: string) => {
     try {
       await deleteMaterial(materialId);
       toast({
         title: "Material Eliminado",
-        description: `El material ${materialName} ha sido eliminado.`,
+        description: `El material ${materialName} ha sido eliminado permanentemente.`,
       });
     } catch (error) {
       toast({
@@ -77,44 +141,53 @@ export default function AdminMaterialsPage() {
   };
 
   const handleArchiveMaterial = async (material: Material) => {
-    if (material.stock > 0) {
-      toast({ variant: 'destructive', title: 'Error', description: 'No se puede archivar un material con stock.' });
+    if (material.stock > 0 && !material.archived) {
+      toast({ variant: 'destructive', title: 'Acción bloqueada', description: 'No se puede archivar un material que aún tiene stock físico.' });
       return;
     }
+    const newStatus = !material.archived;
     try {
-      await updateMaterial(material.id, { archived: true });
+      await updateMaterial(material.id, { archived: newStatus });
       toast({
-        title: "Material Archivado",
-        description: `El material ${material.name} ha sido archivado.`,
+        title: newStatus ? "Material Archivado" : "Material Restaurado",
+        description: `El material ${material.name} ha sido ${newStatus ? 'archivado' : 'restaurado'} exitosamente.`,
       });
     } catch (error) {
        toast({
         variant: "destructive",
-        title: "Error al Archivar",
-        description: error instanceof Error ? error.message : "No se pudo archivar el material.",
+        title: "Error",
+        description: "No se pudo actualizar el estado del material.",
       });
     }
   };
 
+  // --- Filtros y Paginación ---
+
   const categories = useMemo(() => {
     if (!materials) return ["all"];
     const allCats = materials.map((m: Material) => m.category).filter((cat): cat is string => typeof cat === 'string');
-    const uniqueCats = [...new Set(allCats)];
-    return ["all", ...uniqueCats].sort();
+    return ["all", ...new Set(allCats)].sort();
   }, [materials]);
-
 
   const filteredMaterials = useMemo(() => {
     let filtered: Material[] = materials || [];
-    filtered = filtered.filter((m: Material) => showArchived || !m.archived);
+    
+    // Filtro Archivo
+    if (!showArchived) {
+        filtered = filtered.filter((m) => !m.archived);
+    }
+    
+    // Filtro Texto
     if (searchTerm) {
-      filtered = filtered.filter((material: Material) =>
-        material.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const lower = searchTerm.toLowerCase();
+      filtered = filtered.filter((m) => m.name.toLowerCase().includes(lower));
     }
+    
+    // Filtro Categoría
     if (categoryFilter !== "all") {
-      filtered = filtered.filter((material: Material) => material.category === categoryFilter);
+      filtered = filtered.filter((m) => m.category === categoryFilter);
     }
+    
     return filtered;
   }, [materials, searchTerm, categoryFilter, showArchived]);
 
@@ -124,66 +197,52 @@ export default function AdminMaterialsPage() {
   }, [filteredMaterials, currentPage]);
 
   const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
+
+  // --- Estadísticas Rápidas ---
+  const quickStats = useMemo(() => {
+      const total = materials?.length || 0;
+      const lowStock = materials?.filter(m => !m.archived && m.stock <= 10).length || 0;
+      const archived = materials?.filter(m => m.archived).length || 0;
+      return { total, lowStock, archived };
+  }, [materials]);
+
+  // --- Datos Recientes ---
   
   const toDate = (date: Date | Timestamp | null | undefined): Date | null => {
     if (!date) return null;
     return date instanceof Timestamp ? date.toDate() : (date as Date);
   };
-  
-  const formatDate = (date: Date | Timestamp | null | undefined): string => {
-    const jsDate = toDate(date);
-    if (!jsDate) return "Fecha no disponible";
-    return jsDate.toLocaleDateString("es-ES", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+
+  const getRelativeTime = (date: Date | Timestamp | null | undefined) => {
+    const d = toDate(date);
+    if (!d) return "Fecha desconocida";
+    return formatDistanceToNow(d, { addSuffix: true, locale: es });
   };
 
   const recentReceived = useMemo(() => {
     if (!purchaseRequests) return [];
     return purchaseRequests
-      .filter((pr: PurchaseRequest) => pr.status === "received" && pr.receivedAt)
-      .sort((a: PurchaseRequest, b: PurchaseRequest) => {
-        const dateA = toDate(a.receivedAt)?.getTime() || 0;
-        const dateB = toDate(b.receivedAt)?.getTime() || 0;
-        return dateB - dateA;
-      })
+      .filter((pr) => pr.status === "received" && pr.receivedAt)
+      .sort((a, b) => (toDate(b.receivedAt)?.getTime() || 0) - (toDate(a.receivedAt)?.getTime() || 0))
       .slice(0, 5);
   }, [purchaseRequests]);
-  
-  const materialMap = useMemo(() => new Map((materials || []).map((m: Material) => [m.id, m])), [materials]);
 
   const recentApprovedRequests = useMemo(() => {
     if (!requests) return [];
     return (requests as CompatibleMaterialRequest[])
-      .filter((r: CompatibleMaterialRequest) => r.status === "approved" && r.createdAt)
-      .sort((a: CompatibleMaterialRequest, b: CompatibleMaterialRequest) => {
-        const dateA = toDate(a.createdAt)?.getTime() || 0;
-        const dateB = toDate(b.createdAt)?.getTime() || 0;
-        return dateB - dateA;
-      })
+      .filter((r) => r.status === "approved" && r.createdAt)
+      .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0))
       .slice(0, 5);
   }, [requests]);
 
-  const getSupplierNameFromId = (supplierId: string | null | undefined): string => {
-    if (!supplierId) return "N/A";
-    const supplier = (suppliers || []).find((s: Supplier) => s.id === supplierId);
-    return supplier?.name || "Desconocido";
-  };
 
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  // --- Render ---
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 pb-10 fade-in">
       <PageHeader
         title="Gestión de Materiales"
-        description="Administra el inventario de materiales de la bodega."
+        description="Administra el catálogo maestro de inventario, stock y proveedores."
       />
 
       {editingMaterial && canEdit && (
@@ -194,256 +253,313 @@ export default function AdminMaterialsPage() {
         />
       )}
 
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-card shadow-sm border-l-4 border-l-primary">
+            <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-2 bg-primary/10 rounded-full text-primary"><Package className="h-6 w-6"/></div>
+                <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Materiales</p>
+                    <h3 className="text-2xl font-bold">{quickStats.total}</h3>
+                </div>
+            </CardContent>
+        </Card>
+        <Card className="bg-card shadow-sm border-l-4 border-l-destructive">
+            <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-2 bg-destructive/10 rounded-full text-destructive"><AlertTriangle className="h-6 w-6"/></div>
+                <div>
+                    <p className="text-sm font-medium text-muted-foreground">Stock Crítico</p>
+                    <h3 className="text-2xl font-bold">{quickStats.lowStock}</h3>
+                </div>
+            </CardContent>
+        </Card>
+        <Card className="bg-card shadow-sm border-l-4 border-l-muted">
+            <CardContent className="p-4 flex items-center gap-4">
+                <div className="p-2 bg-muted rounded-full text-muted-foreground"><Archive className="h-6 w-6"/></div>
+                <div>
+                    <p className="text-sm font-medium text-muted-foreground">Archivados</p>
+                    <h3 className="text-2xl font-bold">{quickStats.archived}</h3>
+                </div>
+            </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-8 grid-cols-1 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <Card>
+        {/* Columna Izquierda: Inventario (2/3) */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="h-full shadow-sm flex flex-col">
             <CardHeader>
-              <CardTitle>Inventario de Materiales</CardTitle>
-              <CardDescription>Lista completa de todos los materiales y su stock actual.</CardDescription>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <CardTitle>Inventario Maestro</CardTitle>
+                    <CardDescription>Catálogo completo de materiales.</CardDescription>
+                  </div>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Input
-                  placeholder="Buscar material por nombre..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  aria-label="Buscar material por nombre"
-                />
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <CardContent className="space-y-4 flex-grow">
+              {/* Toolbar de Filtros */}
+              <div className="flex flex-col sm:flex-row gap-3 p-1">
+                <div className="relative flex-grow">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                    placeholder="Buscar por nombre..."
+                    value={searchTerm}
+                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    className="pl-9"
+                    />
+                </div>
+                <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setCurrentPage(1); }}>
                   <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Filtrar por categoría" />
+                    <div className="flex items-center gap-2">
+                        <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                        <SelectValue placeholder="Categoría" />
+                    </div>
                   </SelectTrigger>
                   <SelectContent>
                     {categories.map((cat, index) => (
-                      <SelectItem key={`${cat}-${index}`} value={cat || "all"}>
-                        {cat === "all" ? "Todas" : cat}
+                      <SelectItem key={`${cat}-${index}`} value={cat}>
+                        {cat === "all" ? "Todas las categorías" : cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="flex items-center space-x-2 pt-2 sm:pt-0">
-                    <Checkbox id="showArchived" checked={showArchived} onCheckedChange={(checked) => setShowArchived(checked as boolean)} />
-                    <Label htmlFor="showArchived" className="text-sm font-medium whitespace-nowrap">Mostrar archivados</Label>
+                <div className="flex items-center space-x-2 border rounded-md px-3 bg-muted/20">
+                    <Checkbox id="showArchived" checked={showArchived} onCheckedChange={(c) => setShowArchived(!!c)} />
+                    <Label htmlFor="showArchived" className="text-xs font-medium cursor-pointer">Ver Archivados</Label>
                 </div>
               </div>
-              <ScrollArea className="h-96 border rounded-md">
-                <div className="min-w-full">
-                  <Table className="min-w-[800px]">
-                    <TableHeader className="sticky top-0 bg-card">
+
+              {/* Tabla */}
+              <ScrollArea className="h-[600px] border rounded-md bg-card">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-muted/50 z-10 backdrop-blur-sm">
+                    <TableRow>
+                      <TableHead className="w-[30%]">Material</TableHead>
+                      <TableHead className="w-[20%]">Categoría</TableHead>
+                      <TableHead className="w-[20%]">Proveedor</TableHead>
+                      <TableHead className="w-[15%] text-right">Stock</TableHead>
+                      <TableHead className="w-[15%] text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
                       <TableRow>
-                        <TableHead className="w-[250px]">Nombre</TableHead>
-                        <TableHead className="w-[150px]">Categoría</TableHead>
-                        <TableHead className="w-[200px]">Proveedor</TableHead>
-                        <TableHead className="w-[100px] text-center">Unidad</TableHead>
-                        <TableHead className="w-[120px] text-right">Stock</TableHead>
-                        <TableHead className="w-[100px] text-right">Acciones</TableHead>
+                        <TableCell colSpan={5} className="h-32 text-center">
+                            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary/50" />
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
-                            <TableRow>
-                                <TableCell colSpan={6} className="h-24 text-center">
-                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                    ) : paginatedMaterials.length > 0 ? (
+                      paginatedMaterials.map((material) => {
+                          const isLowStock = !material.archived && material.stock <= 10;
+                          return (
+                            <TableRow 
+                                key={material.id} 
+                                className={cn(
+                                    "transition-colors",
+                                    material.archived && "opacity-60 bg-muted/30 grayscale"
+                                )}
+                            >
+                                <TableCell>
+                                    <div className="flex flex-col">
+                                        <span className="font-medium">{material.name}</span>
+                                        {material.archived && <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1">Archivado</Badge>}
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant="secondary" className="font-normal text-xs bg-muted text-muted-foreground">
+                                        {material.category}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={material.supplierId ? (supplierMap.get(material.supplierId) || "Sin proveedor") : "Sin proveedor"}>
+                                    {material.supplierId ? supplierMap.get(material.supplierId) || "-" : "-"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex flex-col items-end">
+                                        <span className={cn(
+                                            "font-mono font-bold",
+                                            isLowStock ? "text-destructive" : "text-foreground"
+                                        )}>
+                                            {material.stock.toLocaleString()}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">{material.unit}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {canEdit && (
+                                            <DropdownMenuItem onClick={() => setEditingMaterial(material)}>
+                                            <Edit className="mr-2 h-4 w-4" /> Editar
+                                            </DropdownMenuItem>
+                                        )}
+                                        {canArchive && (
+                                            <DropdownMenuItem onClick={() => handleArchiveMaterial(material)}>
+                                                {material.archived ? (
+                                                    <><ArchiveRestore className="mr-2 h-4 w-4" /> Restaurar</>
+                                                ) : (
+                                                    <><Archive className="mr-2 h-4 w-4" /> Archivar</>
+                                                )}
+                                            </DropdownMenuItem>
+                                        )}
+                                        {canDelete && (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Eliminarás <b>{material.name}</b> permanentemente. Esta acción no se puede deshacer.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction 
+                                                            onClick={() => handleDeleteMaterial(material.id, material.name)}
+                                                            className="bg-destructive hover:bg-destructive/90"
+                                                        >
+                                                            Eliminar
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
+                                    </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                             </TableRow>
-                        ) : paginatedMaterials.length > 0 ? (
-                        paginatedMaterials.map((material: Material) => (
-                          <TableRow key={material.id} className={material.archived ? "bg-muted/30" : ""}>
-                            <TableCell className="font-medium whitespace-nowrap">
-                              {material.name}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">
-                              {material.category}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                              {getSupplierNameFromId(material.supplierId)}
-                            </TableCell>
-                            <TableCell className="text-center font-mono text-xs">
-                              {material.unit}
-                            </TableCell>
-                            <TableCell className="text-right font-mono">
-                              {material.stock.toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" aria-label={`Acciones para ${material.name}`}>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {canEdit && <DropdownMenuItem onClick={() => setEditingMaterial(material)}>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    <span>Editar</span>
-                                  </DropdownMenuItem>}
-                                  {canArchive && !material.archived && material.stock === 0 && (
-                                    <DropdownMenuItem onClick={() => handleArchiveMaterial(material)}>
-                                        <Archive className="mr-2 h-4 w-4" />
-                                        <span>Archivar</span>
-                                    </DropdownMenuItem>
-                                  )}
-                                  {canDelete && <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        <span>Eliminar</span>
-                                      </DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>¿Eliminar "{material.name}"?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Esta acción no se puede deshacer. Se eliminará permanentemente. La acción fallará si el material está en uso en alguna solicitud.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction
-                                          className="bg-destructive hover:bg-destructive/90"
-                                          onClick={() => handleDeleteMaterial(material.id, material.name)}
-                                        >
-                                          Sí, eliminar
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} className="h-24 text-center">
-                            No se encontraron materiales.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-                <ScrollBar orientation="horizontal" />
-                <ScrollBar orientation="vertical" />
+                          );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                            No se encontraron materiales con los filtros actuales.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </ScrollArea>
+              
+              {/* Paginación Simple */}
               {totalPages > 1 && (
-                <div className="flex justify-between items-center mt-4">
-                  <Button
-                    variant="outline"
-                    disabled={currentPage === 1}
-                    onClick={() => handlePageChange(currentPage - 1)}
-                  >
-                    Anterior
-                  </Button>
-                  <span>Página {currentPage} de {totalPages}</span>
-                  <Button
-                    variant="outline"
-                    disabled={currentPage === totalPages}
-                    onClick={() => handlePageChange(currentPage + 1)}
-                  >
-                    Siguiente
-                  </Button>
+                <div className="flex items-center justify-between pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                        Anterior
+                    </Button>
+                    <span className="text-xs text-muted-foreground">Página {currentPage} de {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                        Siguiente
+                    </Button>
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
-        <div className="space-y-8">
+
+        {/* Columna Derecha: Acciones y Actividad (1/3) */}
+        <div className="space-y-6">
+          
+          {/* Formulario Crear (Siempre visible en desktop) */}
           {canCreate && (
-             <Card>
-              <CardHeader>
-                <CardTitle>Añadir Nuevo Material</CardTitle>
-                <CardDescription>
-                  Agrega nuevos tipos de materiales al inventario.
-                </CardDescription>
+             <Card className="border-l-4 border-l-blue-500 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <PlusCircle className="h-5 w-5 text-blue-500" /> Crear Material
+                </CardTitle>
+                <CardDescription>Agrega un nuevo ítem al catálogo.</CardDescription>
               </CardHeader>
               <CardContent>
                 <CreateMaterialForm />
               </CardContent>
             </Card>
           )}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PackageOpen /> Últimas Salidas de Bodega
-              </CardTitle>
-              <CardDescription>Las 5 solicitudes de material más recientes que fueron aprobadas.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[20rem]">
-                {recentApprovedRequests.length > 0 ? (
-                  <ul className="space-y-3 pr-4">
-                    {recentApprovedRequests.map((req: CompatibleMaterialRequest) => {
-                      const supervisor = (users || []).find((u: User) => u.id === req.supervisorId);
-                      const createdAtDate = formatDate(req.createdAt);
-                      return (
-                        <li key={`approved-${req.id}`} className="text-sm p-3 rounded-lg border bg-muted/50">
-                            <ul className="list-disc list-inside space-y-1">
-                                {req.items && Array.isArray(req.items) ? (
-                                    req.items.map(item => (
-                                        <li key={item.materialId} className="font-semibold">
-                                           {materialMap.get(item.materialId)?.name || "N/A"} <span className="font-normal text-primary">({item.quantity} uds)</span>
-                                        </li>
-                                    ))
-                                ) : (
-                                     <li key={`${req.id}-${req.materialId}`} className="font-semibold">
-                                        {materialMap.get(req.materialId || '')?.name || "N/A"} <span className="font-normal text-primary">({req.quantity} uds)</span>
-                                    </li>
-                                )}
-                            </ul>
-                          <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
-                            Para: {req.area} (Solicitado por {supervisor?.name || 'Desconocido'})
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-2 font-mono">
-                            Aprobado: {createdAtDate}
-                          </p>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
-                    <p>No hay salidas recientes.</p>
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PackageCheck /> Últimos Ingresos a Bodega
-              </CardTitle>
-              <CardDescription>Registro de los materiales de compra más recientes marcados como recibidos.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[20rem]">
-                {recentReceived.length > 0 ? (
-                  <ul className="space-y-3 pr-4">
-                    {recentReceived.map((req: PurchaseRequest) => {
-                      const supervisor = (users || []).find((u: User) => u.id === req.supervisorId);
-                      const receivedAtDate = formatDate(req.receivedAt);
-                      return (
-                        <li key={`received-${req.id}`} className="text-sm p-3 rounded-lg border bg-muted/50">
-                          <p className="font-semibold max-w-full truncate">
-                            {req.materialName} <span className="font-normal text-primary">({req.quantity} uds)</span>
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1 max-w-full truncate">
-                            Justificación: <span className="font-medium">"{req.justification}"</span>
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-2 font-mono">
-                            Ingreso: {receivedAtDate}
-                          </p>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-8 h-full">
-                    <p>No hay ingresos recientes.</p>
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
+
+          {/* Actividad Reciente (Tabs para ahorrar espacio) */}
+          <Card className="h-fit">
+              <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                      <History className="h-5 w-5 text-muted-foreground" /> Actividad Reciente
+                  </CardTitle>
+              </CardHeader>
+              <CardContent>
+                  <Tabs defaultValue="out" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2 mb-4">
+                          <TabsTrigger value="out">Salidas</TabsTrigger>
+                          <TabsTrigger value="in">Ingresos</TabsTrigger>
+                      </TabsList>
+                      
+                      {/* Tab: Salidas */}
+                      <TabsContent value="out" className="mt-0">
+                        <ScrollArea className="h-[300px] pr-3">
+                            {recentApprovedRequests.length > 0 ? (
+                                <div className="space-y-3">
+                                    {recentApprovedRequests.map((req) => (
+                                        <div key={req.id} className="text-sm p-3 rounded-lg bg-orange-100/20 dark:bg-orange-950/40 border border-orange-200/50 dark:border-orange-800/60 flex flex-col gap-1">
+                                            <div className="flex justify-between items-start">
+                                                <span className="font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1">
+                                                    <ArrowUpRight className="h-3 w-3" /> Salida
+                                                </span>
+                                                <span className="text-[10px] text-muted-foreground">{getRelativeTime(req.createdAt)}</span>
+                                            </div>
+                                            <div className="pl-4 border-l-2 border-orange-200 dark:border-orange-700 ml-1">
+                                                <ul className="list-disc list-inside text-xs space-y-0.5">
+                                                    {req.items && req.items.length > 0 ? req.items.map(i => (
+                                                        <li key={i.materialId}>
+                                                            {materialMap.get(i.materialId)?.name} <b>({i.quantity})</b>
+                                                        </li>
+                                                    )) : (
+                                                        <li>{materialMap.get(req.materialId || '')?.name} <b>({req.quantity})</b></li>
+                                                    )}
+                                                </ul>
+                                                <p className="text-[10px] text-muted-foreground mt-1">
+                                                    Destino: {req.area} • Por: {userMap.get(req.supervisorId)?.name.split(' ')[0]}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-center text-xs text-muted-foreground py-8">Sin salidas recientes.</p>}
+                        </ScrollArea>
+                      </TabsContent>
+
+                      {/* Tab: Ingresos */}
+                      <TabsContent value="in" className="mt-0">
+                         <ScrollArea className="h-[300px] pr-3">
+                            {recentReceived.length > 0 ? (
+                                <div className="space-y-3">
+                                    {recentReceived.map((req) => (
+                                        <div key={req.id} className="text-sm p-3 rounded-lg bg-green-100/20 dark:bg-green-950/40 border border-green-200/50 dark:border-green-800/60 flex flex-col gap-1">
+                                            <div className="flex justify-between items-start">
+                                                <span className="font-semibold text-green-700 dark:text-green-300 flex items-center gap-1">
+                                                    <ArrowDownLeft className="h-3 w-3" /> Ingreso
+                                                </span>
+                                                <span className="text-[10px] text-muted-foreground">{getRelativeTime(req.receivedAt)}</span>
+                                            </div>
+                                            <div className="pl-4 border-l-2 border-green-200 dark:border-green-700 ml-1">
+                                                <p className="font-medium text-xs">{req.materialName} <b>({req.quantity} {req.unit})</b></p>
+                                                <p className="text-[10px] text-muted-foreground mt-1 italic line-clamp-2">
+                                                    "{req.justification || 'Sin comentarios'}"
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : <p className="text-center text-xs text-muted-foreground py-8">Sin ingresos recientes.</p>}
+                        </ScrollArea>
+                      </TabsContent>
+                  </Tabs>
+              </CardContent>
           </Card>
         </div>
       </div>
