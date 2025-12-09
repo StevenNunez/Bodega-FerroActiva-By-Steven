@@ -104,33 +104,6 @@ export async function addMaterial(data: any, { user, tenantId, db }: Context) {
     });
 }
 
-export async function updateMaterial(materialId: string, data: any, { tenantId, db }: Context) {
-    if (!tenantId) throw new Error("Inquilino no válido.");
-    const materialRef = doc(db, `materials`, materialId);
-    
-    const categoryQuery = query(collection(db, 'materialCategories'), where('id', '==', data.categoryId));
-    const categorySnap = await getDocs(categoryQuery);
-    
-    let categoryName = 'Sin Categoría';
-    if (!categorySnap.empty) {
-        categoryName = categorySnap.docs[0].data().name;
-    }
-
-    const updateData = {
-        ...data,
-        category: categoryName
-    };
-    delete updateData.categoryId;
-
-
-    await updateDoc(materialRef, updateData);
-}
-
-export async function deleteMaterial(materialId: string, { tenantId, db }: Context) {
-    if (!tenantId) throw new Error("Inquilino no válido.");
-    await deleteDoc(doc(db, `materials`, materialId));
-}
-
 export async function addManualStockEntry(materialId: string, quantity: number, justification: string, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
     const materialRef = doc(db, `materials`, materialId);
@@ -160,6 +133,63 @@ export async function addManualStockEntry(materialId: string, quantity: number, 
     });
 }
 
+export async function updateMaterial(materialId: string, data: any, { user, tenantId, db }: Context) {
+    if (!tenantId) throw new Error("Inquilino no válido.");
+  
+    const materialRef = doc(db, 'materials', materialId);
+  
+    await runTransaction(db, async (transaction) => {
+        const materialDoc = await transaction.get(materialRef);
+        if (!materialDoc.exists()) {
+            throw new Error("El material no existe.");
+        }
+        
+        const currentData = materialDoc.data();
+        const { stock, ...otherData } = data;
+    
+        // 1. Handle stock update via a secure movement
+        if (stock !== undefined && stock !== currentData.stock) {
+            const stockDifference = stock - currentData.stock;
+            const newStock = currentData.stock + stockDifference;
+            
+            transaction.update(materialRef, { stock: newStock });
+    
+            const movementRef = doc(collection(db, 'stockMovements'));
+            transaction.set(movementRef, {
+                materialId: materialId,
+                materialName: currentData.name,
+                quantityChange: stockDifference,
+                newStock: newStock,
+                type: 'adjustment',
+                date: serverTimestamp(),
+                justification: data.justification || 'Ajuste desde panel de edición',
+                userId: user.id,
+                userName: user.name,
+                tenantId,
+            });
+        }
+        
+        // 2. Handle other data updates (name, category, etc.)
+        let updatePayload: any = { ...otherData };
+        if (data.categoryId) {
+            const categoryQuery = query(collection(db, 'materialCategories'), where('id', '==', data.categoryId));
+            const categorySnap = await getDocs(categoryQuery);
+            if (!categorySnap.empty) {
+                updatePayload.category = categorySnap.docs[0].data().name;
+            }
+            delete updatePayload.categoryId; 
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+            transaction.update(materialRef, updatePayload);
+        }
+    });
+  }
+
+export async function deleteMaterial(materialId: string, { tenantId, db }: Context) {
+    if (!tenantId) throw new Error("Inquilino no válido.");
+    await deleteDoc(doc(db, `materials`, materialId));
+}
 
 // --- Categories & Units ---
 export async function addMaterialCategory(name: string, { tenantId, db }: Context) {
