@@ -510,7 +510,6 @@ export default function SupervisorRequestPage() {
                             <p className="text-muted-foreground">No se encontraron solicitudes.</p>
                         </div>
                     )}
-
                     {/* Paginación */}
                     {totalPages > 1 && (
                         <div className="flex justify-center gap-2 mt-4">
