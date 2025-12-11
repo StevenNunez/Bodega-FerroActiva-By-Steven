@@ -1,4 +1,3 @@
-
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,7 +5,7 @@ import Link from 'next/link';
 import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
 import { 
   Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, 
-  ShieldCheck, BarChart3, ListChecks, ShoppingCart, HardHat, Wrench, AlertCircle 
+  ShieldCheck, BarChart3, ListChecks, ShoppingCart, HardHat, Wrench, AlertCircle, Construction
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
@@ -68,6 +67,7 @@ export default function DashboardHubPage() {
   }
 
   const allModules: (ModuleCardProps & { permission?: Permission, roles?: UserRole[], superadminOnly?: boolean })[] = [
+    { href: '/dashboard/construction-control', icon: Construction, title: "Control de Obra", description: "Gestiona el avance físico de la obra.", permission: 'module_construction_control:view' },
     { href: '/dashboard/admin', icon: Warehouse, title: "Módulo de Bodega", description: "Gestiona inventario, herramientas y solicitudes.", permission: 'module_warehouse:view' },
     { href: '/dashboard/purchasing', icon: ShoppingCart, title: "Módulo Compras", description: "Gestiona adquisiciones, lotes y órdenes de compra.", permission: 'module_purchasing:view' },
     { href: '/dashboard/users', icon: UserIcon, title: "Módulo de Usuarios", description: "Gestiona los perfiles y roles de los trabajadores.", permission: 'module_users:view' },
@@ -78,7 +78,7 @@ export default function DashboardHubPage() {
     { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza consumos y genera informes.", permission: 'module_reports:view' },
     { href: '/dashboard/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'permissions:manage' },
     { href: '/dashboard/worker', icon: Wrench, title: "Módulo Herramientas", description: "Consulta el historial de herramientas a tu cargo.", roles: ['worker'] },
-    { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tareas de seguridad.", roles: ['supervisor', 'apr', 'bodega-admin'] },
+    { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tareas de seguridad.", roles: ['supervisor', 'apr', 'bodega-admin', 'jefe-terreno'] },
     { href: '/dashboard/cphs', icon: ShieldCheck, title: "Módulo Comité Paritario", description: "Accede a las herramientas de gestión de seguridad del comité.", roles: ['cphs'] },
   ];
 

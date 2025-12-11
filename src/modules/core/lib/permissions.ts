@@ -17,6 +17,8 @@ export const ALL_PERMISSIONS = {
   'module_payments:view': { label: 'Acceder a Pagos', group: 'Acceso a Módulos' },
   'module_reports:view': { label: 'Acceder a Reportes', group: 'Acceso a Módulos' },
   'module_permissions:view': { label: 'Ver Gestión de Permisos', group: 'Acceso a Módulos' },
+  'module_construction_control:view': { label: 'Acceder a Control de Obra', group: 'Acceso a Módulos' },
+
 
   // ── Gestión de permisos (el permiso que realmente abre el módulo) ──
   'permissions:manage': { label: 'Gestionar Permisos de Roles', group: 'Plataforma' },
@@ -101,6 +103,12 @@ export const ALL_PERMISSIONS = {
   'safety_inspections:review': { label: 'Revisar Inspecciones', group: 'Prevención de Riesgos' },
   'safety_observations:create': { label: 'Crear Observaciones', group: 'Prevención de Riesgos' },
   'safety_observations:review': { label: 'Revisar Observaciones', group: 'Prevención de Riesgos' },
+
+  // Control de Obra
+  'construction_control:register_progress': { label: 'Registrar Avance Diario', group: 'Control de Obra' },
+  'construction_control:edit_structure': { label: 'Editar Estructura de Partidas', group: 'Control de Obra' },
+  'construction_control:view_reports': { label: 'Ver Reportes de Avance', group: 'Control de Obra' },
+
 } as const;
 
 export type Permission = keyof typeof ALL_PERMISSIONS;
@@ -124,6 +132,20 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
         label: 'Administrador de Obra',
         description: 'Mismos privilegios que Administrador de App.',
         permissions: fullTenantAdminPermissions,
+    },
+    'jefe-terreno': {
+        label: 'Jefe de Terreno',
+        description: 'Gestiona el avance físico de la obra y a los supervisores.',
+        permissions: [
+            'module_construction_control:view',
+            'construction_control:register_progress',
+            'construction_control:view_reports',
+            'module_warehouse:view',
+            'material_requests:create',
+            'purchase_requests:create',
+            'return_requests:create',
+            'tools:view_own',
+        ]
     },
     'bodega-admin': {
         label: 'Jefe de Bodega',
@@ -154,7 +176,8 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
         label: 'Supervisor',
         description: 'Líder en terreno: solicita materiales, compras y registra seguridad.',
         permissions: [
-            'module_warehouse:view', 'module_safety:view', 'module_reports:view', 'module_purchasing:view',
+            'module_warehouse:view', 'module_safety:view', 'module_reports:view', 'module_purchasing:view', 'module_construction_control:view',
+            'construction_control:register_progress', // El supervisor reporta avance
             'tools:view_own', 'materials:view_all',
             'material_requests:create', 'material_requests:view_own',
             'purchase_requests:create',
@@ -186,6 +209,15 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
             'safety_observations:create', 'safety_observations:review',
         ],
     },
+    'quality': {
+        label: 'Calidad',
+        description: 'Verifica la correcta ejecución de las partidas de obra.',
+        permissions: [
+            'module_construction_control:view',
+            'construction_control:view_reports',
+            // Este rol necesitará un nuevo permiso para APROBAR el avance.
+        ],
+    },
     'guardia': {
         label: 'Guardia',
         description: 'Registra asistencia con QR.',
@@ -202,11 +234,13 @@ export const ROLES_ORDER: UserRole[] = [
   'super-admin',
   'admin',
   'operations',
+  'jefe-terreno',
   'bodega-admin',
   'finance',
   'supervisor',
   'apr',
   'cphs',
+  'quality',
   'guardia',
   'worker',
 ];
@@ -224,12 +258,14 @@ export const PLANS = {
       'admin',
       'bodega-admin',
       'operations',
+      'jefe-terreno',
       'supervisor',
       'apr',
       'finance',
       'guardia',
       'worker',
       'cphs',
+      'quality',
     ] as UserRole[],
   },
   enterprise: {

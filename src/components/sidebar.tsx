@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -35,6 +34,8 @@ import {
   FolderTree, 
   HandCoins,
   Crown,
+  Construction,
+  CheckSquare,
 } from 'lucide-react';
 
 import { useAuth } from '@/modules/core/contexts/app-provider';
@@ -207,6 +208,16 @@ const safetyNavItems = (can: (p: Permission) => boolean) => {
     return Array.from(new Map(items.map(item => [item.href, item])).values());
 };
 
+const constructionControlNavItems = (can: (p: Permission) => boolean) => {
+    const items = [];
+    if(can('module_construction_control:view')) {
+      items.push({ href: '/dashboard/construction-control', icon: Edit, label: 'Partidas (EDT)' });
+      items.push({ href: '/dashboard/construction-control/revisar-protocolos', icon: CheckSquare, label: 'Revisar Protocolos' });
+      items.push({ href: '/dashboard/construction-control/mis-protocolos', icon: ClipboardList, label: 'Mis Protocolos' });
+    }
+    return items;
+};
+
 
 interface SidebarProps {
   onLinkClick?: () => void;
@@ -280,6 +291,10 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
         case 'cphs':
             title = 'Módulo Comité Paritario';
             navItems = cphsNavItems(can);
+            break;
+        case 'construction-control':
+            title = 'Control de Obra';
+            navItems = constructionControlNavItems(can);
             break;
         case 'profile':
             navItems = [];

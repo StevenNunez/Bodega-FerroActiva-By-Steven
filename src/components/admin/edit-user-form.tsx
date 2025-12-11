@@ -27,7 +27,7 @@ const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mo
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin', 'cphs'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin', 'cphs', 'jefe-terreno', 'quality'], { required_error: 'Debes seleccionar un rol.' }),
   rut: z.string().optional(),
   phone: z.string().optional(),
   cargo: z.string().optional(),

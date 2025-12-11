@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -16,7 +17,8 @@ export function useLots() {
 
   const approvedRequests = useMemo(() => {
     return (purchaseRequests || []).filter(
-      (req: PurchaseRequest) => !req.lotId && (req.status === 'approved')
+      // Ahora incluye 'approved' Y 'batched' si no tienen lote, para recapturar solicitudes removidas.
+      (req: PurchaseRequest) => !req.lotId && (req.status === 'approved' || req.status === 'batched')
     );
   }, [purchaseRequests]);
 
@@ -24,55 +26,34 @@ export function useLots() {
     const safePurchaseRequests = purchaseRequests || [];
     const safePurchaseLots = (purchaseLots || []) as PurchaseLot[];
     
-    // 1. Inicia con los lotes creados manualmente
     const lotsMap = new Map<string, Lot>();
+    
+    // 1. Inicia con los lotes creados manualmente que están abiertos.
     safePurchaseLots
         .filter((lot: PurchaseLot) => lot.status === 'open')
         .forEach((lot: PurchaseLot) => {
             lotsMap.set(lot.id, {
                 lotId: lot.id,
-                category: lot.name, // Usar el nombre del lote como "categoría" de visualización
+                category: lot.name, // El nombre del lote es la categoría principal
                 requests: [],
                 totalQuantity: 0,
             });
         });
 
-    // 2. Agrupa todas las solicitudes que no han sido ordenadas
-    const pendingRequests = safePurchaseRequests.filter(
-        (req: PurchaseRequest) => req.status === 'approved' || req.status === 'batched'
+    // 2. Procesa todas las solicitudes que ya tienen un lotId asignado
+    const requestsWithLot = safePurchaseRequests.filter(
+        (req: PurchaseRequest) => req.lotId && (req.status === 'batched' || req.status === 'approved')
     );
 
-    for (const req of pendingRequests) {
-        let lotKey: string;
-        let lotCategory: string;
-
-        // Si la solicitud ya está en un lote manual, úsalo.
+    for (const req of requestsWithLot) {
         if (req.lotId && lotsMap.has(req.lotId)) {
-            lotKey = req.lotId;
-            lotCategory = lotsMap.get(req.lotId)!.category;
-        } else {
-            // Si no, agrúpala por su categoría de material.
-            lotKey = req.category || 'Sin Categoría';
-            lotCategory = req.category || 'Sin Categoría';
+            const lot = lotsMap.get(req.lotId)!;
+            lot.requests.push(req);
+            lot.totalQuantity += Number(req.quantity) || 0;
         }
-
-        if (!lotsMap.has(lotKey)) {
-            lotsMap.set(lotKey, {
-                lotId: lotKey,
-                category: lotCategory,
-                requests: [],
-                totalQuantity: 0,
-            });
-        }
-        
-        const lot = lotsMap.get(lotKey)!;
-        lot.requests.push(req);
-        lot.totalQuantity += Number(req.quantity) || 0;
     }
-
-    // 3. Devuelve los lotes como un array, ordenados
+    
     return Array.from(lotsMap.values())
-      .filter(lot => lot.requests.length > 0) // Solo mostrar lotes con solicitudes
       .sort((a, b) => a.category.localeCompare(b.category));
 
   }, [purchaseRequests, purchaseLots]);

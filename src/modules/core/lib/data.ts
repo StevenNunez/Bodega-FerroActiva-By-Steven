@@ -5,7 +5,7 @@ import { Timestamp, FieldValue } from "firebase/firestore";
 // This type is used when writing data to Firestore
 export type FirestoreWriteableDate = Date | Timestamp | FieldValue;
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin" | "bodega-admin" | "cphs";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin" | "bodega-admin" | "cphs" | "jefe-terreno" | "quality";
 
 export interface Tenant {
   id: string;
@@ -321,6 +321,38 @@ export interface SupplierPayment {
   pdfURL?: string;
 }
 
+export interface WorkItem {
+    id: string;
+    tenantId: string;
+    projectId: string; // Main obra ID
+    name: string;
+    type: 'project' | 'phase' | 'subphase' | 'activity' | 'task';
+    status: 'in-progress' | 'pending-quality-review' | 'pending-final-approval' | 'completed' | 'rejected';
+    parentId: string | null;
+    path: string; // e.g., '01/02/03'
+    progress: number; // 0-100
+    plannedStartDate?: Date;
+    plannedEndDate?: Date;
+    actualStartDate?: Date;
+    actualEndDate?: Date;
+    unit: string; // e.g., m2, m3, und
+    quantity: number;
+    unitPrice: number;
+}
+
+export interface ProgressLog {
+  id: string;
+  tenantId: string;
+  workItemId: string;
+  date: Timestamp;
+  quantity: number;
+  userId: string;
+  userName: string;
+  observations?: string;
+  photoUrl?: string;
+}
+
+
 // This is a client-side only type, not stored in DB
 export interface Checklist {
     id: string;
@@ -346,7 +378,7 @@ export const WORK_SCHEDULE = {
     end: '13:00',
   },
   lunchBreak: {
-    start: '13:00',
+    start: '13:0',
     end: '14:00',
-  },
+  }
 };

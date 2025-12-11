@@ -20,7 +20,9 @@ import {
   BehaviorObservation,
   StockMovement,
   UserRole,
-  Tenant
+  Tenant,
+  WorkItem,
+  ProgressLog
 } from '../core/lib/data';
 import { ROLES as ROLES_DEFAULT, Permission, PLANS } from '@/modules/core/lib/permissions';
 
@@ -47,12 +49,15 @@ export interface AppDataState {
   checklistTemplates: ChecklistTemplate[];
   behaviorObservations: BehaviorObservation[];
   stockMovements: StockMovement[];
+  workItems: WorkItem[];
+  progressLogs: ProgressLog[];
 }
 
 // This defines the shape of the context, including all functions
 export interface AppStateContextType extends AppDataState {
   can: (permission: Permission) => boolean;
   notify: (message: string, variant?: "default" | "destructive" | "success") => void;
+  refreshData: () => void;
 
   // Purchase Requests
   addPurchaseRequest: (data: Partial<Omit<PurchaseRequest, 'id' | 'status' | 'createdAt' | 'tenantId'>>) => Promise<void>;
@@ -90,6 +95,9 @@ export interface AppStateContextType extends AppDataState {
   removeRequestFromLot: (requestId: string) => Promise<void>;
   deleteLot: (lotId: string) => Promise<void>;
   updateTenant: (tenantId: string, data: Partial<Tenant>) => Promise<void>;
+  addWorkItem: (data: Omit<WorkItem, 'id' | 'tenantId' | 'progress' | 'path'>) => Promise<void>;
+  addWorkItemProgress: (workItemId: string, quantity: number, date: Date, observations: string | undefined) => Promise<void>;
+  submitForQualityReview: (workItemId: string) => Promise<void>;
 
   // Tools
   addTool: (name: string) => Promise<void>;

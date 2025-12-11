@@ -1,4 +1,5 @@
 
+
 import {
   doc,
   collection,
@@ -13,12 +14,14 @@ import {
   getDocs,
   setDoc,
   FieldValue,
+  getDoc,
+  Timestamp,
 } from 'firebase/firestore';
 import { db, auth } from '@/modules/core/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { ROLES as ROLES_DEFAULT, Permission } from '@/modules/core/lib/permissions';
+import { ROLES as ROLES_DEFAULT, Permission, PLANS } from '@/modules/core/lib/permissions';
 import { nanoid } from 'nanoid';
-import type { UserRole, Tenant } from '@/modules/core/lib/data';
+import type { UserRole, Tenant, WorkItem, ProgressLog } from '@/modules/core/lib/data';
 
 type Context = {
   user: any;
@@ -82,7 +85,6 @@ export async function addMaterial(data: any, { user, tenantId, db }: Context) {
         const newMaterialRef = doc(materialColl);
         transaction.set(newMaterialRef, {
             ...materialData,
-            id: newMaterialRef.id,
             tenantId,
         });
 
@@ -139,50 +141,40 @@ export async function updateMaterial(materialId: string, data: any, { user, tena
     const materialRef = doc(db, 'materials', materialId);
   
     await runTransaction(db, async (transaction) => {
-        const materialDoc = await transaction.get(materialRef);
-        if (!materialDoc.exists()) {
-            throw new Error("El material no existe.");
-        }
+      const materialDoc = await transaction.get(materialRef);
+      if (!materialDoc.exists()) {
+        throw new Error("El material no existe.");
+      }
+      
+      const currentData = materialDoc.data();
+      const { stock, ...otherData } = data;
+  
+      // Solo modifica el stock si el rol lo permite y el valor ha cambiado.
+      const canEditStock = user?.role === 'super-admin' || user?.role === 'admin';
+      if (canEditStock && stock !== undefined && stock !== currentData.stock) {
+        const stockDifference = stock - currentData.stock;
         
-        const currentData = materialDoc.data();
-        const { stock, ...otherData } = data;
-    
-        // 1. Handle stock update via a secure movement
-        if (stock !== undefined && stock !== currentData.stock) {
-            const stockDifference = stock - currentData.stock;
-            const newStock = currentData.stock + stockDifference;
-            
-            transaction.update(materialRef, { stock: newStock });
-    
-            const movementRef = doc(collection(db, 'stockMovements'));
-            transaction.set(movementRef, {
-                materialId: materialId,
-                materialName: currentData.name,
-                quantityChange: stockDifference,
-                newStock: newStock,
-                type: 'adjustment',
-                date: serverTimestamp(),
-                justification: data.justification || 'Ajuste desde panel de edición',
-                userId: user.id,
-                userName: user.name,
-                tenantId,
-            });
-        }
+        // No llamamos a update directamente, sino a la función que crea el movimiento.
+        // Esto centraliza la lógica y respeta las reglas de seguridad.
+        await addManualStockEntry(materialId, stockDifference, 'Ajuste desde panel de edición', { user, tenantId, db });
         
-        // 2. Handle other data updates (name, category, etc.)
-        let updatePayload: any = { ...otherData };
-        if (data.categoryId) {
-            const categoryQuery = query(collection(db, 'materialCategories'), where('id', '==', data.categoryId));
-            const categorySnap = await getDocs(categoryQuery);
-            if (!categorySnap.empty) {
-                updatePayload.category = categorySnap.docs[0].data().name;
-            }
-            delete updatePayload.categoryId; 
+        // El stock ya se actualizó en `addManualStockEntry`, así que no lo incluimos en el `updatePayload` final.
+        // Solo actualizaremos los otros campos.
+      }
+      
+      let updatePayload: any = { ...otherData };
+      if (data.categoryId) {
+        const categoryDoc = await getDoc(doc(db, 'materialCategories', data.categoryId));
+        if (categoryDoc.exists()) {
+          updatePayload.category = categoryDoc.data().name;
         }
-
-        if (Object.keys(updatePayload).length > 0) {
-            transaction.update(materialRef, updatePayload);
-        }
+        delete updatePayload.categoryId; 
+      }
+      
+      // Si hay algo que actualizar (además del stock que ya se manejó)
+      if (Object.keys(updatePayload).length > 0) {
+        transaction.update(materialRef, updatePayload);
+      }
     });
   }
 
@@ -259,6 +251,7 @@ export async function addRequestToLot(requestId: string, lotId: string, { tenant
 export async function removeRequestFromLot(requestId: string, { tenantId, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
     const requestRef = doc(db, `purchaseRequests`, requestId);
+    // Vuelve al estado 'approved' para que sea reconsiderado
     await updateDoc(requestRef, { lotId: null, status: 'approved' });
 }
 
@@ -312,3 +305,93 @@ export async function updatePlanPermissions(planId: string, permissions: Permiss
     const planRef = doc(db, "subscriptionPlans", planId);
     await updateDoc(planRef, { allowedPermissions: permissions });
 }
+
+// --- Work Items ---
+export async function addWorkItem(data: Omit<WorkItem, 'id' | 'tenantId' | 'progress' | 'path'>, { tenantId, db }: Context) {
+    if (!tenantId) throw new Error("Inquilino no válido.");
+
+    const collRef = collection(db, `workItems`);
+    const newDocRef = doc(collRef);
+
+    let path = '';
+    if (data.parentId) {
+        const parentRef = doc(db, `workItems`, data.parentId);
+        const parentDoc = await getDoc(parentRef);
+        if (!parentDoc.exists()) throw new Error("El ítem padre no existe.");
+        const parentPath = parentDoc.data().path;
+
+        // Find the last child of this parent to determine the next index
+        const childrenQuery = query(collRef, where('tenantId', '==', tenantId), where('parentId', '==', data.parentId));
+        const childrenSnap = await getDocs(childrenQuery);
+        const nextIndex = childrenSnap.size + 1;
+        path = `${parentPath}/${String(nextIndex).padStart(2, '0')}`;
+    } else {
+        // This is a root item
+        const rootQuery = query(collRef, where('tenantId', '==', tenantId), where('parentId', '==', null));
+        const rootSnap = await getDocs(rootQuery);
+        const nextIndex = rootSnap.size + 1;
+        path = String(nextIndex).padStart(2, '0');
+    }
+
+    const newItem: Omit<WorkItem, 'id'> = {
+        ...data,
+        status: 'in-progress',
+        tenantId,
+        projectId: tenantId, // Assuming tenantId is the projectId for now
+        progress: 0,
+        path: path,
+    };
+
+    await setDoc(newDocRef, newItem);
+}
+
+export async function addWorkItemProgress(workItemId: string, quantity: number, date: Date, observations: string | undefined, { user, tenantId, db }: Context) {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+
+    const workItemRef = doc(db, "workItems", workItemId);
+
+    await runTransaction(db, async (transaction) => {
+        const workItemDoc = await transaction.get(workItemRef);
+        if (!workItemDoc.exists()) {
+            throw new Error("La partida de trabajo no existe.");
+        }
+        const workItemData = workItemDoc.data() as WorkItem;
+
+        // Fetch existing progress logs for this item
+        const progressQuery = query(collection(db, 'progressLogs'), where('workItemId', '==', workItemId));
+        const progressSnap = await getDocs(progressQuery);
+        const existingQuantity = progressSnap.docs.reduce((sum, doc) => sum + doc.data().quantity, 0);
+        
+        const totalAdvanced = existingQuantity + quantity;
+        if (totalAdvanced > workItemData.quantity) {
+            throw new Error(`La cantidad total avanzada (${totalAdvanced}) no puede exceder la cantidad total de la partida (${workItemData.quantity}).`);
+        }
+
+        const newProgress = (totalAdvanced / workItemData.quantity) * 100;
+
+        // Create new progress log
+        const progressLogRef = doc(collection(db, "progressLogs"));
+        const logData: Omit<ProgressLog, 'id'> = {
+            tenantId,
+            workItemId,
+            date: Timestamp.fromDate(date),
+            quantity,
+            userId: user.id,
+            userName: user.name,
+            observations: observations || '',
+        };
+        transaction.set(progressLogRef, logData);
+
+        // Update the work item's progress
+        transaction.update(workItemRef, { progress: newProgress });
+    });
+}
+
+export async function submitForQualityReview(workItemId: string, { user, tenantId, db }: Context) {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+    const workItemRef = doc(db, "workItems", workItemId);
+    await updateDoc(workItemRef, {
+      status: 'pending-quality-review',
+    });
+}
+

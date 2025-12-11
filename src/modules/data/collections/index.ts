@@ -19,3 +19,5 @@ export * from './useChecklistTemplates';
 export * from './useBehaviorObservations';
 export * from './useStockMovements';
 export * from './useSubscriptionPlans';
+export * from './useWorkItems';
+export * from './useProgressLogs';

@@ -16,6 +16,8 @@ import {
   getDoc,
   updateDoc,
   Timestamp,
+  writeBatch,
+  getDocs,
 } from 'firebase/firestore';
 import {
   onAuthStateChanged,
@@ -34,6 +36,8 @@ import {
   UserRole,
   Tenant,
   SubscriptionPlan,
+  WorkItem,
+  ProgressLog,
 } from '@/modules/core/lib/data';
 import {
   ROLES as ROLES_DEFAULT,
@@ -41,7 +45,7 @@ import {
   PLANS,
 } from '@/modules/core/lib/permissions';
 
-import { useAuth } from "@/modules/auth/useAuth";
+import { useAuth } from "@/modules/core/contexts/app-provider";
 import { useToast } from "@/modules/core/hooks/use-toast";
 import {
   useMaterials,
@@ -65,6 +69,8 @@ import {
   useBehaviorObservations,
   useStockMovements,
   useSubscriptionPlans,
+  useWorkItems,
+  useProgressLogs,
 } from "./collections";
 import { AppDataState, AppStateAction, AppStateContextType } from './types';
 import * as materialRequestMutations from './mutations/materialRequestMutations';
@@ -74,6 +80,7 @@ import * as toolMutations from './mutations/toolMutations';
 import * as safetyMutations from './mutations/safetyMutations';
 import * as attendanceMutations from './mutations/attendanceMutations';
 import * as paymentMutations from './mutations/paymentMutations';
+import { WORK_ITEMS_SEED } from '@/lib/work-items-seed';
 
 const initialState: AppDataState = {
     isLoading: true,
@@ -98,6 +105,8 @@ const initialState: AppDataState = {
     checklistTemplates: [],
     behaviorObservations: [],
     stockMovements: [],
+    workItems: [],
+    progressLogs: [],
 };
 
 
@@ -150,6 +159,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const rolesData = useRoles();
     const stockMovementsData = useStockMovements(tenantId);
     const subscriptionPlansData = useSubscriptionPlans();
+    const firebaseWorkItems = useWorkItems(tenantId);
+    const progressLogsData = useProgressLogs(tenantId);
+
+    // Seed data effect
+    useEffect(() => {
+        const seedWorkItems = async () => {
+            if (tenantId && firebaseWorkItems.length === 0) {
+                console.log(`Seeding work items for tenant ${tenantId}...`);
+                const batch = writeBatch(db);
+                WORK_ITEMS_SEED.forEach(item => {
+                    const docRef = doc(db, "workItems", item.id);
+                    batch.set(docRef, { ...item, tenantId, progress: 0, status: 'in-progress' });
+                });
+                await batch.commit();
+                console.log("Work items seeded successfully.");
+            }
+        };
+
+        if (tenantId) {
+            seedWorkItems().catch(console.error);
+        }
+    }, [tenantId, firebaseWorkItems]);
 
     useEffect(() => {
         if (!user) return;
@@ -168,6 +199,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 return newItem;
             });
         };
+        
+        let processedWorkItems = processData(firebaseWorkItems);
+        if (tenantId && processedWorkItems.length === 0) {
+            processedWorkItems = WORK_ITEMS_SEED.map(item => ({
+                ...item,
+                tenantId: tenantId,
+                status: 'in-progress',
+                progress: 0,
+            }));
+        }
     
         dispatch({ type: 'SET_DATA', payload: { collection: "users", data: processData(usersData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "materials", data: processData(materialsData) } });
@@ -188,6 +229,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_DATA', payload: { collection: "checklistTemplates", data: processData(checklistTemplatesData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "behaviorObservations", data: processData(behaviorObservationsData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "stockMovements", data: processData(stockMovementsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "workItems", data: processedWorkItems } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "progressLogs", data: processData(progressLogsData) } });
 
         const rolesToUse = rolesData && Object.keys(rolesData).length > 0 ? rolesData : ROLES_DEFAULT;
         dispatch({ type: "SET_ROLES", payload: rolesToUse });
@@ -203,7 +246,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
         attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
         checklistTemplatesData, behaviorObservationsData, rolesData, stockMovementsData,
-        subscriptionPlansData
+        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId
     ]);
 
     const can = useCallback((permission: Permission): boolean => {
@@ -322,6 +365,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       // Tenant
       updateTenant: bindContext(genericMutations.updateTenant),
+
+      // Work Items
+      addWorkItem: bindContext(genericMutations.addWorkItem),
+      addWorkItemProgress: bindContext(genericMutations.addWorkItemProgress),
+      submitForQualityReview: bindContext(genericMutations.submitForQualityReview),
     };
 
     const value: AppStateContextType = {
@@ -331,6 +379,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         subscriptionPlans: state.subscriptionPlans,
         can,
         notify,
+        refreshData: () => {}, // Placeholder for now, can be implemented if needed
         ...functions,
     };
 
