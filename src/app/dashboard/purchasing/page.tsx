@@ -497,7 +497,7 @@ export default function PurchasingHubPage() {
         {/* --- 2. VISTA DIFERENCIADA POR ROL --- */}
         
         {/* VISTA BODEGA/ADMIN: Tarjeta de Recepción Prioritaria */}
-        {(user?.role === "bodega-admin" || user?.role === "admin") && (
+        {(user?.role === "bodega-admin" || user?.role === "admin" || user?.role === "operations") && (
           <PendingReceptionCard
             requests={pendingReceptionRequests}
             onReceiveClick={setReceivingRequest}
@@ -677,5 +677,3 @@ export default function PurchasingHubPage() {
     </>
   );
 }
-
-    

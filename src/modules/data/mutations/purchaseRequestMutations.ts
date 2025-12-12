@@ -108,7 +108,7 @@ export async function receivePurchaseRequest(
     
     // Determinar la referencia al material ANTES de la transacción
     let materialRef: any;
-    if (existingMaterialId) {
+    if (existingMaterialId && existingMaterialId !== 'create_new') {
         materialRef = doc(database, "materials", existingMaterialId);
     } else {
         const requestSnap = await getDoc(requestRef);
@@ -151,11 +151,15 @@ export async function receivePurchaseRequest(
         // Caso 1: Recepción parcial
         if (receivedQuantity < requestedQuantity) {
             const remainingQuantity = requestedQuantity - receivedQuantity;
+            // Actualiza la solicitud original con la cantidad restante y la pone de nuevo en estado 'approved'
             transaction.update(requestRef, {
                 quantity: remainingQuantity,
+                status: 'approved', // Vuelve a la cola de aprobados
+                lotId: null, // Se quita del lote anterior
                 notes: `Recepción parcial de ${receivedQuantity}. Pendientes: ${remainingQuantity}. ${requestData.notes || ''}`.trim(),
             });
 
+            // Crea un nuevo registro de solicitud para la parte que fue recibida
             const receivedRequestRef = doc(collection(database, "purchaseRequests"));
             transaction.set(receivedRequestRef, {
                 ...requestData,
@@ -170,6 +174,8 @@ export async function receivePurchaseRequest(
             transaction.update(requestRef, {
                 status: 'received',
                 receivedAt: serverTimestamp(),
+                quantity: receivedQuantity, // Actualiza por si se recibió de más
+                originalQuantity: requestData.originalQuantity || requestedQuantity,
             });
         }
 
@@ -297,5 +303,3 @@ export async function generatePurchaseOrder(requests: PurchaseRequest[], supplie
     await batch.commit();
     return orderId;
   }
-
-    

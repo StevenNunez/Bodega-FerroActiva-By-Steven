@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -30,13 +31,12 @@ import { EditPurchaseRequestForm } from '@/components/operations/edit-purchase-r
 import type { PurchaseRequest, PurchaseRequestStatus, Material, User } from '@/modules/core/lib/data';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // --- CONFIGURACIÓN DE ESTADOS (Tu paleta de colores) ---
 const STATUS_CONFIG: Record<PurchaseRequestStatus, { label: string; icon: React.ElementType; color: string; border: string }> = {
@@ -48,98 +48,15 @@ const STATUS_CONFIG: Record<PurchaseRequestStatus, { label: string; icon: React.
   received: { label: 'Recibido', icon: PackageCheck, color: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-200' },
 };
 
-// --- SUB-COMPONENTE: DIÁLOGO DE RECEPCIÓN ---
-interface ReceiveRequestDialogProps {
-  request: PurchaseRequest | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: (requestId: string, quantity: number, materialId?: string) => Promise<void>;
-  materials: Material[];
-}
-
-function ReceiveRequestDialog({ request, isOpen, onClose, onConfirm, materials }: ReceiveRequestDialogProps) {
-  const [receivedQuantity, setReceivedQuantity] = useState<number | string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
-
-  React.useEffect(() => {
-    if (request) {
-      setReceivedQuantity(request.quantity);
-    }
-  }, [request]);
-
-  const handleConfirmClick = async () => {
-    if (!request) return;
-    const quantityNum = Number(receivedQuantity);
-    
-    if (isNaN(quantityNum) || quantityNum <= 0) {
-      toast({ variant: 'destructive', title: 'Error', description: 'La cantidad debe ser un número positivo.' });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // Intentar vincular automáticamente si el nombre coincide exactamente
-      const existingMaterial = materials.find(m => m.name.toLowerCase() === request.materialName.toLowerCase());
-      await onConfirm(request.id, quantityNum, existingMaterial?.id);
-      onClose();
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (!request) return null;
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-             <PackageCheck className="h-5 w-5 text-emerald-600"/> Registrar Recepción
-          </DialogTitle>
-          <DialogDescription>
-            Estás recibiendo <span className="font-semibold text-foreground">{request.materialName}</span>.
-            <br/>Esto aumentará el stock en bodega.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="py-4 space-y-4">
-            <div className="space-y-2">
-                <Label>Cantidad Recibida</Label>
-                <div className="relative">
-                    <Input 
-                        type="number" 
-                        value={receivedQuantity} 
-                        onChange={(e) => setReceivedQuantity(e.target.value)}
-                        className="pr-12 text-lg font-mono"
-                    />
-                    <span className="absolute right-3 top-2.5 text-sm text-muted-foreground">{request.unit}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">Solicitado originalmente: {request.quantity} {request.unit}</p>
-            </div>
-        </div>
-
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
-          <Button onClick={handleConfirmClick} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-            Confirmar Ingreso
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // --- PÁGINA PRINCIPAL ---
 export default function PurchaseRequestsManagementPage() {
-  const { purchaseRequests, users, materials, receivePurchaseRequest, deletePurchaseRequest, isLoading } = useAppState();
+  const { purchaseRequests, users, deletePurchaseRequest, isLoading } = useAppState();
   const { user: authUser, can } = useAuth();
   const { toast } = useToast();
   
   // Estados Locales
   const [editingRequest, setEditingRequest] = useState<PurchaseRequest | null>(null);
-  const [receivingRequest, setReceivingRequest] = useState<PurchaseRequest | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('pending'); // Por defecto ver pendientes
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -148,7 +65,6 @@ export default function PurchaseRequestsManagementPage() {
   // Permisos
   const canDelete = can('purchase_requests:delete');
   const canApprove = can('purchase_requests:approve');
-  const canReceive = can('stock:receive_order');
 
   // Optimizaciones O(1)
   const supervisorMap = useMemo(() => {
@@ -180,16 +96,6 @@ export default function PurchaseRequestsManagementPage() {
       toast({ title: "Solicitud Eliminada", description: "Registro eliminado correctamente." });
     } catch(error) {
       toast({ title: "Error", description: "No se pudo eliminar.", variant: "destructive" });
-    }
-  };
-
-  const handleReceiveConfirm = async (requestId: string, quantity: number, existingMaterialId?: string) => {
-    try {
-      await receivePurchaseRequest(requestId, quantity, existingMaterialId);
-      toast({ title: "¡Material en Bodega!", description: "Stock actualizado exitosamente." });
-      setReceivingRequest(null);
-    } catch (error) {
-      toast({ title: "Error", description: "Fallo al recibir el material.", variant: "destructive" });
     }
   };
 
@@ -386,11 +292,6 @@ export default function PurchaseRequestsManagementPage() {
                                                             <Edit className="h-4 w-4 text-blue-600" />
                                                         </Button>
                                                     )}
-                                                    {canReceive && ['approved', 'ordered', 'batched'].includes(req.status) && (
-                                                        <Button variant="ghost" size="icon" onClick={() => setReceivingRequest(req)} title="Recibir Material">
-                                                            <PackageCheck className="h-4 w-4 text-emerald-600" />
-                                                        </Button>
-                                                    )}
                                                     {canDelete && (
                                                         <AlertDialog>
                                                             <AlertDialogTrigger asChild>
@@ -451,15 +352,6 @@ export default function PurchaseRequestsManagementPage() {
           onClose={() => setEditingRequest(null)}
         />
       )}
-      
-      {/* Diálogo de Recepción */}
-      <ReceiveRequestDialog
-        request={receivingRequest}
-        isOpen={!!receivingRequest}
-        onClose={() => setReceivingRequest(null)}
-        onConfirm={handleReceiveConfirm}
-        materials={materials || []}
-      />
     </div>
   );
 }

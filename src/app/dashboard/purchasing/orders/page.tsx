@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useCallback } from 'react';
@@ -22,7 +23,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/modules/core/hooks/use-toast';
-import type { PurchaseOrder as PurchaseOrderType, Supplier } from '@/modules/core/lib/data';
+import type { PurchaseOrder as PurchaseOrderType, Supplier, PurchaseRequest } from '@/modules/core/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { generatePurchaseOrderPDF } from '@/lib/pdf-generator';
 import { Timestamp } from 'firebase/firestore';
@@ -36,7 +37,14 @@ import { cn } from '@/lib/utils';
 // Carga diferida del calendario para optimizar el bundle inicial
 const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
 
-type Lot = ReturnType<typeof useLots>['batchedLots'][0];
+// Definición explícita del tipo Lot para evitar errores de inferencia
+interface Lot {
+    lotId: string;
+    category: string;
+    requests: PurchaseRequest[];
+    totalQuantity: number;
+}
+
 
 // --- Componente de Tarjeta de Lote ---
 

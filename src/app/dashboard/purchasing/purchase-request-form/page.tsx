@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -22,13 +23,12 @@ import {
   ShoppingCart,
   ChevronsUpDown,
   Search,
-  Info,
-  AlertTriangle
+  Info
 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { PurchaseRequest, Material } from "@/modules/core/lib/data";
+import { PurchaseRequest, Material, MaterialCategory } from "@/modules/core/lib/data";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Timestamp } from "firebase/firestore";
@@ -269,13 +269,13 @@ export default function PurchaseRequestFormPage() {
                                     <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
                                         <PopoverTrigger asChild>
                                             <Button variant="outline" role="combobox" className={cn("w-full justify-between font-normal", !currentName && "text-muted-foreground")}>
-                                                {currentName || "Escribe el nombre (si no existe)..."}
+                                                {currentName || "Buscar o escribir material..."}
                                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-[300px] p-0" align="start">
                                             <Command>
-                                                <CommandInput placeholder="Buscar material existente..." onValueChange={(val) => {
+                                                <CommandInput placeholder="Buscar material..." onValueChange={(val) => {
                                                     setCurrentName(val);
                                                     setCurrentMaterialId(null); // Si escribe, reseteamos el ID vinculado
                                                 }} />
@@ -344,7 +344,7 @@ export default function PurchaseRequestFormPage() {
                                                 <CommandList>
                                                     <CommandEmpty>No encontrada.</CommandEmpty>
                                                     <CommandGroup>
-                                                        {(materialCategories || []).sort((a,b) => a.name.localeCompare(b.name)).map(cat => (
+                                                        {(materialCategories || []).map(cat => (
                                                             <CommandItem key={cat.id} onSelect={() => { setCurrentCategory(cat.name); setCategoryPopoverOpen(false); }}>
                                                                 {cat.name}
                                                             </CommandItem>
@@ -374,7 +374,7 @@ export default function PurchaseRequestFormPage() {
                             {cart.length > 0 ? (
                                 <div className="space-y-2">
                                     {cart.map((item, idx) => (
-                                        <div key={item.tempId} className="flex items-center justify-between p-2.5 rounded-md bg-muted/40 border border-transparent hover:border-primary/20 transition-all group">
+                                        <div key={item.tempId} className="flex items-center justify-between p-2.5 rounded-md bg-muted/40 border border-transparent hover:border-muted-foreground/20 transition-all group">
                                             <div className="flex items-center gap-3 overflow-hidden">
                                                 <Badge variant="outline" className="h-6 w-6 rounded-full flex items-center justify-center p-0 shrink-0 bg-background text-muted-foreground">
                                                     {idx + 1}
