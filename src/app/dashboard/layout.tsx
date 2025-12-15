@@ -7,7 +7,7 @@ import { DataProvider } from '@/modules/data/DataProvider';
 import { useAuth } from "@/modules/auth/useAuth";
 import { useAppState } from "@/modules/data/useData";
 import { Sidebar } from "@/components/sidebar";
-import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users, LogOut } from "lucide-react";
+import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users, LogOut, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     purchaseRequests, 
     supplierPayments, 
     suppliers,
+    purchaseOrders,
     can,
   } = useAppState();
   const router = useRouter();
@@ -78,6 +79,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   const pendingMaterialRequests = React.useMemo(() => (requests || []).filter((r: MaterialRequest) => r.status === "pending").length, [requests]);
   const pendingPurchaseRequests = React.useMemo(() => (purchaseRequests || []).filter((pr: PurchaseRequest) => pr.status === "pending").length, [purchaseRequests]);
+  const pendingCotizaciones = React.useMemo(() => (purchaseOrders || []).filter(po => po.status === 'generated').length, [purchaseOrders]);
   
   const totalNotifications = React.useMemo(() => {
     let count = 0;
@@ -87,8 +89,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         count += overduePayments.length;
         count += dueSoonPayments.length;
     }
+    if (can('finance:manage_purchase_orders')) {
+        count += pendingCotizaciones;
+    }
     return count;
-  }, [can, pendingMaterialRequests, pendingPurchaseRequests, overduePayments, dueSoonPayments]);
+  }, [can, pendingMaterialRequests, pendingPurchaseRequests, overduePayments, dueSoonPayments, pendingCotizaciones]);
   
   const supplierMap = React.useMemo(() => new Map<string, string>((suppliers || []).map((s: Supplier) => [s.id, s.name])), [suppliers]);
   
@@ -192,6 +197,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
                     <DropdownMenuItem disabled className="text-muted-foreground">No hay notificaciones nuevas.</DropdownMenuItem>
                 ) : (
                   <>
+                    {can('finance:manage_purchase_orders') && pendingCotizaciones > 0 && (
+                      <Link href="/dashboard/payments/pago-facturas">
+                        <DropdownMenuItem>
+                          <FileText className="mr-2 h-4 w-4 text-indigo-500" />
+                          <span>{pendingCotizaciones} Cotización(es) por Procesar</span>
+                        </DropdownMenuItem>
+                      </Link>
+                    )}
                     {can('purchase_requests:approve') && pendingPurchaseRequests > 0 && (
                       <Link href="/dashboard/purchasing/purchase-requests">
                         <DropdownMenuItem>

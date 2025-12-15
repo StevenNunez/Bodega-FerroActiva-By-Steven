@@ -1,23 +1,44 @@
-
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { PageHeader } from "@/components/page-header";
+import * as React from "react";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/modules/core/hooks/use-toast";
-import { FileText, Upload, CheckCircle, XCircle, Download, Loader2, AlertCircle, RefreshCcw, ArrowRight, X, Check, FileCheck } from "lucide-react";
+import {
+  Upload,
+  FileText,
+  ArrowRight,
+  X,
+  Check,
+  RefreshCcw,
+  FileCheck,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { PurchaseLot, PurchaseRequest, Supplier, User } from "@/modules/core/lib/data";
-import { generateOCPDF } from "@/lib/pdf-oc-generator";
-import { Timestamp } from "firebase/firestore";
+import { PurchaseLot, PurchaseRequest } from "@/modules/core/lib/data";
+
 
 // --- Tipos internos ---
 type ProcessingItem = {
@@ -28,38 +49,35 @@ type ProcessingItem = {
 };
 
 export default function FinanceQuoteProcessor() {
-  const { purchaseLots, purchaseRequests, users, suppliers, createPurchaseOrder, returnToPool } = useAppState();
+  const { purchaseLots, purchaseRequests, users, createPurchaseOrder, returnToPool } = useAppState();
   const { user, can } = useAuth();
   const { toast } = useToast();
 
-  const [selectedLot, setSelectedLot] = React.useState<(PurchaseLot & { requestIds: string[] }) | null>(null);
+  const [selectedLot, setSelectedLot] = React.useState<PurchaseLot | null>(null);
   const [fileUrl, setFileUrl] = React.useState<string | null>(null);
   const [ocNumber, setOcNumber] = React.useState("");
   const [itemsState, setItemsState] = React.useState<Record<string, ProcessingItem>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  // Lotes abiertos = esperando que Finanzas los procese la cotización del proveedor
   const pendingLots = React.useMemo(() => {
-    return (purchaseLots || []).filter(l => l.status === 'open').map(lot => {
-        const requestsInLot = (purchaseRequests || []).filter(r => r.lotId === lot.id);
-        return {
-            ...lot,
-            requestIds: requestsInLot.map(r => r.id)
-        }
-    });
-  }, [purchaseLots, purchaseRequests]);
+    return (purchaseLots || []).filter(l => l.status === "open");
+  }, [purchaseLots]);
 
-  const handleSelectLot = (lot: PurchaseLot & { requestIds: string[] }) => {
+  // Cuando selecciona un lote
+  const handleSelectLot = (lot: PurchaseLot) => {
     setSelectedLot(lot);
-    setFileUrl(null);
+    setFileUrl(null); // Reset archivo
     setOcNumber("");
     
-    const requestsInLot = (purchaseRequests || []).filter(r => lot.requestIds.includes(r.id));
+    // Preparar estado inicial de items
+    const requestsInLot = (purchaseRequests || []).filter(r => r.lotId === lot.id);
     const initialItems: Record<string, ProcessingItem> = {};
     
     requestsInLot.forEach(req => {
       initialItems[req.id] = {
         requestId: req.id,
-        price: 0,
+        price: 0, // Inicia en 0 para obligar a verificar
         confirmed: true,
         quantity: req.quantity
       };
@@ -67,6 +85,7 @@ export default function FinanceQuoteProcessor() {
     setItemsState(initialItems);
   };
 
+  // Subir PDF
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -81,6 +100,7 @@ export default function FinanceQuoteProcessor() {
     toast({ title: "Documento cargado", description: "Ahora valida los precios y confirma los items." });
   };
 
+  // Toggle item
   const toggleItem = (id: string) => {
     setItemsState((prev) => ({
       ...prev,
@@ -88,6 +108,7 @@ export default function FinanceQuoteProcessor() {
     }));
   };
 
+  // Actualizar precio o cantidad
   const updateItem = (id: string, field: 'price' | 'quantity', value: string) => {
     const num = parseFloat(value) || 0;
     setItemsState(prev => ({
@@ -96,102 +117,61 @@ export default function FinanceQuoteProcessor() {
     }));
   };
 
+  // Calcular total
   const calculateTotal = () => {
-    return Object.values(itemsState).reduce((total, item) => {
-        if (item.confirmed) {
-            return total + item.price * item.quantity;
-        }
-        return total;
-    }, 0);
+    let total = 0;
+    Object.values(itemsState).forEach(item => {
+      if (item.confirmed) {
+        total += item.price * item.quantity;
+      }
+    });
+    return total;
   };
 
+  // GENERAR ORDEN DE COMPRA REAL
   const handleGenerateOrder = async () => {
-    if (!selectedLot) {
-      toast({ variant: "destructive", title: "Faltan datos", description: "No se ha seleccionado un lote." });
-      return;
-    }
-     if (!ocNumber.trim()) {
+    if (!selectedLot || !ocNumber.trim()) {
       toast({ variant: "destructive", title: "Faltan datos", description: "Debes ingresar el número de OC." });
       return;
     }
 
-    const confirmedItems = Object.values(itemsState).filter(i => i.confirmed && i.quantity > 0);
+    const confirmedItems = Object.values(itemsState).filter(i => i.confirmed && i.quantity > 0).map(item => {
+        const request = purchaseRequests.find(r => r.id === item.requestId);
+        return {
+            ...item,
+            name: request?.materialName || 'Desconocido',
+            unit: request?.unit || 'und',
+        }
+    });
+    
     if (confirmedItems.length === 0) {
       toast({ variant: "destructive", title: "Sin items", description: "Confirma al menos un material con cantidad mayor a cero." });
       return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
       const rejectedItems = Object.values(itemsState).filter(i => !i.confirmed || i.quantity <= 0);
-      
-      const itemsForMutation = confirmedItems.map(item => {
-        const req = (purchaseRequests || []).find(r => r.id === item.requestId);
-        return {
-          ...item,
-          name: req?.materialName || 'Desconocido',
-          unit: req?.unit || 'und',
-        };
-      });
 
-      const orderId = await createPurchaseOrder({
+      // A. Crear la Orden (Items que SÍ llegan) -> Van a Recepción
+      await createPurchaseOrder({
         lotId: selectedLot.id,
         ocNumber: ocNumber.trim(),
-        items: itemsForMutation,
+        items: confirmedItems,
         totalAmount: calculateTotal(),
       });
-        
+
+      // B. Devolver al Pool (Items que NO llegan) -> Vuelven al Admin
       if (rejectedItems.length > 0) {
         await returnToPool(rejectedItems.map(i => i.requestId));
       }
 
       toast({
         title: "✅ Orden de Compra Generada",
-        description: `Se procesaron ${confirmedItems.length} items y ${rejectedItems.length} ítems devueltos. El PDF se descargará a continuación.`,
+        description: `Se procesaron ${confirmedItems.length} items. ${rejectedItems.length} devueltos a pendientes. El PDF no se descargará.`,
         duration: 10000,
       });
-
-      // ---- PDF GENERATION ----
-      const supplier = suppliers.find(s => s.id === selectedLot.supplierId);
-      if (!supplier) {
-        throw new Error("No se pudo encontrar la información del proveedor para el PDF.");
-      }
-
-      const pdfData = {
-          ocNumber: ocNumber.trim(),
-          date: new Date(),
-          supplierName: supplier.name,
-          supplierRut: supplier.rut || 'N/A',
-          supplierAddress: supplier.address || 'N/A',
-          supplierContact: supplier.phone || 'N/A',
-          supplierEmail: supplier.email || 'N/A',
-          project: 'CONSTRUCCIÓN TIENDA Y SERVICIOS CORDILLERA, LA SERENA',
-          file: '721',
-          items: itemsForMutation.map((item, index) => ({
-            item: index + 1,
-            code: item.requestId.slice(0, 8).toUpperCase(),
-            description: item.name,
-            unit: item.unit,
-            quantity: item.quantity,
-            unitPrice: item.price,
-            netValue: item.quantity * item.price,
-          })),
-          totalNet: calculateTotal(),
-          paymentTerms: '30 DÍAS',
-          createdByName: user?.name || 'Usuario del Sistema',
-      };
-      
-      const { blob, filename } = await generateOCPDF(pdfData);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
       setSelectedLot(null);
 
     } catch (error: any) {
@@ -206,7 +186,7 @@ export default function FinanceQuoteProcessor() {
     }
   };
 
-
+  // Permiso
   if (!can("finance:manage_purchase_orders")) {
     return (
       <div className="p-12 text-center">
@@ -217,6 +197,7 @@ export default function FinanceQuoteProcessor() {
     );
   }
 
+  // VISTA 1: Bandeja de entrada
   if (!selectedLot) {
     return (
       <>
@@ -236,9 +217,8 @@ export default function FinanceQuoteProcessor() {
             </Card>
           ) : (
             pendingLots.map((lot) => {
-              const count = lot.requestIds.length;
+              const count = (purchaseRequests || []).filter((r) => r.lotId === lot.id).length;
               const creator = users?.find((u) => u.id === lot.creatorId)?.name || "Admin Obra";
-              const createdAt = lot.createdAt instanceof Timestamp ? lot.createdAt.toDate() : new Date(lot.createdAt as any);
 
               return (
                 <Card
@@ -251,7 +231,7 @@ export default function FinanceQuoteProcessor() {
                       <div>
                         <CardTitle className="text-lg">{lot.name}</CardTitle>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {createdAt ? format(createdAt, "dd MMM yyyy", { locale: es }) : ''}
+                          {lot.createdAt ? format(new Date(lot.createdAt as any), "dd MMM yyyy", { locale: es }) : ''}
                         </p>
                       </div>
                       <Badge>Nuevo</Badge>
@@ -281,6 +261,7 @@ export default function FinanceQuoteProcessor() {
     );
   }
 
+  // VISTA 2: Split View Procesador
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header fijo */}
@@ -391,7 +372,7 @@ export default function FinanceQuoteProcessor() {
                 </TableHeader>
                 <TableBody>
                   {(purchaseRequests || [])
-                    .filter((r) => selectedLot?.requestIds.includes(r.id))
+                    .filter((r) => r.lotId === selectedLot.id)
                     .map((req) => {
                       const state = itemsState[req.id];
                       if (!state) return null;

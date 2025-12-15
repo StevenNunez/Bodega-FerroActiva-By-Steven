@@ -52,7 +52,6 @@ import {
   useTools,
   usePurchaseRequests,
   useUsers,
-  useRoles,
   useToolLogs,
   useMaterialRequests,
   useReturnRequests,
@@ -71,6 +70,7 @@ import {
   useSubscriptionPlans,
   useWorkItems,
   useProgressLogs,
+  useRoles,
 } from "./collections";
 import { AppDataState, AppStateAction, AppStateContextType } from './types';
 import * as materialRequestMutations from './mutations/materialRequestMutations';
@@ -132,7 +132,7 @@ export const AppStateContext = createContext<AppStateContextType | undefined>(
 );
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-    const { user, getTenantId, subscription } = useAuth();
+    const { user, getTenantId, can, authLoading } = useAuth();
     const [state, dispatch] = useReducer(appReducer, initialState);
     const { toast } = useToast();
 
@@ -156,11 +156,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const safetyInspectionsData = useSafetyInspections(tenantId);
     const checklistTemplatesData = useChecklistTemplates(tenantId);
     const behaviorObservationsData = useBehaviorObservations(tenantId);
-    const rolesData = useRoles();
     const stockMovementsData = useStockMovements(tenantId);
     const subscriptionPlansData = useSubscriptionPlans();
     const firebaseWorkItems = useWorkItems(tenantId);
     const progressLogsData = useProgressLogs(tenantId);
+    const dynamicRolesData = useRoles();
 
     // Seed data effect
     useEffect(() => {
@@ -183,9 +183,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }, [tenantId, firebaseWorkItems]);
 
     useEffect(() => {
-        if (!user) return;
-    
-        dispatch({ type: "SET_LOADING", payload: true });
+        if (authLoading) {
+            dispatch({ type: 'SET_LOADING', payload: true });
+            return;
+        }
+        if (!user) {
+            dispatch({ type: 'SET_LOADING', payload: false });
+            return;
+        }
+
+        const allDataLoaded = [
+            usersData, materialsData, toolsData, toolLogsData, requestsData,
+            returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
+            unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
+            attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
+            checklistTemplatesData, behaviorObservationsData, stockMovementsData,
+            subscriptionPlansData, firebaseWorkItems, progressLogsData, dynamicRolesData
+        ].every(data => data !== undefined);
+
+        if (!allDataLoaded) {
+            dispatch({ type: 'SET_LOADING', payload: true });
+            return;
+        }
     
         const processData = (data: any[] | undefined) => {
             if (!Array.isArray(data)) return [];
@@ -207,7 +226,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 tenantId: tenantId,
                 status: 'in-progress',
                 progress: 0,
-            }));
+            } as WorkItem));
         }
     
         dispatch({ type: 'SET_DATA', payload: { collection: "users", data: processData(usersData) } });
@@ -232,7 +251,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_DATA', payload: { collection: "workItems", data: processedWorkItems } });
         dispatch({ type: 'SET_DATA', payload: { collection: "progressLogs", data: processData(progressLogsData) } });
 
-        const rolesToUse = rolesData && Object.keys(rolesData).length > 0 ? rolesData : ROLES_DEFAULT;
+        const rolesToUse = dynamicRolesData && Object.keys(dynamicRolesData).length > 0 ? dynamicRolesData : ROLES_DEFAULT;
         dispatch({ type: "SET_ROLES", payload: rolesToUse });
 
         const plansToUse = subscriptionPlansData && Object.keys(subscriptionPlansData).length > 0 ? subscriptionPlansData : PLANS;
@@ -241,31 +260,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "SET_LOADING", payload: false });
     
     }, [
-        user, usersData, materialsData, toolsData, toolLogsData, requestsData,
+        authLoading, user, usersData, materialsData, toolsData, toolLogsData, requestsData,
         returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
         unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
         attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
-        checklistTemplatesData, behaviorObservationsData, rolesData, stockMovementsData,
-        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId
+        checklistTemplatesData, behaviorObservationsData, stockMovementsData,
+        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId, dynamicRolesData
     ]);
-
-    const can = useCallback((permission: Permission): boolean => {
-      if (!user) return false;
-      if (user.role === 'super-admin' || user.role === 'admin' || user.role === 'operations') return true;
-    
-      const userRolePermissions = state.roles[user.role]?.permissions || [];
-    
-      const currentPlanName = subscription?.plan || 'professional';
-      const currentPlan = PLANS[currentPlanName as keyof typeof PLANS] || PLANS.professional;
-      
-      if (!currentPlan) return false;
-
-      const planAllowedRoles = currentPlan.allowedRoles;
-    
-      if (!planAllowedRoles.includes(user.role)) return false;
-    
-      return userRolePermissions.includes(permission);
-    }, [user, state.roles, subscription]);
 
     const notify = useCallback((message: string, variant: "default" | "destructive" | "success" = "default") => {
         toast({
@@ -276,11 +277,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         });
       }, [toast]);
     
-    // Bind context to all mutation functions
     const bindContext = <T extends any[], R>(fn: (...args: [...T, { user: any; tenantId: string | null; db: any }]) => R) => {
         return (...args: T): R => {
             const context = { user, tenantId, db };
-            // Ensure context properties are not undefined before calling
             if (context.user === undefined || context.db === undefined) {
                  throw new Error("Context for mutation is not yet available.");
             }
@@ -296,6 +295,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       deletePurchaseRequest: bindContext(purchaseRequestMutations.deletePurchaseRequest),
       cancelPurchaseOrder: bindContext(purchaseRequestMutations.cancelPurchaseOrder),
       archiveLot: bindContext(purchaseRequestMutations.archiveLot),
+      generatePurchaseOrder: bindContext(purchaseRequestMutations.generatePurchaseOrder),
+      createPurchaseOrder: bindContext(purchaseRequestMutations.createPurchaseOrder),
+      returnToPool: bindContext(purchaseRequestMutations.returnToPool),
 
       // Material Requests
       addMaterialRequest: bindContext(materialRequestMutations.addMaterialRequest),
@@ -360,9 +362,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateRolePermissions: bindContext(genericMutations.updateRolePermissions),
       updatePlanPermissions: bindContext(genericMutations.updatePlanPermissions),
       
-      // Purchase Orders
-      generatePurchaseOrder: bindContext(purchaseRequestMutations.generatePurchaseOrder),
-
       // Tenant
       updateTenant: bindContext(genericMutations.updateTenant),
 

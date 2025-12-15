@@ -1,14 +1,14 @@
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/modules/core/lib/firebase';
 import { ROLES as ROLES_DEFAULT } from '@/modules/core/lib/permissions';
 
 export function useRoles() {
-    const [roles, setRoles] = useState<any>(ROLES_DEFAULT);
+    const [roles, setRoles] = useState<any>(undefined); // Start as undefined
 
     useEffect(() => {
-        const rolesRef = collection(db, 'roles');
+        const rolesRef = query(collection(db, 'roles'));
         const unsub = onSnapshot(rolesRef, (snap) => {
             if (snap.empty) {
                 setRoles(ROLES_DEFAULT);
@@ -24,7 +24,7 @@ export function useRoles() {
             setRoles(ROLES_DEFAULT);
         });
 
-        return unsub;
+        return () => unsub();
     }, []);
 
     return roles;

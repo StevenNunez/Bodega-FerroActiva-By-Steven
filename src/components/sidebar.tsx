@@ -111,7 +111,7 @@ const purchasingNavItems = (can: (p: Permission) => boolean) => {
     if (can('purchase_requests:create')) items.push({ href: '/dashboard/purchasing/purchase-request-form', icon: Edit, label: 'Crear Solicitud Compra' });
     if (can('purchase_requests:view_all')) items.push({ href: '/dashboard/purchasing/purchase-requests', icon: ShoppingCart, label: 'Solicitudes de Compra' });
     if (can('lots:create')) items.push({ href: '/dashboard/purchasing/lots', icon: PackagePlus, label: 'Gestión de Lotes' });
-    if (can('orders:create')) items.push({ href: '/dashboard/purchasing/orders', icon: FileText, label: 'Generador de Cotizaciones' });
+    if (can('orders:create') || can('finance:manage_purchase_orders')) items.push({ href: '/dashboard/purchasing/orders', icon: FileText, label: 'Generador de Cotizaciones' });
     if (can('suppliers:view')) items.push({ href: '/dashboard/purchasing/suppliers', icon: Briefcase, label: 'Proveedores' });
     if (can('categories:view')) items.push({ href: '/dashboard/purchasing/categories', icon: FolderTree, label: 'Categorías' });
 
@@ -148,8 +148,9 @@ const attendanceNavItems = (can: (p: Permission) => boolean) => {
 
 const paymentsNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
-    if (can('payments:view')) items.push({ href: '/dashboard/payments', icon: LayoutDashboard, label: 'Resumen de Pagos' });
-    if (can('payments:create')) items.push({ href: '/dashboard/payments/pago-facturas', icon: DollarSign, label: 'Ingresar Facturas' });
+    if (can('payments:view')) items.push({ href: '/dashboard/payments', icon: LayoutDashboard, label: 'Gestión de Facturas' });
+    if (can('finance:manage_purchase_orders')) items.push({ href: '/dashboard/payments/pago-facturas', icon: FileText, label: 'Gestionar OC' });
+    if (can('orders:view_all')) items.push({ href: '/dashboard/payments/orders', icon: ClipboardList, label: 'Historial de OCs' });
     if (can('suppliers:view') && can('module_payments:view')) items.push({ href: '/dashboard/payments/suppliers', icon: Briefcase, label: 'Proveedores' });
     return items;
 };

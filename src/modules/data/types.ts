@@ -67,6 +67,8 @@ export interface AppStateContextType extends AppDataState {
   cancelPurchaseOrder: (orderId: string) => Promise<void>;
   archiveLot: (requestIds: string[]) => Promise<void>;
   generatePurchaseOrder: (requests: PurchaseRequest[], supplierId: string) => Promise<string>;
+  createPurchaseOrder: (data: { lotId: string; ocNumber: string; items: { requestId: string; price: number; quantity: number; name: string; unit: string; }[]; totalAmount: number; }) => Promise<string>;
+  returnToPool: (requestIds: string[]) => Promise<void>;
 
   // Material Requests
   addMaterialRequest: (data: { items: { materialId: string; quantity: number }[]; area: string; supervisorId: string; }) => Promise<void>;

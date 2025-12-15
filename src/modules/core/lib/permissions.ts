@@ -1,4 +1,3 @@
-
 // src/modules/core/lib/permissions.ts
 
 import type { UserRole } from "./data";
@@ -59,9 +58,11 @@ export const ALL_PERMISSIONS = {
   'lots:create': { label: 'Crear Lotes de Compra', group: 'Compras' },
   'lots:assign': { label: 'Asignar Solicitudes a Lotes', group: 'Compras' },
   'lots:delete': { label: 'Eliminar Lotes', group: 'Compras' },
-  'orders:create': { label: 'Generar Órdenes de Compra', group: 'Compras' },
-  'orders:view_all': { label: 'Ver Órdenes de Compra', group: 'Compras' },
-  'orders:cancel': { label: 'Anular Órdenes de Compra', group: 'Compras' },
+  'orders:create': { label: 'Generar Cotizaciones', group: 'Compras' },
+  'orders:view_all': { label: 'Ver Cotizaciones', group: 'Compras' },
+  'orders:cancel': { label: 'Anular Cotizaciones', group: 'Compras' },
+  
+  'finance:manage_purchase_orders': { label: 'Generar OC Oficiales', group: 'Finanzas' },
 
   'users:create': { label: 'Crear Usuarios', group: 'Usuarios' },
   'users:view': { label: 'Ver Usuarios', group: 'Usuarios' },
@@ -170,6 +171,8 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
             'module_payments:view',
             'payments:create', 'payments:view', 'payments:mark_as_paid', 'payments:edit', 'payments:delete',
             'suppliers:view', 'suppliers:edit', 'suppliers:create',
+            'module_purchasing:view', 'orders:view_all',
+            'finance:manage_purchase_orders',
         ],
     },
     'supervisor': {

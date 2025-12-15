@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -45,7 +46,7 @@ const PAYMENT_METHODS = [
   "Cheque",
   "Efectivo",
   "Tarjeta de Crédito",
-  "₿itcoin",
+  "Bitcoin",
 ];
 
 export function MarkAsPaidDialog({ isOpen, onClose, payment, onConfirm }: MarkAsPaidDialogProps) {

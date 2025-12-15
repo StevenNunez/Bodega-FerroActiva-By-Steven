@@ -131,6 +131,9 @@ export interface PurchaseRequest {
   requesterName?: string;
   approverName?: string;
   tenantId: string;
+  purchaseOrderId?: string;
+  rejectionReason?: string;
+  rejectionDate?: Date;
 }
 
 export interface ToolLog {
@@ -173,6 +176,8 @@ export interface Supplier {
     accountType?: string;
     accountNumber?: string;
     email?: string;
+    address?: string;
+    phone?: string;
 }
 
 export interface PurchaseOrder {
@@ -182,11 +187,16 @@ export interface PurchaseOrder {
     createdAt: Date;
     creatorId: string;
     creatorName: string;
-    status: 'generated' | 'sent' | 'completed' | 'cancelled';
+    status: 'generated' | 'sent' | 'completed' | 'cancelled' | 'issued';
     requestIds?: string[];
-    items: { id: string; name: string; quantity: number, unit: string, totalQuantity: number }[];
+    items: { id: string; name: string; unit: string; totalQuantity: number; price?: number; }[];
     lotId?: string | null;
     pdfUrl?: string;
+    officialOCId?: string; // ID for the final, confirmed OC
+    processedAt?: Date;
+    processedBy?: string;
+    totalAmount?: number;
+    tenantId: string;
 }
 
 export interface StockMovement {
@@ -210,6 +220,7 @@ export interface PurchaseLot {
     creatorId: string;
     creatorName: string;
     status: 'open' | 'ordered';
+    supplierId: string;
 }
 
 export interface ChecklistTemplate {
@@ -378,7 +389,7 @@ export const WORK_SCHEDULE = {
     end: '13:00',
   },
   lunchBreak: {
-    start: '13:0',
+    start: '13:00',
     end: '14:00',
-  }
+  },
 };

@@ -1,6 +1,6 @@
 
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { SafetyInspection, User } from '@/modules/core/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -29,7 +29,7 @@ const LINE_HEIGHT = 6;
 
 const formatDate = (date: Date | Timestamp | undefined | null, includeTime = false) => {
   if (!date) return 'N/A';
-  const jsDate = date instanceof Timestamp ? date.toDate() : date;
+  const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
   const formatString = includeTime ? "d 'de' MMMM, yyyy HH:mm" : "d 'de' MMMM, yyyy";
   return format(jsDate, formatString, { locale: es });
 };
@@ -139,7 +139,7 @@ function addInspectionInfo(doc: jsPDF, inspection: SafetyInspection, supervisor:
     ['Nivel de Riesgo:', getRiskInSpanish(inspection.riskLevel), '', ''],
   ];
 
-  doc.autoTable({
+  autoTable(doc, {
     body: tableData,
     startY: y,
     theme: 'grid',
@@ -289,6 +289,6 @@ export async function generateInspectionPDF(inspection: SafetyInspection, superv
   addFooter(doc);
 
   const safeArea = (inspection.area || 'SinArea').replace(/[^a-zA-Z0-9]/g, '_');
-  const filename = `Inspeccion_${safeArea}_${formatDate(inspection.date)}.pdf`;
+  const filename = `Inspeccion_${safeArea}_${formatDate(inspection.date as any)}.pdf`;
   doc.save(filename);
 }

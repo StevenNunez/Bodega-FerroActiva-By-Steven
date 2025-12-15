@@ -174,24 +174,14 @@ const GenerateOrderCard: React.FC<GenerateOrderCardProps> = ({ lot, onArchive })
 // --- Componente Principal ---
 
 export default function OrdersPage() {
-    const { purchaseOrders, suppliers, cancelPurchaseOrder, archiveLot } = useAppState();
+    const { purchaseOrders, suppliers, users, cancelPurchaseOrder, archiveLot } = useAppState();
     const { batchedLots } = useLots();
     const { toast } = useToast();
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
     const [cancelingId, setCancelingId] = useState<string | null>(null);
 
-    // Optimización: Mapa de proveedores para acceso O(1) en lugar de .find() repetitivo
-    const supplierMap = useMemo(() => {
-        const map: Record<string, string> = {};
-        suppliers.forEach((s: Supplier) => {
-            map[s.id] = s.name;
-        });
-        return map;
-    }, [suppliers]);
+    const supplierMap = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers]);
     
-    const getSupplierName = (id: string) => supplierMap[id] || 'Desconocido';
-    
-    // Helper para fechas seguro
     const getDate = useCallback((date: Date | Timestamp) => {
         return date instanceof Timestamp ? date.toDate() : new Date(date);
     }, []);
@@ -199,6 +189,7 @@ export default function OrdersPage() {
     const filteredPurchaseOrders = useMemo(() => {
         if (!purchaseOrders) return [];
         return purchaseOrders.filter((order: PurchaseOrderType) => {
+            if (order.status !== 'generated') return false; // Solo cotizaciones
             if (!selectedDate) return true;
             const orderDate = getDate(order.createdAt);
             return isSameDay(orderDate, selectedDate);
@@ -209,7 +200,7 @@ export default function OrdersPage() {
 
 
     const handleDownloadPDF = async (order: PurchaseOrderType, index: number) => {
-        const supplier = suppliers.find((s: Supplier) => s.id === order.supplierId);
+        const supplier = supplierMap.get(order.supplierId);
         if(!supplier) {
              toast({ variant: "destructive", title: "Error", description: "No se encontró la información del proveedor." });
              return;
@@ -217,14 +208,14 @@ export default function OrdersPage() {
 
         try {
             const { blob, filename } = await generatePurchaseOrderPDF(order, supplier, index + 1);
-            const url = URL.createObjectURL(blob);
+            const url = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
             a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error(error);
             toast({ variant: "destructive", title: "Error al generar PDF", description: "Ocurrió un problema al crear el documento." });
@@ -256,7 +247,7 @@ export default function OrdersPage() {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Error desconocido";
         toast({ variant: "destructive", title: "Error al archivar", description: errorMessage });
-        throw error; // Re-lanzar para que el componente hijo maneje el estado de carga
+        throw error;
       }
     }, [archiveLot, toast]);
 
@@ -264,11 +255,10 @@ export default function OrdersPage() {
     return (
         <div className="flex flex-col gap-8 fade-in pb-10">
             <PageHeader
-                title="Gestión de Cotizaciones"
+                title="Generador de Cotizaciones"
                 description="Genera, visualiza y gestiona las solicitudes de cotización para los proveedores."
             />
 
-            {/* Sección: Lotes Pendientes */}
             <Card className="border-none shadow-none bg-transparent p-0">
                 <div className="mb-4">
                     <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -301,219 +291,100 @@ export default function OrdersPage() {
                 </CardContent>
             </Card>
 
-            {/* Sección: Historial */}
              <Card>
-
                 <CardHeader>
-
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-
                         <div>
-
                             <CardTitle className="flex items-center gap-2"><Truck /> Historial de Cotizaciones Generadas</CardTitle>
-
                             <CardDescription>Aquí puedes ver todas las solicitudes de cotización que has generado.</CardDescription>
-
                         </div>
-
                         <Popover>
-
                             <PopoverTrigger asChild>
-
-                                <Button
-
-                                    variant={"outline"}
-
-                                    className={cn(
-
-                                    "w-full sm:w-[280px] justify-start text-left font-normal",
-
-                                    !selectedDate && "text-muted-foreground"
-
-                                    )}
-
-                                >
-
+                                <Button variant={"outline"} className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
-
                                     {selectedDate ? format(selectedDate, "PPP", {locale: es}) : <span>Selecciona una fecha</span>}
-
                                 </Button>
-
                             </PopoverTrigger>
-
                             <PopoverContent className="w-auto p-0">
-
-                                <Calendar
-
-                                    mode="single"
-
-                                    selected={selectedDate}
-
-                                    onSelect={setSelectedDate}
-
-                                    initialFocus
-
-                                />
-
+                                <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
                             </PopoverContent>
-
                         </Popover>
-
                     </div>
-
                 </CardHeader>
-
                 <CardContent>
-
                     <Accordion type="multiple" className="w-full space-y-4">
-
-                        {filteredPurchaseOrders.length > 0 ? filteredPurchaseOrders.map((order: PurchaseOrderType, index: number) => (
-
+                        {filteredPurchaseOrders.length > 0 ? filteredPurchaseOrders.map((order, index) => (
                             <AccordionItem value={order.id} key={order.id} className="border rounded-lg bg-card">
-
                                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full p-4">
-
                                     <AccordionTrigger className="w-full p-0 hover:no-underline text-left flex-grow">
-
                                         <div>
-
-                                            <h3 className="font-semibold text-base">N° {String(index + 1).padStart(3, '0')}</h3>
-
+                                            <h3 className="font-semibold text-base">COT-{String(index + 1).padStart(3, '0')}</h3>
                                             <p className="text-sm text-muted-foreground">
-
-                                                Proveedor: <span className="font-medium text-primary">{getSupplierName(order.supplierId)}</span>
-
+                                                Proveedor: <span className="font-medium text-primary">{order.supplierName}</span>
                                             </p>
-
                                             <p className="text-xs text-muted-foreground mt-1">
-
                                                 Generada el: {getDate(order.createdAt).toLocaleDateString('es-CL')}
-
                                             </p>
-
                                         </div>
-
                                     </AccordionTrigger>
-
                                     <div className="flex gap-2 mt-4 sm:mt-0 sm:ml-4 flex-shrink-0">
-
                                         <AlertDialog>
-
                                             <AlertDialogTrigger asChild>
-
-                                                <Button variant="outline" size="icon" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">
-
-                                                    <Trash2 className="h-4 w-4"/>
-
+                                                <Button variant="outline" size="icon" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground" disabled={cancelingId === order.id}>
+                                                    {cancelingId === order.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>}
                                                 </Button>
-
                                             </AlertDialogTrigger>
-
                                             <AlertDialogContent>
-
                                                 <AlertDialogHeader>
-
                                                     <AlertDialogTitle>¿Anular Solicitud de Cotización?</AlertDialogTitle>
-
                                                     <AlertDialogDescription>
-
                                                         Esta acción eliminará la solicitud y devolverá todos sus ítems a su estado anterior. ¿Estás seguro?
-
                                                     </AlertDialogDescription>
-
                                                 </AlertDialogHeader>
-
                                                 <AlertDialogFooter>
-
                                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-
                                                     <AlertDialogAction onClick={() => handleCancelOrder(order.id)} className="bg-destructive hover:bg-destructive/90">
-
                                                         Sí, anular solicitud
-
                                                     </AlertDialogAction>
-
                                                 </AlertDialogFooter>
-
                                             </AlertDialogContent>
-
                                         </AlertDialog>
-
-                                        <Button
-
-                                            onClick={(e) => { e.stopPropagation(); handleDownloadPDF(order, index); }}>
-
+                                        <Button onClick={(e) => { e.stopPropagation(); handleDownloadPDF(order, index); }}>
                                             <Download className="mr-2 h-4 w-4"/> PDF
-
                                         </Button>
-
                                     </div>
-
                                 </div>
-
                                 <AccordionContent className="p-6 pt-0">
-
                                     <Table>
-
                                         <TableHeader>
-
                                             <TableRow>
-
                                                 <TableHead>Material</TableHead>
-
                                                 <TableHead>Unidad</TableHead>
-
                                                 <TableHead className="text-right">Cantidad Total</TableHead>
-
                                             </TableRow>
-
                                         </TableHeader>
-
                                         <TableBody>
-
-                                            {order.items.map((item: { name: string; unit: string; totalQuantity: number; }) => (
-
-                                                <TableRow key={item.name}>
-
+                                            {order.items.map((item: { name: string; unit: string; totalQuantity: number; }, idx: number) => (
+                                                <TableRow key={`${order.id}-${idx}`}>
                                                     <TableCell className="font-medium">{item.name}</TableCell>
-
                                                     <TableCell>{item.unit}</TableCell>
-
                                                     <TableCell className="text-right font-mono">{item.totalQuantity.toLocaleString()} </TableCell>
-
                                                 </TableRow>
-
                                             ))}
-
                                         </TableBody>
-
                                     </Table>
-
                                 </AccordionContent>
-
                             </AccordionItem>
-
                         )) : (
-
                             <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-12">
-
                                 <Inbox className="h-16 w-16 mb-4"/>
-
                                 <h3 className="text-xl font-semibold">Sin Cotizaciones</h3>
-
                                 <p className="mt-2">No se han generado cotizaciones para la fecha seleccionada.</p>
-
                             </div>
-
                         )}
-
                     </Accordion>
-
                 </CardContent>
-
             </Card>
-
         </div>
     );
 }

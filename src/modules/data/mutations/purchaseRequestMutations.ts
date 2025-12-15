@@ -1,5 +1,4 @@
 
-
 import {
   doc,
   collection,
@@ -13,10 +12,11 @@ import {
   where,
   getDoc,
   getDocs,
-  FieldValue
+  FieldValue,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '@/modules/core/lib/firebase';
-import { PurchaseRequest, Material, FirestoreWriteableDate } from '@/modules/core/lib/data';
+import { PurchaseRequest, Material, FirestoreWriteableDate, PurchaseLot, PurchaseOrder } from '@/modules/core/lib/data';
 import { nanoid } from 'nanoid';
 
 
@@ -74,7 +74,6 @@ export async function updatePurchaseRequestStatus(
 
     const currentData = requestDoc.data();
     
-    // Start with a clearly typed object
     const updateData: Partial<PurchaseRequest> = {
       ...data,
       status: status,
@@ -84,14 +83,22 @@ export async function updatePurchaseRequestStatus(
       updateData.originalQuantity = currentData.quantity;
     }
 
-    // Conditionally add the server timestamp, using 'as any' for this specific override
     if (status === 'approved' && currentData.status !== 'approved') {
       updateData.approverId = user.id;
       updateData.approverName = user.name;
       (updateData as any).approvalDate = serverTimestamp();
     }
+    
+    if (status === 'ordered') {
+        (updateData as any).orderedAt = serverTimestamp();
+    }
+    
+    if (status === 'rejected') {
+        (updateData as any).rejectionDate = serverTimestamp();
+        updateData.rejectionReason = data.notes || "Rechazado en gestión de OC";
+    }
 
-    transaction.update(requestRef, updateData);
+    transaction.update(requestRef, updateData as any);
   });
 }
 
@@ -106,7 +113,6 @@ export async function receivePurchaseRequest(
 
     const requestRef = doc(database, "purchaseRequests", requestId);
     
-    // Determinar la referencia al material ANTES de la transacción
     let materialRef: any;
     if (existingMaterialId && existingMaterialId !== 'create_new') {
         materialRef = doc(database, "materials", existingMaterialId);
@@ -123,13 +129,11 @@ export async function receivePurchaseRequest(
         if (!materialsSnap.empty) {
             materialRef = materialsSnap.docs[0].ref;
         } else {
-            // Si el material no existe, crearemos uno nuevo. No necesitamos una ref ahora.
             materialRef = null;
         }
     }
     
     await runTransaction(database, async (transaction) => {
-        // --- FASE DE LECTURA ---
         const requestDoc = await transaction.get(requestRef);
         if (!requestDoc.exists() || requestDoc.data().tenantId !== tenantId) {
             throw new Error("Solicitud de compra no encontrada o sin permisos.");
@@ -143,23 +147,19 @@ export async function receivePurchaseRequest(
             }
         }
 
-        // --- FASE DE ESCRITURA ---
         const requestData = requestDoc.data() as PurchaseRequest;
         const requestedQuantity = requestData.quantity;
         let newStock;
 
-        // Caso 1: Recepción parcial
         if (receivedQuantity < requestedQuantity) {
             const remainingQuantity = requestedQuantity - receivedQuantity;
-            // Actualiza la solicitud original con la cantidad restante y la pone de nuevo en estado 'approved'
             transaction.update(requestRef, {
                 quantity: remainingQuantity,
-                status: 'approved', // Vuelve a la cola de aprobados
-                lotId: null, // Se quita del lote anterior
+                status: 'approved',
+                lotId: null,
                 notes: `Recepción parcial de ${receivedQuantity}. Pendientes: ${remainingQuantity}. ${requestData.notes || ''}`.trim(),
             });
 
-            // Crea un nuevo registro de solicitud para la parte que fue recibida
             const receivedRequestRef = doc(collection(database, "purchaseRequests"));
             transaction.set(receivedRequestRef, {
                 ...requestData,
@@ -170,16 +170,15 @@ export async function receivePurchaseRequest(
                 notes: `Parte de la solicitud original ${requestId}.`,
                 lotId: null,
             });
-        } else { // Caso 2: Recepción completa o mayor
+        } else {
             transaction.update(requestRef, {
                 status: 'received',
                 receivedAt: serverTimestamp(),
-                quantity: receivedQuantity, // Actualiza por si se recibió de más
+                quantity: receivedQuantity,
                 originalQuantity: requestData.originalQuantity || requestedQuantity,
             });
         }
 
-        // Actualizar o crear el material
         if (materialDoc && materialDoc.exists()) {
             const currentStock = materialDoc.data()?.stock || 0;
             newStock = currentStock + receivedQuantity;
@@ -199,7 +198,6 @@ export async function receivePurchaseRequest(
             });
         }
         
-        // Registrar movimiento de stock
         const movementRef = doc(collection(database, "stockMovements"));
         transaction.set(movementRef, {
             materialId: materialRef.id,
@@ -251,9 +249,17 @@ export async function archiveLot(requestIds: string[], { tenantId }: Context) {
     await batch.commit();
 }
 
-export async function generatePurchaseOrder(requests: PurchaseRequest[], supplierId: string, { user, tenantId }: Context) {
+export async function generatePurchaseOrder(requests: PurchaseRequest[], supplierId: string, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
-  
+    
+    if (requests.length === 0) {
+        throw new Error("No hay solicitudes para procesar en esta orden.");
+    }
+    const lotId = requests[0].lotId;
+    if (!lotId) {
+        throw new Error("Las solicitudes seleccionadas no pertenecen a un lote.");
+    }
+
     const supplierDoc = await getDoc(doc(db, `suppliers`, supplierId));
     if (!supplierDoc.exists()) throw new Error("Proveedor no encontrado");
   
@@ -261,7 +267,7 @@ export async function generatePurchaseOrder(requests: PurchaseRequest[], supplie
     const orderId = nanoid();
     const orderRef = doc(db, `purchaseOrders`, orderId);
   
-     const itemsMap = new Map<string, {
+    const itemsMap = new Map<string, {
       id: string;
       name: string;
       unit: string;
@@ -282,8 +288,11 @@ export async function generatePurchaseOrder(requests: PurchaseRequest[], supplie
               category: req.category,
             });
         }
+        const reqRef = doc(db, 'purchaseRequests', req.id);
+        batch.update(reqRef, { status: 'ordered' });
     }
   
+    // Crear la orden de cotización (purchaseOrder)
     batch.set(orderRef, {
       id: orderId,
       supplierId,
@@ -291,15 +300,108 @@ export async function generatePurchaseOrder(requests: PurchaseRequest[], supplie
       createdAt: serverTimestamp(),
       creatorId: user.id,
       creatorName: user.name,
-      status: 'generated',
+      status: 'generated', // This is a quote request, not a final OC
       requestIds: requests.map(r => r.id),
       items: Array.from(itemsMap.values()),
       tenantId,
+      lotId,
     });
   
-    // We will no longer change the status of requests here.
-    // This will be done by the "archiveLot" function manually.
-  
+    // Actualizar el lote para asociarlo con el proveedor
+    const lotRef = doc(db, 'purchaseLots', lotId);
+    batch.update(lotRef, { 
+      supplierId: supplierId,
+    });
+    
     await batch.commit();
     return orderId;
-  }
+}
+
+// --- NEW FUNCTIONS FOR FINANCE WORKFLOW ---
+
+export async function createPurchaseOrder(
+  { lotId, ocNumber, items, totalAmount }: { lotId: string; ocNumber: string; items: { requestId: string; price: number; quantity: number; name: string; unit: string; }[], totalAmount: number },
+  { user, tenantId, db }: Context
+): Promise<string> {
+    if (!user || !tenantId) throw new Error("Autenticación requerida");
+
+    const lotRef = doc(db, 'purchaseLots', lotId);
+    const orderRef = doc(collection(db, "purchaseOrders"));
+
+    await runTransaction(db, async (transaction) => {
+        const lotDoc = await transaction.get(lotRef);
+        if (!lotDoc.exists()) {
+            throw new Error("El lote especificado no existe.");
+        }
+        const lotData = lotDoc.data() as PurchaseLot;
+
+        if (!lotData.supplierId) {
+            throw new Error(`El lote ${lotId} no tiene un proveedor asociado. Por favor, genere una cotización primero desde el módulo de Compras.`);
+        }
+        
+        let supplierName = '';
+        const supplierDoc = await getDoc(doc(db, 'suppliers', lotData.supplierId));
+        if (supplierDoc.exists()) {
+            supplierName = supplierDoc.data().name;
+        }
+
+        const finalOC: Omit<PurchaseOrder, 'id'> & { id?: string } = {
+            id: orderRef.id,
+            officialOCId: ocNumber,
+            lotId,
+            supplierId: lotData.supplierId,
+            supplierName,
+            createdAt: serverTimestamp() as any,
+            creatorId: user.id,
+            creatorName: user.name,
+            status: 'issued', // Final OC
+            items: [],
+            totalAmount,
+            tenantId,
+        };
+        
+        finalOC.items = items.map(item => ({
+          id: item.requestId,
+          name: item.name,
+          unit: item.unit,
+          totalQuantity: item.quantity,
+          price: item.price
+        }));
+
+        transaction.set(orderRef, finalOC);
+
+        transaction.update(lotRef, { status: 'ordered' });
+
+        for (const item of items) {
+            const reqRef = doc(db, 'purchaseRequests', item.requestId);
+            transaction.update(reqRef, {
+                status: 'ordered',
+                purchaseOrderId: orderRef.id,
+                quantity: item.quantity,
+            });
+        }
+    });
+
+    return orderRef.id;
+}
+
+
+export async function returnToPool(
+  requestIds: string[],
+  { user, tenantId, db }: Context
+) {
+  if (!user || !tenantId) throw new Error("Autenticación requerida");
+
+  const batch = writeBatch(db);
+  
+  requestIds.forEach(reqId => {
+    const reqRef = doc(db, 'purchaseRequests', reqId);
+    batch.update(reqRef, {
+      status: 'approved', // Vuelve al estado aprobado
+      lotId: null, // Se desvincula del lote
+      notes: 'Devuelto a pendientes por Finanzas. Proveedor no cotizó.'
+    });
+  });
+
+  await batch.commit();
+}

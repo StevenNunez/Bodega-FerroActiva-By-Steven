@@ -1,7 +1,7 @@
 
 'use client';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { AssignedSafetyTask, User } from '@/modules/core/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -29,7 +29,7 @@ const LINE_HEIGHT = 6;
 
 const formatDate = (date: Date | Timestamp | undefined | null, includeTime = false) => {
   if (!date) return 'N/A';
-  const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date as any);
+  const jsDate = date instanceof Timestamp ? date.toDate() : date;
   const formatString = includeTime ? "d 'de' MMMM, yyyy HH:mm" : "d 'de' MMMM, yyyy";
   return format(jsDate, formatString, { locale: es });
 };
@@ -175,7 +175,7 @@ export async function generateChecklistPDF(checklist: AssignedSafetyTask, users:
     return [i + 1, item.element, respuesta, responsable, formatDate(item.completionDate)];
   });
 
-  (doc as any).autoTable({
+  autoTable(doc, {
     head: [['#', 'Elementos que inspeccionar', 'Resp.', 'Responsable Ejecución', 'Fecha']],
     body: tableRows,
     startY: y + 3,
@@ -269,6 +269,6 @@ export async function generateChecklistPDF(checklist: AssignedSafetyTask, users:
 
   addFooter(doc);
 
-  const filename = `Checklist_${checklist.templateTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${formatDate(checklist.createdAt)}.pdf`;
+  const filename = `Checklist_${checklist.templateTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${formatDate(checklist.createdAt as any)}.pdf`;
   doc.save(filename);
 }
