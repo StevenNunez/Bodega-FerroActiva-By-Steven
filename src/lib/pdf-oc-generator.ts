@@ -1,31 +1,9 @@
-
-// lib/pdf-oc-generator.ts
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-// Helper para obtener el logo y manejar errores
-async function getBase64FromUrl(url: string): Promise<string> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Network response was not ok, status: ${response.status}`);
-    }
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error("Error fetching logo:", error);
-    // Devuelve una imagen transparente de 1x1 pixel como fallback
-    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-  }
-}
-
+// --- Tipos e Interfaces ---
 interface OCItem {
   item: number;
   code: string;
@@ -50,224 +28,351 @@ interface OCData {
   totalNet: number;
   paymentTerms: string;
   createdByName: string;
-  cotizacion?: string; // Nuevo campo opcional
+  cotizacion?: string;
 }
 
+// Extensión de tipos para jsPDF si es necesario
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+  }
+}
+
+// --- Constantes de Estilo ---
+const COLORS = {
+  primary: '#00528B',     // Azul Ferroactiva
+  secondary: '#7f8c8d',   // Gris secundario
+  text: '#34495e',        // Texto principal oscuro
+  lightGray: '#ecf0f1',   // Fondos claros / bordes
+  white: '#ffffff',
+  accent: '#2c3e50'
+};
+
+const LINE_HEIGHT = 6;
+const MARGIN = 15;
+
+// --- Helpers ---
+
+const formatCurrency = (value: number) => `$${Math.round(value).toLocaleString("es-CL")}`;
+
+async function getBase64FromUrl(url: string): Promise<string> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Network response was not ok`);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn("Logo fallback triggered");
+    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+  }
+}
+
+// --- Función Principal ---
+
 export async function generateOCPDF(data: OCData): Promise<{ blob: Blob; filename: string }> {
+  // 1. Configuración Inicial
   const doc = new jsPDF("p", "mm", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 15;
-  let y = 10;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let y = MARGIN;
 
-  // --- Constants for layout ---
-  const FONT_NORMAL = "helvetica";
-  const FONT_BOLD = "helvetica";
-  const PRIMARY_TEXT_COLOR = "#000000";
-  const LOGO_URL = "/logopdf.jpg";
+  // Carga de Logo
+  const logoBase64 = await getBase64FromUrl("/logopdf.jpg");
 
-  // --- HEADER ---
-  doc.setFont(FONT_BOLD, "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(PRIMARY_TEXT_COLOR);
-  doc.text("INMOBILIARIA FERROACTIVA", margin, y);
-  y += 4;
-  doc.setFont(FONT_NORMAL, "normal");
-  doc.text("RUT: 76.040.151-K", margin, y);
+  // 2. HEADER
+  // Info Empresa (Izquierda)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(COLORS.primary);
+  doc.text("INMOBILIARIA FERROACTIVA", MARGIN, y);
   
-  // --- LOGO ---
-  try {
-    const logoBase64 = await getBase64FromUrl(LOGO_URL);
-    doc.addImage(logoBase64, "JPEG", pageWidth - margin - 45, y - 8, 40, 15);
-  } catch (e) {
-    console.warn("Logo no cargado", e);
-  }
-  y += 5;
-
-  // --- TITLE ---
-  doc.setFont(FONT_BOLD, "bold");
-  doc.setFontSize(16);
-  doc.rect(margin, y, pageWidth - margin * 2, 10);
-  doc.text("ORDEN DE COMPRA", pageWidth / 2, y + 7, { align: "center" });
-  y += 15;
-
-  // --- OC INFO ---
-  doc.setFontSize(10);
-  doc.text("FECHA:", margin, y);
-  doc.setFont(FONT_NORMAL, "normal");
-  doc.text(format(data.date, "dd-MM-yyyy"), margin + 18, y);
-
-  const rightBlockX = pageWidth - margin - 60;
-  doc.setFont(FONT_BOLD, "bold");
-  doc.text("O.C.N°:", rightBlockX, y);
-  doc.setFont(FONT_NORMAL, "normal");
-  doc.text(data.ocNumber, rightBlockX + 15, y);
-  
-  if (data.cotizacion) {
-      y += 5;
-      doc.rect(rightBlockX, y, 60, 15);
-      doc.setFont(FONT_BOLD, "bold");
-      doc.text("Cotización", rightBlockX + 30, y + 6, { align: 'center' });
-      doc.setFont(FONT_NORMAL, "normal");
-      doc.text(data.cotizacion, rightBlockX + 30, y + 12, { align: 'center' });
-  }
-  y += 15;
-  
-
-  // --- SUPPLIER & PROJECT INFO ---
-  const boxHeight = 40;
-  doc.rect(margin, y, pageWidth - margin * 2, boxHeight);
-  
-  // Supplier details
-  let lineY = y + 6;
-  const labelX = margin + 3;
-  const valueX = margin + 25;
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("RAZON SOCIAL", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(`: ${data.supplierName}`, valueX, lineY);
-  lineY += 5;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("RUT", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(`: ${data.supplierRut}`, valueX, lineY);
-  lineY += 5;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("AT", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(`: ${data.createdByName}`, valueX, lineY);
-  lineY += 5;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("Direccion", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(`: ${data.supplierAddress}`, valueX, lineY);
-  lineY += 5;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("GIRO", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(": 0", valueX, lineY);
-  lineY += 5;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("Fono", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(`: ${data.supplierContact}`, valueX, lineY);
-  lineY += 5;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("email", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(`: ${data.supplierEmail}`, valueX, lineY);
+  doc.setTextColor(COLORS.text);
+  doc.text("RUT: 76.040.151-K", MARGIN, y + 5);
+  doc.text("Tucapel 578, Los Ángeles", MARGIN, y + 9);
+
+  // Logo (Derecha)
+  try {
+    doc.addImage(logoBase64, "JPEG", pageWidth - MARGIN - 40, y - 5, 40, 15);
+  } catch (e) { /* ignore */ }
   
-  y += boxHeight + 2;
+  y += 20;
 
-  // Project details
-  const projectBoxHeight = 15;
-  doc.rect(margin, y, pageWidth - margin * 2, projectBoxHeight);
-  lineY = y + 6;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("PROYECTO :", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(data.project, valueX, lineY);
-  lineY += 5;
-  doc.setFont(FONT_NORMAL, 'bold');
-  doc.text("File :", labelX, lineY);
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text(data.file, valueX, lineY);
-  y += projectBoxHeight + 5;
+  // 3. TÍTULO PRINCIPAL
+  doc.setFillColor(COLORS.primary);
+  doc.rect(MARGIN, y, pageWidth - (MARGIN * 2), 10, 'F');
+  doc.setTextColor(COLORS.white);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("ORDEN DE COMPRA", pageWidth / 2, y + 7, { align: "center" });
+  
+  y += 15;
 
-  // --- ITEMS TABLE ---
+  // 4. METADATA (OC #, Fecha, Cotización)
+  doc.setTextColor(COLORS.text);
+  doc.setFontSize(10);
+  
+  // Fecha (Izquierda)
+  doc.setFont("helvetica", "bold");
+  doc.text("FECHA:", MARGIN, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(format(data.date, "dd 'de' MMMM, yyyy", { locale: es }), MARGIN + 20, y);
+
+  // Tabla info derecha (OC # y Cotización)
+  const metaStartX = pageWidth - MARGIN - 70;
+  
+  doc.setDrawColor(COLORS.lightGray);
+  doc.setLineWidth(0.1);
+  
+  // OC Number Box
+  doc.setFont("helvetica", "bold");
+  doc.text("N° O.C.", metaStartX, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.setTextColor(COLORS.primary); // Destacar el número
+  doc.text(data.ocNumber, pageWidth - MARGIN, y, { align: 'right' });
+  doc.setTextColor(COLORS.text); // Reset color
+  doc.setFontSize(10);
+
+  if (data.cotizacion) {
+    y += 6;
+    doc.setFont("helvetica", "bold");
+    doc.text("Ref. Cotización:", metaStartX, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(data.cotizacion, pageWidth - MARGIN, y, { align: 'right' });
+  }
+
+  y += 10;
+
+  // 5. BLOQUES DE PROVEEDOR Y PROYECTO
+  const boxPadding = 4;
+  const col1X = MARGIN + boxPadding;
+  const colValueX = MARGIN + 35;
+  
+  // -- Bloque Proveedor --
+  doc.setDrawColor(COLORS.secondary);
+  doc.rect(MARGIN, y, pageWidth - (MARGIN * 2), 40); // Caja grande
+  
+  let boxY = y + 5;
+  const addInfoRow = (label: string, value: string) => {
+     doc.setFont("helvetica", "bold");
+     doc.text(label, col1X, boxY);
+     doc.setFont("helvetica", "normal");
+     doc.text(`: ${value}`, colValueX, boxY);
+     boxY += 5;
+  };
+
+  doc.setFontSize(9);
+  addInfoRow("RAZÓN SOCIAL", data.supplierName);
+  addInfoRow("RUT", data.supplierRut);
+  addInfoRow("ATENCIÓN", data.createdByName);
+  addInfoRow("DIRECCIÓN", data.supplierAddress);
+  addInfoRow("GIRO", "Obras menores de Construcción");
+  addInfoRow("CONTACTO", `${data.supplierContact} | ${data.supplierEmail}`);
+
+  y += 42; // Espacio después de la caja proveedor
+
+  // -- Bloque Proyecto --
+  doc.setDrawColor(COLORS.secondary);
+  doc.setFillColor(COLORS.lightGray);
+  // Pequeño header visual para "Proyecto"
+  doc.rect(MARGIN, y, pageWidth - (MARGIN * 2), 14); 
+  
+  boxY = y + 5;
+  doc.setFont("helvetica", "bold");
+  doc.text("PROYECTO:", col1X, boxY);
+  doc.setFont("helvetica", "normal");
+  doc.text(data.project, colValueX, boxY);
+  
+  boxY += 5;
+  doc.setFont("helvetica", "bold");
+  doc.text("FILE / OBRA:", col1X, boxY);
+  doc.setFont("helvetica", "normal");
+  doc.text(data.file, colValueX, boxY);
+
+  y += 18;
+
+  // 6. TABLA DE ÍTEMS
   autoTable(doc, {
     startY: y,
-    head: [["ITEM", "CÓDIGO", "ARTICULO/DESCRIPCIÓN", "UNIDAD", "CANTIDAD", "P.UNITARIO", "VALOR NETO"]],
+    head: [["Ítem", "Código", "Descripción", "Unidad", "Cant.", "P. Unitario", "Total Neto"]],
     body: data.items.map((item) => [
       item.item,
       item.code,
       item.description,
       item.unit,
       item.quantity,
-      `$${item.unitPrice.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      `$${item.netValue.toLocaleString("es-CL")}`,
+      formatCurrency(item.unitPrice),
+      formatCurrency(item.netValue),
     ]),
-    theme: "grid",
-    headStyles: { fillColor: [52, 73, 94], textColor: 255, fontStyle: "bold" },
-    styles: { fontSize: 8, cellPadding: 2, lineWidth: 0.1 },
-    columnStyles: {
-      0: { halign: "center", cellWidth: 10 },
-      1: { cellWidth: 18 },
-      3: { halign: "center", cellWidth: 15 },
-      4: { halign: "center", cellWidth: 18 },
-      5: { halign: "right", cellWidth: 22 },
-      6: { halign: "right", cellWidth: 25 },
+    theme: "striped",
+    headStyles: { 
+      fillColor: COLORS.primary, 
+      textColor: COLORS.white, 
+      fontStyle: "bold",
+      halign: 'center'
     },
-    didDrawCell: (hookData) => {
-        if (hookData.section === 'head') {
-            hookData.cell.styles.fillColor = [52, 73, 94];
-        }
+    styles: { 
+      fontSize: 8, 
+      cellPadding: 2,
+      lineColor: [200, 200, 200],
+      lineWidth: 0.1,
+      textColor: COLORS.text
+    },
+    columnStyles: {
+      0: { halign: "center", cellWidth: 10 }, // Item
+      1: { cellWidth: 20 }, // Codigo
+      3: { halign: "center", cellWidth: 15 }, // Unidad
+      4: { halign: "center", cellWidth: 15 }, // Cant
+      5: { halign: "right", cellWidth: 25 },  // Precio
+      6: { halign: "right", cellWidth: 25 },  // Total
+    },
+    didDrawPage: function (dataHook) {
+        const pageCount = (doc.internal as any).getNumberOfPages();
+        const currentPage = dataHook.pageNumber;
+        
+        doc.setDrawColor(COLORS.lightGray);
+        doc.line(MARGIN, pageHeight - 12, pageWidth - MARGIN, pageHeight - 12);
+
+        doc.setFontSize(8);
+        doc.setTextColor(COLORS.secondary);
+        
+        doc.text(`Generado: ${new Date().toLocaleString('es-CL')}`, MARGIN, pageHeight - 8);
+
+        const developedText = 'desarrollado por ';
+        const linkText = 'teolabs.app';
+        const fullText = developedText + linkText;
+        const textWidth = doc.getTextWidth(fullText);
+        const textX = (pageWidth - textWidth) / 2;
+        
+        doc.text(developedText, textX, pageHeight - 8);
+        doc.setTextColor(COLORS.primary);
+        doc.textWithLink(linkText, textX + doc.getTextWidth(developedText), pageHeight - 8, { url: 'https://teolabs.app' });
+        doc.setTextColor(COLORS.secondary);
+
+        doc.text(`Página ${currentPage} de ${pageCount}`, pageWidth - MARGIN, pageHeight - 8, { align: 'right' });
     }
   });
 
-  let finalY = (doc as any).lastAutoTable.finalY;
+  let finalY = (doc as any).lastAutoTable.finalY + 5;
 
-  // --- TOTALS ---
+  // 7. TOTALES
+  if (finalY > pageHeight - 60) {
+      doc.addPage();
+      finalY = MARGIN + 10;
+  }
+
+  const iva = data.totalNet * 0.19;
+  const total = data.totalNet + iva;
+  const totalLabelX = pageWidth - MARGIN - 60;
+  const totalValueX = pageWidth - MARGIN;
+
+  doc.setFontSize(10);
+  doc.setTextColor(COLORS.text);
+
+  const drawSumRow = (label: string, value: number, isTotal = false) => {
+      doc.setFont("helvetica", isTotal ? "bold" : "normal");
+      doc.text(label, totalLabelX, finalY);
+      doc.text(formatCurrency(value), totalValueX, finalY, { align: "right" });
+      finalY += 6;
+  };
+
+  drawSumRow("SUBTOTAL NETO:", data.totalNet);
+  drawSumRow("I.V.A. (19%):", iva);
+  
+  doc.setDrawColor(COLORS.text);
+  doc.line(totalLabelX, finalY, totalValueX, finalY);
+  finalY += 2;
+  
   doc.setFontSize(11);
-  doc.setFont(FONT_BOLD, "bold");
-  const totalNetoX = pageWidth - margin - 55;
-  doc.text("TOTAL NETO", totalNetoX, finalY + 8);
-  doc.text(`$${data.totalNet.toLocaleString("es-CL")}`, totalNetoX + 50, finalY + 8, { align: "right" });
-  finalY += 12;
+  drawSumRow("TOTAL A PAGAR:", total, true);
 
-  // --- BILLING AND PAYMENT INFO ---
-  const infoBoxStartY = finalY + 5;
-  doc.rect(margin, infoBoxStartY, pageWidth - margin * 2, 28);
+  finalY += 10;
   
-  let infoY = infoBoxStartY + 5;
+  if (finalY > pageHeight - 75) {
+      doc.addPage();
+      finalY = MARGIN + 10;
+  }
+
+  // 8. CONDICIONES Y DATOS DE FACTURACIÓN
+  doc.setDrawColor(COLORS.lightGray);
+  doc.setFillColor(250, 250, 250);
+  doc.rect(MARGIN, finalY, pageWidth - (MARGIN * 2), 30, 'FD');
+  
+  let infoY = finalY + 5;
   doc.setFontSize(9);
-  doc.setFont(FONT_BOLD, 'bold');
-  doc.text("DATOS DE FACTURACION:", margin + 2, infoY);
-  infoY += 5;
-  doc.setFont(FONT_NORMAL, 'normal');
-  doc.text("RAZON SOCIAL: FERROACTIVA LTDA.", margin + 5, infoY);
-  doc.text("Fono: 975 698 724", margin + 110, infoY);
-  infoY += 5;
-  doc.text("RUT: 76.040.151-K", margin + 5, infoY);
-  doc.text("cmoralesarq@gmail.com", margin + 110, infoY);
-  infoY += 5;
-  doc.text("DIRECCION: Tucapel 578 Los Angeles", margin + 5, infoY);
-  infoY += 5;
-  doc.text("GIRO: Construccion", margin + 5, infoY);
-  infoY += 3;
+  doc.setTextColor(COLORS.primary);
+  doc.setFont("helvetica", "bold");
+  doc.text("DATOS DE FACTURACIÓN:", MARGIN + 5, infoY);
   
-  doc.line(margin, infoY, pageWidth - margin, infoY); // separator line
+  doc.setTextColor(COLORS.text);
+  doc.setFont("helvetica", "normal");
   infoY += 5;
-
-  doc.setFont(FONT_BOLD, 'bold');
-  doc.text(`CONDICIONES DE PAGO: ${data.paymentTerms || "30 días"}`, margin + 2, infoY);
-  finalY = infoBoxStartY + 30;
-
-  // --- SIGNATURES ---
-  const sigY = finalY + 5;
-  doc.rect(margin, sigY, pageWidth - margin * 2, 25);
-  doc.line(margin + (pageWidth - margin*2)/2, sigY, margin + (pageWidth - margin*2)/2, sigY + 25);
   
+  const colLeft = MARGIN + 5;
+  const colRight = MARGIN + 100;
+  
+  doc.text("RAZÓN SOCIAL: FERROACTIVA LTDA.", colLeft, infoY);
+  doc.text("Fono: 975 698 724", colRight, infoY);
+  infoY += 5;
+  doc.text("RUT: 76.040.151-K", colLeft, infoY);
+  doc.text("Email: cmoralesarq@gmail.com", colRight, infoY);
+  infoY += 5;
+  doc.text("DIRECCIÓN: Tucapel 578, Los Ángeles", colLeft, infoY);
+  infoY += 5;
+  doc.text("GIRO: Construcción", colLeft, infoY);
+  
+  finalY += 35;
+
+  doc.setFont("helvetica", "bold");
+  doc.text(`CONDICIONES DE PAGO: ${data.paymentTerms || "30 días"}`, MARGIN, finalY);
+  finalY += 15;
+
+  // 9. FIRMAS
+  const sigBoxY = finalY;
+  const sigBoxHeight = 25;
+  
+  if (sigBoxY > pageHeight - 40) {
+      doc.addPage();
+      finalY = MARGIN + 20;
+  }
+
+  doc.setDrawColor(COLORS.text);
+  doc.rect(MARGIN, finalY, pageWidth - (MARGIN * 2), sigBoxHeight);
+  
+  const centerX = MARGIN + ((pageWidth - (MARGIN * 2)) / 2);
+  doc.line(centerX, finalY, centerX, finalY + sigBoxHeight);
+
   doc.setFontSize(8);
-  doc.text("Carolina Morales Aguilera", margin + 45, sigY + 15, { align: 'center' });
-  doc.setFont(FONT_BOLD, 'bold');
-  doc.text("Jefe de Administración y Finanzas", margin + 45, sigY + 18, { align: 'center' });
-  doc.text("CONSTRUCTORA FERROACTIVA LTDA.", margin + 45, sigY + 21, { align: 'center' });
-  
-  doc.text(data.supplierName, pageWidth - margin - 45, sigY + 21, { align: 'center' });
-  finalY = sigY + 25;
+  doc.setFont("helvetica", "normal");
+  doc.text("Carolina Morales Aguilera", MARGIN + 5, finalY + 14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Jefe de Administración y Finanzas", MARGIN + 5, finalY + 18);
+  doc.text("CONSTRUCTORA FERROACTIVA LTDA.", MARGIN + 5, finalY + 22);
 
-  // --- FOOTER ---
-  const footerY = doc.internal.pageSize.getHeight() - 10;
+  doc.setFont("helvetica", "normal");
+  doc.text("ACEPTACIÓN PROVEEDOR:", centerX + 5, finalY + 5);
+  doc.setFont("helvetica", "bold");
+  doc.text(data.supplierName, centerX + 5, finalY + 22);
+
+  finalY += sigBoxHeight + 5;
+  
   doc.setFontSize(7);
   doc.setTextColor("#888");
-  doc.text("Duble Almeida 34443 depto 127, Ñuñoa, Santiago fono: (02) 894 34 28 mail: constructorahmg@gmail.com", margin, footerY);
-  doc.text("1 de 1", pageWidth - margin, footerY, { align: 'right' });
+  doc.text("Duble Almeida 34443 depto 127, Ñuñoa, Santiago fono: (02) 894 34 28 mail: constructorahmg@gmail.com", pageWidth / 2, finalY, { align: 'center' });
 
-
-  // --- Generate Blob ---
-  const pdfBlob = doc.output("blob");
-  const filename = `OC_${data.ocNumber.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-
-  return { blob: pdfBlob, filename };
+  // --- GENERACIÓN DEL ARCHIVO ---
+  const safeName = data.supplierName.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 20);
+  const filename = `OC_${data.ocNumber}_${safeName}.pdf`;
+  
+  return { 
+    blob: doc.output("blob"), 
+    filename 
+  };
 }
