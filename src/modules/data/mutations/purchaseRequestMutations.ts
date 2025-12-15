@@ -1,4 +1,5 @@
 
+
 import {
   doc,
   collection,
@@ -44,7 +45,7 @@ export async function addPurchaseRequest(
     status: 'pending',
     createdAt: serverTimestamp(),
     tenantId: tenantId,
-    requesterName: user.name, // This was missing
+    requesterName: user.name,
   };
 
   const collectionRef = collection(db, `purchaseRequests`);
@@ -221,34 +222,6 @@ export async function deletePurchaseRequest(requestId: string, { tenantId }: Con
     await deleteDoc(doc(db, `purchaseRequests`, requestId));
 }
 
-export async function cancelPurchaseOrder(orderId: string, { tenantId }: Context) {
-    if (!tenantId) throw new Error("Inquilino no válido.");
-    const batch = writeBatch(db);
-    const orderRef = doc(db, `purchaseOrders`, orderId);
-    const orderDoc = await getDoc(orderRef);
-
-    if (!orderDoc.exists()) throw new Error("Orden no encontrada");
-
-    const requestIds = orderDoc.data().requestIds || [];
-    for (const reqId of requestIds) {
-        const reqRef = doc(db, `purchaseRequests`, reqId);
-        batch.update(reqRef, { status: 'approved', lotId: null });
-    }
-
-    batch.update(orderRef, { status: 'cancelled' });
-    await batch.commit();
-}
-
-export async function archiveLot(requestIds: string[], { tenantId }: Context) {
-    if (!tenantId) throw new Error("Inquilino no válido.");
-    const batch = writeBatch(db);
-    requestIds.forEach(reqId => {
-      const reqRef = doc(db, `purchaseRequests`, reqId);
-      batch.update(reqRef, { status: 'ordered', lotId: null });
-    });
-    await batch.commit();
-}
-
 export async function generatePurchaseOrder(requests: PurchaseRequest[], supplierId: string, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
     
@@ -317,18 +290,16 @@ export async function generatePurchaseOrder(requests: PurchaseRequest[], supplie
     return orderId;
 }
 
-// --- NEW FUNCTIONS FOR FINANCE WORKFLOW ---
-
 export async function createPurchaseOrder(
   { lotId, ocNumber, items, totalAmount }: { lotId: string; ocNumber: string; items: { requestId: string; price: number; quantity: number; name: string; unit: string; }[], totalAmount: number },
   { user, tenantId, db }: Context
-): Promise<string> {
+) {
     if (!user || !tenantId) throw new Error("Autenticación requerida");
 
+    const batch = writeBatch(db);
     const lotRef = doc(db, 'purchaseLots', lotId);
-    const orderRef = doc(collection(db, "purchaseOrders"));
-
-    await runTransaction(db, async (transaction) => {
+    
+    return await runTransaction(db, async (transaction) => {
         const lotDoc = await transaction.get(lotRef);
         if (!lotDoc.exists()) {
             throw new Error("El lote especificado no existe.");
@@ -338,6 +309,8 @@ export async function createPurchaseOrder(
         if (!lotData.supplierId) {
             throw new Error(`El lote ${lotId} no tiene un proveedor asociado. Por favor, genere una cotización primero desde el módulo de Compras.`);
         }
+
+        const orderRef = doc(collection(db, "purchaseOrders"));
         
         let supplierName = '';
         const supplierDoc = await getDoc(doc(db, 'suppliers', lotData.supplierId));
@@ -346,7 +319,6 @@ export async function createPurchaseOrder(
         }
 
         const finalOC: Omit<PurchaseOrder, 'id'> & { id?: string } = {
-            id: orderRef.id,
             officialOCId: ocNumber,
             lotId,
             supplierId: lotData.supplierId,
@@ -380,9 +352,9 @@ export async function createPurchaseOrder(
                 quantity: item.quantity,
             });
         }
+        
+        return orderRef.id;
     });
-
-    return orderRef.id;
 }
 
 
@@ -404,4 +376,43 @@ export async function returnToPool(
   });
 
   await batch.commit();
+}
+
+
+export async function cancelPurchaseOrder(orderId: string, { user, tenantId, db }: Context) {
+    if (!user || !tenantId) throw new Error("Autenticación requerida");
+
+    const orderRef = doc(db, 'purchaseOrders', orderId);
+    const batch = writeBatch(db);
+
+    const orderDoc = await getDoc(orderRef);
+    if (!orderDoc.exists()) {
+        throw new Error("La orden de cotización no existe.");
+    }
+
+    const orderData = orderDoc.data() as PurchaseOrder;
+
+    // Reset all associated purchase requests
+    if (orderData.requestIds && orderData.requestIds.length > 0) {
+        const requestsQuery = query(collection(db, 'purchaseRequests'), where('__name__', 'in', orderData.requestIds));
+        const requestsSnap = await getDocs(requestsQuery);
+        requestsSnap.forEach(reqDoc => {
+            batch.update(reqDoc.ref, { status: 'batched' }); // Or 'approved' if you want them out of the lot
+        });
+    }
+
+    // Delete the purchase order
+    batch.delete(orderRef);
+
+    await batch.commit();
+}
+
+export async function archiveLot(requestIds: string[], { user, tenantId, db }: Context) {
+    if (!user || !tenantId) throw new Error("Autenticación requerida");
+    const batch = writeBatch(db);
+    requestIds.forEach(id => {
+        const reqRef = doc(db, 'purchaseRequests', id);
+        batch.update(reqRef, { status: 'ordered', notes: 'Archivado manualmente desde gestión de lotes.' });
+    });
+    await batch.commit();
 }
