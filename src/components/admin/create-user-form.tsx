@@ -1,4 +1,5 @@
 
+
 'use client';
 import React from 'react';
 import { useForm, SubmitHandler, Controller } from 'react-hook-form';
@@ -21,7 +22,7 @@ const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
   email: z.string().email('El correo electrónico no es válido.'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.'),
-  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin', 'cphs', 'jefe-terreno', 'quality'], { required_error: 'Debes seleccionar un rol.' }),
+  role: z.enum(['admin', 'bodega-admin', 'supervisor', 'worker', 'operations', 'apr', 'guardia', 'finance', 'super-admin', 'cphs', 'jefe-terreno', 'quality', 'jefe-oficina-tecnica'], { required_error: 'Debes seleccionar un rol.' }),
   phone: z.string().optional(),
 });
 

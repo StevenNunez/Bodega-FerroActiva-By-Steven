@@ -392,6 +392,24 @@ export async function submitForQualityReview(workItemId: string, { user, tenantI
     const workItemRef = doc(db, "workItems", workItemId);
     await updateDoc(workItemRef, {
       status: 'pending-quality-review',
+      actualEndDate: serverTimestamp(),
     });
 }
 
+export async function approveWorkItem(workItemId: string, { user, tenantId, db }: Context) {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+    const workItemRef = doc(db, "workItems", workItemId);
+    await updateDoc(workItemRef, {
+      status: 'completed',
+    });
+}
+
+export async function rejectWorkItem(workItemId: string, reason: string, { user, tenantId, db }: Context) {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+    const workItemRef = doc(db, "workItems", workItemId);
+    // Remove the line that resets progress to 0
+    await updateDoc(workItemRef, {
+      status: 'rejected',
+      // Optionally, add a log for the rejection, but don't reset progress
+    });
+}

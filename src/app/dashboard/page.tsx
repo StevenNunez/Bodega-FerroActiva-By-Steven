@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -78,7 +79,7 @@ export default function DashboardHubPage() {
     { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza consumos y genera informes.", permission: 'module_reports:view' },
     { href: '/dashboard/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'permissions:manage' },
     { href: '/dashboard/worker', icon: Wrench, title: "Módulo Herramientas", description: "Consulta el historial de herramientas a tu cargo.", roles: ['worker'] },
-    { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tareas de seguridad.", roles: ['supervisor', 'apr', 'bodega-admin', 'jefe-terreno'] },
+    { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tareas de seguridad.", roles: ['supervisor', 'apr', 'bodega-admin', 'jefe-terreno', 'jefe-oficina-tecnica'] },
     { href: '/dashboard/cphs', icon: ShieldCheck, title: "Módulo Comité Paritario", description: "Accede a las herramientas de gestión de seguridad del comité.", roles: ['cphs'] },
   ];
 

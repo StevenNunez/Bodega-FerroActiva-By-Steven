@@ -162,14 +162,14 @@ export function RegisterProgressForm({ workItem }: RegisterProgressFormProps) {
                     {!canRegister && <p className="text-xs text-center text-muted-foreground mt-2">No tienes permiso para registrar avances.</p>}
                 </form>
             )}
-             {isCompleted && !isInReview && (
+             {isCompleted && !isInReview && can('construction_control:register_progress') && (
                 <div className="mt-6 border-t pt-6">
                     <h4 className="font-semibold text-center mb-2">¡Partida al 100%!</h4>
                     <p className="text-sm text-muted-foreground text-center mb-4">Esta partida ha alcanzado su meta. ¿Deseas enviarla a revisión de calidad?</p>
                     <Button 
                         className="w-full bg-blue-600 hover:bg-blue-700" 
                         onClick={handleSendToProtocol} 
-                        disabled={isSubmittingProtocol || !canRegister}
+                        disabled={isSubmittingProtocol}
                     >
                         {isSubmittingProtocol ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

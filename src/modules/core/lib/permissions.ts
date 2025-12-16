@@ -1,3 +1,4 @@
+
 // src/modules/core/lib/permissions.ts
 
 import type { UserRole } from "./data";
@@ -105,10 +106,11 @@ export const ALL_PERMISSIONS = {
   'safety_observations:create': { label: 'Crear Observaciones', group: 'Prevención de Riesgos' },
   'safety_observations:review': { label: 'Revisar Observaciones', group: 'Prevención de Riesgos' },
 
-  // Control de Obra
   'construction_control:register_progress': { label: 'Registrar Avance Diario', group: 'Control de Obra' },
   'construction_control:edit_structure': { label: 'Editar Estructura de Partidas', group: 'Control de Obra' },
   'construction_control:view_reports': { label: 'Ver Reportes de Avance', group: 'Control de Obra' },
+  'construction_control:review_protocols': { label: 'Revisar y Aprobar Protocolos', group: 'Control de Obra' },
+
 
 } as const;
 
@@ -134,6 +136,15 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
         description: 'Mismos privilegios que Administrador de App.',
         permissions: fullTenantAdminPermissions,
     },
+    'jefe-oficina-tecnica': {
+        label: 'Jefe de Oficina Técnica',
+        description: 'Planifica la Carta Gantt, presupuestos y supervisa el avance técnico y financiero de la obra.',
+        permissions: [
+            'module_construction_control:view', 'construction_control:edit_structure', 'construction_control:register_progress', 'construction_control:view_reports', 'construction_control:review_protocols',
+            'module_purchasing:view', 'purchase_requests:create', 'purchase_requests:view_all',
+            'module_warehouse:view', 'materials:view_all', 'material_requests:create',
+        ],
+    },
     'jefe-terreno': {
         label: 'Jefe de Terreno',
         description: 'Gestiona el avance físico de la obra y a los supervisores.',
@@ -141,6 +152,7 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
             'module_construction_control:view',
             'construction_control:register_progress',
             'construction_control:view_reports',
+            'construction_control:review_protocols',
             'module_warehouse:view',
             'material_requests:create',
             'purchase_requests:create',
@@ -218,7 +230,7 @@ export const ROLES: Record<UserRole, { label: string; description: string; permi
         permissions: [
             'module_construction_control:view',
             'construction_control:view_reports',
-            // Este rol necesitará un nuevo permiso para APROBAR el avance.
+            'construction_control:review_protocols',
         ],
     },
     'guardia': {
@@ -237,6 +249,7 @@ export const ROLES_ORDER: UserRole[] = [
   'super-admin',
   'admin',
   'operations',
+  'jefe-oficina-tecnica',
   'jefe-terreno',
   'bodega-admin',
   'finance',
@@ -261,6 +274,7 @@ export const PLANS = {
       'admin',
       'bodega-admin',
       'operations',
+      'jefe-oficina-tecnica',
       'jefe-terreno',
       'supervisor',
       'apr',

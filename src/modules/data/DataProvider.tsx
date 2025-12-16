@@ -165,7 +165,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Seed data effect
     useEffect(() => {
         const seedWorkItems = async () => {
-            if (tenantId && firebaseWorkItems.length === 0) {
+            if (tenantId && firebaseWorkItems.length === 0 && can('construction_control:edit_structure')) {
                 console.log(`Seeding work items for tenant ${tenantId}...`);
                 const batch = writeBatch(db);
                 WORK_ITEMS_SEED.forEach(item => {
@@ -180,7 +180,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (tenantId) {
             seedWorkItems().catch(console.error);
         }
-    }, [tenantId, firebaseWorkItems]);
+    }, [tenantId, firebaseWorkItems, can]);
 
     useEffect(() => {
         if (authLoading) {
@@ -369,6 +369,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addWorkItem: bindContext(genericMutations.addWorkItem),
       addWorkItemProgress: bindContext(genericMutations.addWorkItemProgress),
       submitForQualityReview: bindContext(genericMutations.submitForQualityReview),
+      approveWorkItem: bindContext(genericMutations.approveWorkItem),
+      rejectWorkItem: bindContext(genericMutations.rejectWorkItem),
     };
 
     const value: AppStateContextType = {

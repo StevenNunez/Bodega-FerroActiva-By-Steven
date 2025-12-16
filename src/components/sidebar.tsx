@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -36,9 +37,10 @@ import {
   Crown,
   Construction,
   CheckSquare,
+  GanttChartSquare,
 } from 'lucide-react';
 
-import { useAuth } from '@/modules/core/contexts/app-provider';
+import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
 import { cn } from '@/lib/utils';
 import { UserRole } from '@/modules/core/lib/data';
 import type { Permission } from '@/modules/core/lib/permissions';
@@ -213,7 +215,14 @@ const constructionControlNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if(can('module_construction_control:view')) {
       items.push({ href: '/dashboard/construction-control', icon: Edit, label: 'Partidas (EDT)' });
+    }
+    if(can('construction_control:edit_structure')) {
+      items.push({ href: '/dashboard/construction-control/gantt', icon: GanttChartSquare, label: 'Carta Gantt' });
+    }
+    if(can('construction_control:review_protocols')) {
       items.push({ href: '/dashboard/construction-control/revisar-protocolos', icon: CheckSquare, label: 'Revisar Protocolos' });
+    }
+    if(can('construction_control:register_progress')) {
       items.push({ href: '/dashboard/construction-control/mis-protocolos', icon: ClipboardList, label: 'Mis Protocolos' });
     }
     return items;

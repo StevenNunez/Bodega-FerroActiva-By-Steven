@@ -100,6 +100,8 @@ export interface AppStateContextType extends AppDataState {
   addWorkItem: (data: Omit<WorkItem, 'id' | 'tenantId' | 'progress' | 'path'>) => Promise<void>;
   addWorkItemProgress: (workItemId: string, quantity: number, date: Date, observations: string | undefined) => Promise<void>;
   submitForQualityReview: (workItemId: string) => Promise<void>;
+  approveWorkItem: (workItemId: string) => Promise<void>;
+  rejectWorkItem: (workItemId: string, reason: string) => Promise<void>;
 
   // Tools
   addTool: (name: string) => Promise<void>;

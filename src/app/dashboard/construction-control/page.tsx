@@ -30,10 +30,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Progress } from '@/components/ui/progress';
 
-// NEW TYPE
 type TreeWorkItem = WorkItem & { children: TreeWorkItem[] };
 
-// FIXED BUILD TREE
 const buildTree = (items: WorkItem[]): TreeWorkItem[] => {
   const itemMap = new Map<string, TreeWorkItem>();
   const roots: TreeWorkItem[] = [];
@@ -60,26 +58,34 @@ const buildTree = (items: WorkItem[]): TreeWorkItem[] => {
   return roots;
 };
 
-// FIXED NODE COMPONENT
+
 const WorkItemNode = ({
   node,
+  workItems, // Recibe la lista completa para buscar la data más fresca
   level = 0,
   onSelect,
   selectedId,
 }: {
   node: TreeWorkItem;
+  workItems: WorkItem[];
   level?: number;
   onSelect: (item: WorkItem) => void;
   selectedId: string | null;
 }) => {
-  const [isExpanded, setIsExpanded] = useState(level < 2); // Auto-expand first 2 levels
+  const [isExpanded, setIsExpanded] = useState(level < 2);
   const hasChildren = node.children.length > 0;
-  const progress = node.progress || 0;
+
+  // Busca el item más actualizado desde el estado global que pasamos como prop
+  const currentItem = useMemo(() => {
+    return workItems?.find(item => item.id === node.id) || node;
+  }, [workItems, node.id]);
+  
+  const progress = currentItem.progress || 0;
 
   return (
     <div style={{ paddingLeft: `${level * 1}rem` }} className="space-y-1">
       <div
-        onClick={() => onSelect(node)}
+        onClick={() => onSelect(currentItem)}
         className={cn(
           'flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer transition-colors group',
           selectedId === node.id
@@ -102,7 +108,7 @@ const WorkItemNode = ({
             )}
           </button>
         ) : (
-          <div className="w-5" /> // Placeholder for alignment
+          <div className="w-5" />
         )}
         <div className="flex-grow truncate flex items-center gap-2">
             <span className="text-xs font-mono text-muted-foreground w-16 shrink-0 group-hover:text-primary transition-colors">
@@ -113,8 +119,11 @@ const WorkItemNode = ({
                  <Progress value={progress} className="h-1 mt-1 bg-muted/50" />
             </div>
         </div>
-        <span className="text-xs font-mono bg-muted/80 px-2 py-1 rounded">
-          {(node.progress || 0).toFixed(2)}%
+        <span className={cn(
+            "text-xs font-mono rounded px-2 py-1",
+            progress >= 100 ? "bg-green-100 text-green-700 font-bold" : "bg-muted/80"
+        )}>
+          {progress.toFixed(2)}%
         </span>
       </div>
       {hasChildren && isExpanded && (
@@ -123,6 +132,7 @@ const WorkItemNode = ({
             <WorkItemNode
               key={child.id}
               node={child}
+              workItems={workItems} // Pasa la lista completa hacia abajo
               level={level + 1}
               onSelect={onSelect}
               selectedId={selectedId}
@@ -134,13 +144,31 @@ const WorkItemNode = ({
   );
 };
 
+const WorkItemTree = ({ workItems, onSelect, selectedId }: { workItems: WorkItem[], onSelect: (item: WorkItem) => void, selectedId: string | null }) => {
+    const tree = useMemo(() => buildTree(workItems || []), [workItems]);
+
+    return (
+        <ScrollArea className="h-[500px] border rounded-md">
+            <div className="p-2 space-y-1">
+                {tree.map((node) => (
+                    <WorkItemNode
+                        key={node.id}
+                        node={node}
+                        workItems={workItems}
+                        onSelect={onSelect}
+                        selectedId={selectedId}
+                    />
+                ))}
+            </div>
+        </ScrollArea>
+    );
+};
+
 
 export default function ConstructionControlPage() {
   const { can } = useAuth();
   const { workItems, isLoading, progressLogs } = useAppState();
   const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
-
-  const workItemTree = useMemo(() => buildTree(workItems || []), [workItems]);
 
   const selectedItemLogs = useMemo(() => {
     if (!selectedItem || !progressLogs) return [];
@@ -204,19 +232,12 @@ export default function ConstructionControlPage() {
                 <div className="flex items-center justify-center h-64">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : workItemTree.length > 0 ? (
-                <ScrollArea className="h-[500px] border rounded-md">
-                  <div className="p-2 space-y-1">
-                    {workItemTree.map((node) => (
-                      <WorkItemNode
-                        key={node.id}
-                        node={node}
-                        onSelect={setSelectedItem}
-                        selectedId={selectedItem?.id || null}
-                      />
-                    ))}
-                  </div>
-                </ScrollArea>
+              ) : (workItems || []).length > 0 ? (
+                <WorkItemTree
+                    workItems={workItems || []}
+                    onSelect={setSelectedItem}
+                    selectedId={selectedItem?.id || null}
+                />
               ) : (
                 <p className="text-muted-foreground text-center py-10">
                   No hay estructura de obra definida.
@@ -232,9 +253,9 @@ export default function ConstructionControlPage() {
             <CardHeader>
               <CardTitle>Detalle y Avance</CardTitle>
             </CardHeader>
-            <CardContent className="min-h-[60vh] flex flex-col items-center justify-center">
+            <CardContent className="min-h-[60vh] flex flex-col">
               {selectedItem ? (
-                <div className="w-full space-y-6">
+                <div className="w-full space-y-6 flex-1 flex flex-col">
                     <div>
                         <h3 className="text-lg font-semibold text-primary">{selectedItem.name}</h3>
                         <p className="text-sm text-muted-foreground">Ruta: {selectedItem.path}</p>
@@ -247,12 +268,12 @@ export default function ConstructionControlPage() {
                     </div>
                     <RegisterProgressForm workItem={selectedItem} />
 
-                    <Card className="mt-6">
+                    <Card className="mt-6 flex-1 flex flex-col">
                         <CardHeader>
                           <CardTitle className="flex items-center gap-2"><History className="h-5 w-5"/> Historial de Avances</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                          <ScrollArea className="h-64">
+                        <CardContent className="flex-1 overflow-hidden">
+                          <ScrollArea className="h-full">
                             <Table>
                               <TableHeader>
                                 <TableRow>
@@ -286,10 +307,12 @@ export default function ConstructionControlPage() {
                     </Card>
                 </div>
               ) : (
-                <p className="text-muted-foreground text-center">
-                  Selecciona un ítem de la estructura para ver sus detalles y
-                  registrar el avance.
-                </p>
+                <div className="flex-1 flex items-center justify-center">
+                    <p className="text-muted-foreground text-center">
+                    Selecciona un ítem de la estructura para ver sus detalles y
+                    registrar el avance.
+                    </p>
+                </div>
               )}
             </CardContent>
           </Card>

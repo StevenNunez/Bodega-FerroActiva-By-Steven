@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useForm, Controller, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,12 +11,17 @@ import { useToast } from '@/modules/core/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Loader2, PlusCircle, ChevronsUpDown, Check } from 'lucide-react';
+import { Loader2, PlusCircle, ChevronsUpDown, Check, CalendarIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { cn } from '@/lib/utils';
 import { WorkItem } from '@/modules/core/lib/data';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+const Calendar = dynamic(() => import('@/components/ui/calendar').then(mod => mod.Calendar), { ssr: false });
+
 
 const FormSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
@@ -24,6 +30,8 @@ const FormSchema = z.object({
   unit: z.string().min(1, "La unidad es requerida."),
   quantity: z.coerce.number().min(0, "La cantidad no puede ser negativa."),
   unitPrice: z.coerce.number().min(0, "El precio no puede ser negativo."),
+  plannedStartDate: z.date().optional().nullable(),
+  plannedEndDate: z.date().optional().nullable(),
 });
 
 type FormData = z.infer<typeof FormSchema>;
@@ -62,6 +70,8 @@ export function CreateWorkItemForm({ workItems }: CreateWorkItemFormProps) {
       parentId: null,
       quantity: 0,
       unitPrice: 0,
+      plannedStartDate: null,
+      plannedEndDate: null,
     },
   });
 
@@ -185,6 +195,17 @@ export function CreateWorkItemForm({ workItems }: CreateWorkItemFormProps) {
             <Label htmlFor="unitPrice">Precio Unitario</Label>
             <Input id="unitPrice" type="number" {...register('unitPrice')} />
             {errors.unitPrice && <p className="text-xs text-destructive">{errors.unitPrice.message}</p>}
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+                <Label>Fecha Inicio Programada</Label>
+                <Controller name="plannedStartDate" control={control} render={({ field }) => ( <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, 'dd/MM/yyyy') : "Selecciona"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} /></PopoverContent></Popover>)} />
+            </div>
+             <div className="space-y-2">
+                <Label>Fecha Fin Programada</Label>
+                <Controller name="plannedEndDate" control={control} render={({ field }) => ( <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{field.value ? format(field.value, 'dd/MM/yyyy') : "Selecciona"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value || undefined} onSelect={field.onChange} /></PopoverContent></Popover>)} />
+            </div>
         </div>
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>

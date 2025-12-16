@@ -5,7 +5,7 @@ import { Timestamp, FieldValue } from "firebase/firestore";
 // This type is used when writing data to Firestore
 export type FirestoreWriteableDate = Date | Timestamp | FieldValue;
 
-export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin" | "bodega-admin" | "cphs" | "jefe-terreno" | "quality";
+export type UserRole = "admin" | "supervisor" | "worker" | "operations" | "apr" | "guardia" | "finance" | "super-admin" | "bodega-admin" | "cphs" | "jefe-terreno" | "quality" | "jefe-oficina-tecnica";
 
 export interface Tenant {
   id: string;
@@ -338,14 +338,14 @@ export interface WorkItem {
     projectId: string; // Main obra ID
     name: string;
     type: 'project' | 'phase' | 'subphase' | 'activity' | 'task';
-    status: 'in-progress' | 'pending-quality-review' | 'pending-final-approval' | 'completed' | 'rejected';
+    status: 'in-progress' | 'pending-quality-review' | 'completed' | 'rejected';
     parentId: string | null;
     path: string; // e.g., '01/02/03'
     progress: number; // 0-100
-    plannedStartDate?: Date;
-    plannedEndDate?: Date;
-    actualStartDate?: Date;
-    actualEndDate?: Date;
+    plannedStartDate?: Date | null;
+    plannedEndDate?: Date | null;
+    actualStartDate?: Date | null;
+    actualEndDate?: Date | null;
     unit: string; // e.g., m2, m3, und
     quantity: number;
     unitPrice: number;

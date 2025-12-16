@@ -293,10 +293,9 @@ export async function generatePurchaseOrder(requests: PurchaseRequest[], supplie
 export async function createPurchaseOrder(
   { lotId, ocNumber, items, totalAmount }: { lotId: string; ocNumber: string; items: { requestId: string; price: number; quantity: number; name: string; unit: string; }[], totalAmount: number },
   { user, tenantId, db }: Context
-) {
+): Promise<string> {
     if (!user || !tenantId) throw new Error("Autenticación requerida");
 
-    const batch = writeBatch(db);
     const lotRef = doc(db, 'purchaseLots', lotId);
     
     return await runTransaction(db, async (transaction) => {
