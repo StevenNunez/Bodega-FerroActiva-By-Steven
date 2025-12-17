@@ -5,18 +5,15 @@ const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 const nextConfig = {
   reactStrictMode: true,
 
-  // ESTO ES LO QUE NECESITAS: FORZAR WEBPACK Y DESACTIVAR TURBOPACK
-  // https://nextjs.org/docs/messages/turbopack-webpack-config
   webpack: (config) => {
-    // Soporte para alias @/
+    // Soporte para alias @/ via tsconfig paths
     if (!config.resolve.plugins) config.resolve.plugins = [];
     config.resolve.plugins.push(new TsconfigPathsPlugin());
 
     return config;
   },
 
-  // Esto le dice a Next.js: "NO uses Turbopack, usa Webpack"
-  turbopack: {}, // ← objeto vacío = Turbopack desactivado
+  // Quitamos turbopack: {} porque no desactiva nada y puede causar warnings
 };
 
 module.exports = nextConfig;
