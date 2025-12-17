@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,13 +25,13 @@ import {
 } from '@/components/ui/select';
 import { 
   Plus, Calendar, Trash2, Layers, ArrowRightLeft, 
-  Palette, Users, Search, Clock, TrendingUp, TrendingDown, ChevronsRightLeft
+  Palette, Users, Search, Clock, TrendingUp, TrendingDown, ChevronsRightLeft, Edit
 } from 'lucide-react';
 import { Gantt, Task, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
 import { useToast } from '@/modules/core/hooks/use-toast';
 import { useAppState } from '@/modules/core/contexts/app-provider';
-import type { User as UserType } from '@/modules/core/lib/data';
+import type { User as UserType, WorkItem } from '@/modules/core/lib/data';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { StatCard } from '@/components/admin/stat-card';
 import { cn } from '@/lib/utils';
@@ -42,100 +43,36 @@ const GanttCustomStyles = () => (
     .gantt-container {
       --gantt-font-family: var(--font-sans), system-ui, sans-serif;
     }
-    /* Fondo General y Texto */
     .gantt-container ._3_pmuJ, 
     .gantt-container ._291r0X,
     .gantt-container ._1n_4l- {
         background-color: hsl(var(--card)) !important; 
-        color: hsl(var(--foreground)) !important;
     }
-    /* Cabeceras (Timeline + Task List) */
     .gantt-container ._3_pmuJ button,
     .gantt-container ._1n_4l- > div {
         color: hsl(var(--muted-foreground)) !important;
-        font-weight: 600;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
+        font-weight: 500;
     }
-    /* Celdas de la lista de tareas */
-     .gantt-container ._1n_4l- ._3Yt5l- {
+    .gantt-container ._1n_4l- ._3Yt5l-, .gantt-container ._291r0X div {
         color: hsl(var(--foreground)) !important;
     }
-    /* Líneas de la grilla */
-    .gantt-container ._2-D47- {
-        stroke: hsl(var(--border)) !important;
-    }
-    /* Resaltado del fin de semana */
-    .gantt-container ._2IsDI_ {
-        fill: hsl(var(--muted) / 0.5) !important;
-    }
+    .gantt-container ._2-D47- { stroke: hsl(var(--border)) !important; }
+    /* Fin de semana */
+    .gantt-container ._2IsDI_ { fill: hsl(var(--muted) / 0.5) !important; }
     /* Línea de "Hoy" */
-    .gantt-container ._1YV57- {
-        stroke: hsl(var(--primary)) !important;
-    }
-     /* Scrollbars */
-    .gantt-container ::-webkit-scrollbar {
-      width: 8px; height: 8px;
-    }
-    .gantt-container ::-webkit-scrollbar-thumb {
-      background: hsl(var(--muted-foreground) / 0.3); border-radius: 4px;
-    }
+    .gantt-container ._1YV57- { stroke: hsl(var(--primary)) !important; }
+    .gantt-container ::-webkit-scrollbar { width: 8px; height: 8px; }
+    .gantt-container ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 4px; }
   `}</style>
 );
 
 // --- Tipos Extendidos ---
 interface TaskType extends Task {
   description?: string;
-  assignees?: string[];
+  assignees?: string[]; // La librería usa 'assignees', nosotros usaremos 'assignedTo'
   plannedProgress?: number;
+  assignedTo?: string | null;
 }
-
-// Datos iniciales
-const initialTasks: TaskType[] = [
-  {
-    start: new Date(2024, 0, 1),
-    end: new Date(2024, 0, 15),
-    name: 'Proyecto Principal: Obra Gruesa',
-    id: 'Proy-1',
-    type: 'project',
-    progress: 45,
-    hideChildren: false,
-    styles: { progressColor: '#ffbb54', progressSelectedColor: '#ff9e0d', backgroundColor: '#fef3c7' },
-  },
-  {
-    start: new Date(2024, 0, 2),
-    end: new Date(2024, 0, 8),
-    name: 'Excavación y Cimientos',
-    id: 'Task-1',
-    type: 'task',
-    progress: 100,
-    project: 'Proy-1',
-    styles: { progressColor: '#10b981', progressSelectedColor: '#059669' },
-  },
-  {
-    start: new Date(2024, 0, 9),
-    end: new Date(2024, 0, 12),
-    name: 'Levantamiento de Muros',
-    id: 'Task-2',
-    type: 'task',
-    progress: 40,
-    dependencies: ['Task-1'],
-    project: 'Proy-1',
-    styles: { progressColor: '#3b82f6', progressSelectedColor: '#2563eb' },
-  },
-  {
-    start: new Date(2024, 0, 15),
-    end: new Date(2024, 0, 15),
-    name: 'Entrega Fase 1',
-    id: 'Milestone-1',
-    type: 'milestone',
-    progress: 100,
-    dependencies: ['Task-2'],
-    project: 'Proy-1',
-    styles: { progressColor: '#ef4444', progressSelectedColor: '#b91c1c', backgroundSelectedColor: '#ef4444' },
-  },
-];
 
 const PRESET_COLORS = [
     { label: 'Azul (Estándar)', value: '#3b82f6' },
@@ -147,42 +84,81 @@ const PRESET_COLORS = [
 ];
 
 export default function GanttChartPage() {
-  const { users } = useAppState();
+  const { users, workItems, updateWorkItem, deleteWorkItem } = useAppState();
   const { toast } = useToast();
   
-  const [tasks, setTasks] = useState<TaskType[]>(initialTasks);
+  const [tasks, setTasks] = useState<TaskType[]>([]);
   const [view, setView] = useState<ViewMode>(ViewMode.Week);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState<Partial<TaskType>>({});
   const [isEditing, setIsEditing] = useState(false);
 
+  // Mapear workItems a Tasks de Gantt cada vez que workItems cambie
+  useEffect(() => {
+    if (workItems) {
+      const ganttTasks: TaskType[] = workItems.map((item: WorkItem): TaskType => ({
+        id: item.id,
+        name: item.name,
+        type: item.type === 'project' || item.type === 'phase' || item.type === 'subphase' ? 'project' : 'task',
+        start: item.plannedStartDate ? new Date(item.plannedStartDate) : new Date(),
+        end: item.plannedEndDate ? new Date(item.plannedEndDate) : new Date(),
+        progress: item.progress || 0,
+        project: item.parentId || undefined,
+        hideChildren: false,
+        assignedTo: (item as any).assignedTo, // Mapeo de responsable
+        // Dependencias necesitarían un campo 'dependencies' en WorkItem
+        // dependencies: item.dependencies || [],
+      }));
+      setTasks(ganttTasks);
+    }
+  }, [workItems]);
+
+
   const filteredTasks = useMemo(() => {
     if (!searchTerm) return tasks;
     return tasks.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [tasks, searchTerm]);
 
-  const handleTaskChange = useCallback((task: Task) => {
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, start: task.start, end: task.end } : t)));
-  }, []);
+  const handleTaskChange = useCallback(async (task: Task) => {
+    try {
+      await updateWorkItem(task.id, { plannedStartDate: task.start, plannedEndDate: task.end });
+      // El estado se actualizará automáticamente a través del useEffect cuando workItems cambie
+    } catch(e) {
+      toast({ title: 'Error al actualizar', description: 'No se pudo guardar la nueva fecha.', variant: 'destructive'});
+    }
+  }, [updateWorkItem, toast]);
 
-  const handleProgressChange = useCallback((task: Task) => {
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, progress: task.progress } : t)));
-  }, []);
+  const handleProgressChange = useCallback(async (task: Task) => {
+    try {
+      await updateWorkItem(task.id, { progress: task.progress });
+      // El estado se actualizará automáticamente
+    } catch(e) {
+       toast({ title: 'Error', description: 'No se pudo actualizar el progreso.', variant: 'destructive'});
+    }
+  }, [toast, updateWorkItem]);
 
   const handleDblClick = useCallback((task: Task) => {
-    setCurrentTask(task);
-    setIsEditing(true);
-    setIsModalOpen(true);
-  }, []);
-
-  const handleDelete = useCallback((task: Task) => {
-    if (confirm(`¿Estás seguro de eliminar "${task.name}"?`)) {
-      setTasks(prev => prev.filter((t) => t.id !== task.id).map(t => t.project === task.id ? {...t, project: undefined} : t));
-      setIsModalOpen(false);
-      toast({ title: "Tarea eliminada" });
+    const workItem = workItems.find(item => item.id === task.id);
+    if(workItem) {
+        setCurrentTask({
+            ...task,
+            assignedTo: (workItem as any).assignedTo,
+        });
+        setIsEditing(true);
+        setIsModalOpen(true);
     }
-  }, [toast]);
+  }, [workItems]);
+
+  const handleDelete = useCallback(async (task: Task) => {
+    try {
+        await deleteWorkItem(task.id);
+        toast({ title: "Tarea eliminada", variant: "destructive" });
+        setIsModalOpen(false);
+    } catch (e) {
+      toast({ title: "Error", description: "No se pudo eliminar la tarea.", variant: "destructive" });
+    }
+  }, [deleteWorkItem, toast]);
 
   const handleExpanderClick = useCallback((task: Task) => {
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, hideChildren: !t.hideChildren } : t)));
@@ -201,26 +177,41 @@ export default function GanttChartPage() {
     setIsEditing(false);
     setIsModalOpen(true);
   };
-
-  const handleSaveTask = () => {
+  
+const handleSaveTask = async () => {
     if (!currentTask.name?.trim() || !currentTask.start || !currentTask.end || currentTask.start > currentTask.end) {
       toast({ title: "Datos inválidos", description: "Revisa el nombre y las fechas.", variant: "destructive" });
       return;
     }
-    const normalizeDate = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const taskToSave: TaskType = {
-        ...(currentTask as TaskType),
-        start: normalizeDate(currentTask.start),
-        end: normalizeDate(currentTask.end),
-    };
-    if (isEditing) {
-      setTasks(prev => prev.map((t) => (t.id === taskToSave.id ? taskToSave : t)));
-      toast({ title: "Tarea actualizada" });
-    } else {
-      setTasks(prev => [...prev, taskToSave]);
-      toast({ title: "Nueva tarea creada" });
+
+    try {
+        if (isEditing) {
+            const originalItem = workItems.find(item => item.id === currentTask.id);
+            if (!originalItem) {
+                throw new Error("No se encontró la tarea original para actualizar.");
+            }
+            
+            const taskToSave: Partial<WorkItem> = {
+                ...originalItem,
+                name: currentTask.name,
+                type: currentTask.type as WorkItem['type'],
+                parentId: currentTask.project || null,
+                plannedStartDate: currentTask.start,
+                plannedEndDate: currentTask.end,
+                progress: currentTask.progress,
+                assignedTo: currentTask.assignedTo,
+            };
+
+            await updateWorkItem(currentTask.id!, taskToSave);
+            toast({ title: "Tarea actualizada" });
+        } else {
+            // La creación es manejada por el módulo EDT, aquí solo mostramos una advertencia.
+            toast({ title: "Acción Desactivada", description: "Crea nuevas tareas desde el módulo 'Partidas (EDT)' para mantener la consistencia del proyecto." });
+        }
+        setIsModalOpen(false);
+    } catch(e: any) {
+        toast({ title: "Error", description: e.message || "No se pudo guardar la tarea.", variant: 'destructive'});
     }
-    setIsModalOpen(false);
   };
 
   const dateToString = (date?: Date) => date ? date.toISOString().split('T')[0] : '';
@@ -241,31 +232,36 @@ export default function GanttChartPage() {
     const dateRange = eachDayOfInterval({ start: projectStart, end: projectEnd });
     let cumulativePlanned = 0;
     let cumulativeActual = 0;
+    
+    const relevantTasks = tasks.filter(t => t.type !== 'project' && t.type !== 'milestone');
+    if (relevantTasks.length === 0) return { sCurveData: [], projectSPI: 1 };
+
 
     const sCurve = dateRange.map(day => {
         let dailyPlanned = 0;
         let dailyActual = 0;
         
-        tasks.filter(t => t.type !== 'project' && t.type !== 'milestone').forEach(task => {
+        relevantTasks.forEach(task => {
             const taskStart = startOfDay(task.start);
             const taskEnd = startOfDay(task.end);
             const duration = differenceInDays(taskEnd, taskStart) + 1;
             
-            if (day >= taskStart && day <= taskEnd) {
-                dailyPlanned += 100 / duration; // % diario programado
-            }
+            if (duration > 0) {
+              if (day >= taskStart && day <= taskEnd) {
+                  dailyPlanned += 100 / duration; // % diario programado
+              }
 
-            if (day >= taskStart && task.progress > 0) {
-                 const daysFromStart = differenceInDays(day, taskStart) + 1;
-                 const plannedProgressToday = Math.min(100, (daysFromStart / duration) * 100);
-                 if (day <= today) {
-                    dailyActual += (task.progress / duration);
-                 }
+              if (day <= today) {
+                  if (day >= taskStart) {
+                      const actualProgressOnDay = Math.min(100, task.progress || 0) / duration;
+                      dailyActual += actualProgressOnDay;
+                  }
+              }
             }
         });
 
-        cumulativePlanned += dailyPlanned / tasks.length;
-        cumulativeActual += dailyActual / tasks.length;
+        cumulativePlanned += dailyPlanned / relevantTasks.length;
+        cumulativeActual += dailyActual / relevantTasks.length;
 
         return {
             date: day.toLocaleDateString('es-CL', { month: 'short', day: 'numeric'}),
@@ -274,8 +270,10 @@ export default function GanttChartPage() {
         };
     });
 
-    const todayData = sCurve.find(d => startOfDay(new Date(d.date)) >= today);
-    const spi = (todayData?.real || 0) / (todayData?.programado || 1);
+    const todayIndex = dateRange.findIndex(d => startOfDay(d) >= today);
+    const todayData = sCurve[todayIndex > -1 ? todayIndex : sCurve.length - 1];
+    const spi = (todayData?.programado ?? 0) > 0 ? (todayData?.real || 0) / todayData.programado : 1;
+
 
     return { sCurveData: sCurve, projectSPI: spi };
 
@@ -284,7 +282,7 @@ export default function GanttChartPage() {
   return (
     <div className="flex flex-col gap-6 fade-in w-full max-w-[100vw] overflow-hidden pb-10">
       <GanttCustomStyles />
-      <PageHeader title="Cronograma de Obra" description="Gestión visual de tiempos, dependencias y asignaciones del proyecto." />
+      <PageHeader title="Cronograma de Obra" description="Gestión visual de tiempos, dependencias y seguimiento del proyecto." />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard 
@@ -364,8 +362,8 @@ export default function GanttChartPage() {
         <DialogContent className="sm:max-w-[600px] gap-0 p-0 overflow-hidden">
           <DialogHeader className="px-6 py-4 bg-muted/30 border-b">
             <DialogTitle className="flex items-center gap-2 text-lg">
-                {isEditing ? <Palette className="h-5 w-5 text-primary"/> : <Plus className="h-5 w-5 text-primary"/>} 
-                {isEditing ? 'Editar Detalles de Tarea' : 'Crear Nueva Tarea'}
+                {isEditing ? <Edit className="h-5 w-5 text-primary"/> : <Plus className="h-5 w-5 text-primary"/>} 
+                {isEditing ? 'Editar Tarea' : 'Crear Nueva Tarea'}
             </DialogTitle>
             <DialogDescription>Configura la planificación y recursos necesarios.</DialogDescription>
           </DialogHeader>
@@ -411,7 +409,7 @@ export default function GanttChartPage() {
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label className="flex items-center gap-2"><Users className="h-3 w-3"/> Responsable</Label>
-                    <Select value={currentTask.assignees?.[0] || 'none'} onValueChange={(val) => setCurrentTask({ ...currentTask, assignees: val === "none" ? [] : [val]})}>
+                    <Select value={currentTask.assignedTo || 'none'} onValueChange={(val) => setCurrentTask({ ...currentTask, assignedTo: val === "none" ? null : val})}>
                         <SelectTrigger><SelectValue placeholder="Asignar..." /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="none">Sin asignar</SelectItem>

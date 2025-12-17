@@ -367,6 +367,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       // Work Items
       addWorkItem: bindContext(genericMutations.addWorkItem),
+      updateWorkItem: bindContext(genericMutations.updateWorkItem),
+      deleteWorkItem: bindContext(genericMutations.deleteWorkItem),
       addWorkItemProgress: bindContext(genericMutations.addWorkItemProgress),
       submitForQualityReview: bindContext(genericMutations.submitForQualityReview),
       approveWorkItem: bindContext(genericMutations.approveWorkItem),

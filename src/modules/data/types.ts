@@ -97,7 +97,11 @@ export interface AppStateContextType extends AppDataState {
   removeRequestFromLot: (requestId: string) => Promise<void>;
   deleteLot: (lotId: string) => Promise<void>;
   updateTenant: (tenantId: string, data: Partial<Tenant>) => Promise<void>;
+  
+  // Work Items
   addWorkItem: (data: Omit<WorkItem, 'id' | 'tenantId' | 'progress' | 'path'>) => Promise<void>;
+  updateWorkItem: (id: string, data: Partial<WorkItem>) => Promise<void>;
+  deleteWorkItem: (id: string) => Promise<void>;
   addWorkItemProgress: (workItemId: string, quantity: number, date: Date, observations: string | undefined) => Promise<void>;
   submitForQualityReview: (workItemId: string) => Promise<void>;
   approveWorkItem: (workItemId: string) => Promise<void>;

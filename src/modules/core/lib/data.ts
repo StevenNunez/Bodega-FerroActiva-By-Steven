@@ -349,6 +349,7 @@ export interface WorkItem {
     unit: string; // e.g., m2, m3, und
     quantity: number;
     unitPrice: number;
+    assignedTo?: string | null;
 }
 
 export interface ProgressLog {

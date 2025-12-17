@@ -345,6 +345,16 @@ export async function addWorkItem(data: Omit<WorkItem, 'id' | 'tenantId' | 'prog
     await setDoc(newDocRef, newItem);
 }
 
+export async function updateWorkItem(id: string, data: Partial<WorkItem>, { db }: Context) {
+    const workItemRef = doc(db, 'workItems', id);
+    await updateDoc(workItemRef, data);
+}
+
+export async function deleteWorkItem(id: string, { db }: Context) {
+    await deleteDoc(doc(db, 'workItems', id));
+}
+
+
 export async function addWorkItemProgress(workItemId: string, quantity: number, date: Date, observations: string | undefined, { user, tenantId, db }: Context) {
     if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
 
