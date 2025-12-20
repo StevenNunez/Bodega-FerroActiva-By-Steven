@@ -1,4 +1,6 @@
+
 "use client";
+
 import * as React from "react";
 import Link from "next/link";
 import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
@@ -19,7 +21,10 @@ import {
   History,
   AlertTriangle,
   Filter,
-  PackageMinus
+  PackageMinus,
+  ChevronsUpDown,
+  Check,
+  Package
 } from "lucide-react";
 import {
   Card,
@@ -65,6 +70,9 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Timestamp } from "firebase/firestore";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+
 
 // --- Tipos Auxiliares ---
 type RequestStatus = "pending" | "approved" | "rejected" | "batched" | "ordered" | "received";
@@ -92,6 +100,7 @@ function ReceiveRequestDialog({
   const [receivedQuantity, setReceivedQuantity] = React.useState<number | string>("");
   const [selectedMaterialId, setSelectedMaterialId] = React.useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [popoverOpen, setPopoverOpen] = React.useState(false);
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -175,30 +184,47 @@ function ReceiveRequestDialog({
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <Select
-                    onValueChange={setSelectedMaterialId}
-                    value={selectedMaterialId} // Usar value en lugar de defaultValue para control
-                >
-                    <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar acción..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                    <SelectItem value="create_new" className="font-semibold text-primary">
-                        ✨ Crear como Nuevo Material
-                    </SelectItem>
-                    {materials.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                        Vincular a: {m.name}
-                        </SelectItem>
-                    ))}
-                    </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">
-                    El material no coincide exactamente con ninguno en bodega. Puedes crearlo o vincularlo manualmente.
-                </p>
-              </div>
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                    <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="w-full justify-between">
+                            {selectedMaterialId
+                            ? materials.find((m) => m.id === selectedMaterialId)?.name
+                            : "Buscar o crear material..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                            <CommandInput placeholder="Buscar material..." />
+                            <CommandList>
+                                <CommandEmpty>No se encontró material.</CommandEmpty>
+                                <CommandGroup>
+                                    <CommandItem onSelect={() => { setSelectedMaterialId("create_new"); setPopoverOpen(false); }}>
+                                        <Package className="mr-2 h-4 w-4" />
+                                        Crear como nuevo material
+                                    </CommandItem>
+                                    {materials.map((m) => (
+                                        <CommandItem
+                                            key={m.id}
+                                            value={m.name}
+                                            onSelect={() => {
+                                                setSelectedMaterialId(m.id);
+                                                setPopoverOpen(false);
+                                            }}
+                                        >
+                                            <Check className={cn("mr-2 h-4 w-4", m.id === selectedMaterialId ? "opacity-100" : "opacity-0")}/>
+                                            {m.name}
+                                        </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                            </CommandList>
+                        </Command>
+                    </PopoverContent>
+                </Popover>
             )}
+            <p className="text-[10px] text-muted-foreground mt-2">
+                Si el material no coincide exactamente, búscalo para vincularlo, o elige crearlo como uno nuevo.
+            </p>
           </div>
         </div>
 
@@ -676,3 +702,5 @@ export default function PurchasingHubPage() {
     </>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -331,124 +332,127 @@ export default function AdminMaterialsPage() {
 
               {/* Tabla */}
               <ScrollArea className="h-[600px] border rounded-md bg-card">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-muted/50 z-10 backdrop-blur-sm">
-                    <TableRow>
-                      <TableHead className="w-[30%]">Material</TableHead>
-                      <TableHead className="w-[20%]">Categoría</TableHead>
-                      <TableHead className="w-[20%]">Proveedor</TableHead>
-                      <TableHead className="w-[15%] text-right">Stock</TableHead>
-                      <TableHead className="w-[15%] text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-32 text-center">
-                            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary/50" />
-                        </TableCell>
-                      </TableRow>
-                    ) : paginatedMaterials.length > 0 ? (
-                      paginatedMaterials.map((material) => {
-                          const isLowStock = !material.archived && material.stock <= 10;
-                          return (
-                            <TableRow 
-                                key={material.id} 
-                                className={cn(
-                                    "transition-colors",
-                                    material.archived && "opacity-60 bg-muted/30 grayscale"
-                                )}
-                            >
-                                <TableCell>
-                                    <div className="flex flex-col">
-                                        <span className="font-medium">{material.name}</span>
-                                        {material.archived && <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1">Archivado</Badge>}
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant="secondary" className="font-normal text-xs bg-muted text-muted-foreground">
-                                        {material.category}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={material.supplierId ? (supplierMap.get(material.supplierId) || "Sin proveedor") : "Sin proveedor"}>
-                                    {material.supplierId ? supplierMap.get(material.supplierId) || "-" : "-"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex flex-col items-end">
-                                        <span className={cn(
-                                            "font-mono font-bold",
-                                            isLowStock ? "text-destructive" : "text-foreground"
-                                        )}>
-                                            {material.stock.toLocaleString()}
-                                        </span>
-                                        <span className="text-[10px] text-muted-foreground">{material.unit}</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        {canEdit && (
-                                            <DropdownMenuItem onClick={() => setEditingMaterial(material)}>
-                                            <Edit className="mr-2 h-4 w-4" /> Editar
-                                            </DropdownMenuItem>
-                                        )}
-                                        {canArchive && (
-                                            <DropdownMenuItem onClick={() => handleArchiveMaterial(material)}>
-                                                {material.archived ? (
-                                                    <><ArchiveRestore className="mr-2 h-4 w-4" /> Restaurar</>
-                                                ) : (
-                                                    <><Archive className="mr-2 h-4 w-4" /> Archivar</>
-                                                )}
-                                            </DropdownMenuItem>
-                                        )}
-                                        {canDelete && (
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                                                    </DropdownMenuItem>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            Eliminarás <b>{material.name}</b> permanentemente. Esta acción no se puede deshacer.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                        <AlertDialogAction 
-                                                            onClick={() => handleDeleteMaterial(material.id, material.name)}
-                                                            className="bg-destructive hover:bg-destructive/90"
-                                                        >
-                                                            Eliminar
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        )}
-                                    </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                          );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                            No se encontraron materiales con los filtros actuales.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                 <div className="min-w-[800px] p-1">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-muted/50 z-10 backdrop-blur-sm">
+                        <TableRow>
+                          <TableHead className="min-w-[200px]">Material</TableHead>
+                          <TableHead className="w-[150px]">Categoría</TableHead>
+                          <TableHead className="w-[150px]">Proveedor</TableHead>
+                          <TableHead className="w-[100px] text-right">Stock</TableHead>
+                          <TableHead className="w-[80px] text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {isLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="h-32 text-center">
+                                <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary/50" />
+                            </TableCell>
+                          </TableRow>
+                        ) : paginatedMaterials.length > 0 ? (
+                          paginatedMaterials.map((material) => {
+                              const isLowStock = !material.archived && material.stock <= 10;
+                              return (
+                                <TableRow 
+                                    key={material.id} 
+                                    className={cn(
+                                        "transition-colors",
+                                        material.archived && "opacity-60 bg-muted/30 grayscale"
+                                    )}
+                                >
+                                    <TableCell>
+                                        <div className="flex flex-col">
+                                            <span className="font-medium">{material.name}</span>
+                                            {material.archived && <Badge variant="outline" className="w-fit text-[10px] h-4 mt-1">Archivado</Badge>}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary" className="font-normal text-xs bg-muted text-muted-foreground">
+                                            {material.category}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate" title={material.supplierId ? (supplierMap.get(material.supplierId) || "Sin proveedor") : "Sin proveedor"}>
+                                        {material.supplierId ? supplierMap.get(material.supplierId) || "-" : "-"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex flex-col items-end">
+                                            <span className={cn(
+                                                "font-mono font-bold",
+                                                isLowStock ? "text-destructive" : "text-foreground"
+                                            )}>
+                                                {material.stock.toLocaleString()}
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground">{material.unit}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            {canEdit && (
+                                                <DropdownMenuItem onClick={() => setEditingMaterial(material)}>
+                                                <Edit className="mr-2 h-4 w-4" /> Editar
+                                                </DropdownMenuItem>
+                                            )}
+                                            {canArchive && (
+                                                <DropdownMenuItem onClick={() => handleArchiveMaterial(material)}>
+                                                    {material.archived ? (
+                                                        <><ArchiveRestore className="mr-2 h-4 w-4" /> Restaurar</>
+                                                    ) : (
+                                                        <><Archive className="mr-2 h-4 w-4" /> Archivar</>
+                                                    )}
+                                                </DropdownMenuItem>
+                                            )}
+                                            {canDelete && (
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Eliminarás <b>{material.name}</b> permanentemente. Esta acción no se puede deshacer.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                            <AlertDialogAction 
+                                                                onClick={() => handleDeleteMaterial(material.id, material.name)}
+                                                                className="bg-destructive hover:bg-destructive/90"
+                                                            >
+                                                                Eliminar
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            )}
+                                        </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                              );
+                          })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                                No se encontraron materiales con los filtros actuales.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                 </div>
+                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
               
               {/* Paginación Simple */}

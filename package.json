@@ -2,12 +2,12 @@
   "name": "bodega-ferro-activa-app",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-  "dev": "next dev",                 
-  "build": "next build --webpack",    
-  "start": "next start",
-  "lint": "next lint"
-},  
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "next lint"
+  },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
@@ -46,12 +46,12 @@
     "nanoid": "^5.0.7",
     "next": "16.0.7",
     "papaparse": "^5.4.1",
-    "react-qr-code": "^2.0.12",
-    "react": "^18.3.1",
+    "react": "^19.2.1",
     "react-day-picker": "^8.10.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.2.1",
     "react-hook-form": "^7.52.0",
     "react-markdown": "^9.0.1",
+    "react-qr-code": "^2.0.12",
     "recharts": "^2.12.7",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
