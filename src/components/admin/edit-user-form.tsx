@@ -1,5 +1,4 @@
 
-
 'use client';
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -33,6 +32,7 @@ const FormSchema = z.object({
   phone: z.string().optional(),
   cargo: z.string().optional(),
   fechaIngreso: z.date().optional().nullable(),
+  baseSalary: z.coerce.number().optional(),
   afp: z.string().optional(),
   tipoSalud: z.enum(['Fonasa', 'Isapre']).optional(),
   cargasFamiliares: z.coerce.number().optional(),
@@ -81,6 +81,7 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
             phone: user.phone || '',
             cargo: user.cargo || '',
             fechaIngreso: user.fechaIngreso ? (user.fechaIngreso instanceof Timestamp ? user.fechaIngreso.toDate() : new Date(user.fechaIngreso as any)) : null,
+            baseSalary: user.baseSalary || 0,
             afp: user.afp || '',
             tipoSalud: user.tipoSalud,
             cargasFamiliares: user.cargasFamiliares || 0,
@@ -216,6 +217,11 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
                             )}
                         />
                          {errors.fechaIngreso && <p className="text-xs text-destructive">{errors.fechaIngreso.message}</p>}
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="baseSalary">Sueldo Base</Label>
+                        <Input id="baseSalary" type="number" {...register('baseSalary')} />
+                        {errors.baseSalary && <p className="text-xs text-destructive">{errors.baseSalary.message}</p>}
                     </div>
                  </div>
 

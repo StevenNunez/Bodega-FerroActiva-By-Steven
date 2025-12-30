@@ -61,6 +61,7 @@ import {
   usePurchaseLots,
   usePurchaseOrders,
   useSupplierPayments,
+  useSalaryAdvances, // Import the new hook
   useAttendanceLogs,
   useAssignedChecklists,
   useSafetyInspections,
@@ -99,6 +100,7 @@ const initialState: AppDataState = {
     purchaseLots: [],
     purchaseOrders: [],
     supplierPayments: [],
+    salaryAdvances: [], // Add to initial state
     attendanceLogs: [],
     assignedChecklists: [],
     safetyInspections: [],
@@ -151,6 +153,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const purchaseLotsData = usePurchaseLots(tenantId);
     const purchaseOrdersData = usePurchaseOrders(tenantId);
     const supplierPaymentsData = useSupplierPayments(tenantId);
+    const salaryAdvancesData = useSalaryAdvances(tenantId); // Use the new hook
     const attendanceLogsData = useAttendanceLogs(tenantId);
     const assignedChecklistsData = useAssignedChecklists(tenantId);
     const safetyInspectionsData = useSafetyInspections(tenantId);
@@ -196,6 +199,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             usersData, materialsData, toolsData, toolLogsData, requestsData,
             returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
             unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
+            salaryAdvancesData, // Add new data source
             attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
             checklistTemplatesData, behaviorObservationsData, stockMovementsData,
             subscriptionPlansData, firebaseWorkItems, progressLogsData, dynamicRolesData
@@ -242,6 +246,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_DATA', payload: { collection: "purchaseLots", data: processData(purchaseLotsData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "purchaseOrders", data: processData(purchaseOrdersData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "supplierPayments", data: processData(supplierPaymentsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "salaryAdvances", data: processData(salaryAdvancesData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "attendanceLogs", data: processData(attendanceLogsData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "assignedChecklists", data: processData(assignedChecklistsData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "safetyInspections", data: processData(safetyInspectionsData) } });
@@ -263,7 +268,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         authLoading, user, usersData, materialsData, toolsData, toolLogsData, requestsData,
         returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
         unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
-        attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
+        salaryAdvancesData, attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
         checklistTemplatesData, behaviorObservationsData, stockMovementsData,
         subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId, dynamicRolesData
     ]);
@@ -357,6 +362,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       updateSupplierPayment: bindContext(paymentMutations.updateSupplierPayment),
       markPaymentAsPaid: bindContext(paymentMutations.markPaymentAsPaid),
       deleteSupplierPayment: bindContext(paymentMutations.deleteSupplierPayment),
+      addSalaryAdvanceRequest: bindContext(paymentMutations.addSalaryAdvanceRequest),
+      approveSalaryAdvance: bindContext(paymentMutations.approveSalaryAdvance),
+      rejectSalaryAdvance: bindContext(paymentMutations.rejectSalaryAdvance),
       
       // Permissions
       updateRolePermissions: bindContext(genericMutations.updateRolePermissions),

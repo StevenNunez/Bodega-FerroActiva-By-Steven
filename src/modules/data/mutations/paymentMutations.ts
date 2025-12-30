@@ -46,3 +46,46 @@ export async function deleteSupplierPayment(paymentId: string, { tenantId, db }:
   const docRef = doc(db, "supplierPayments", paymentId);
   await deleteDoc(docRef);
 }
+
+export async function addSalaryAdvanceRequest(
+  data: { workerId: string; workerName: string; amount: number; },
+  { user, tenantId, db }: Context
+) {
+  if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+
+  const salaryAdvancesRef = collection(db, "salaryAdvances");
+  await addDoc(salaryAdvancesRef, {
+    ...data,
+    status: 'pending',
+    requestedAt: serverTimestamp(),
+    tenantId,
+  });
+}
+
+export async function approveSalaryAdvance(
+  advanceId: string,
+  { user, tenantId, db }: Context
+) {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+    const advanceRef = doc(db, "salaryAdvances", advanceId);
+    await updateDoc(advanceRef, {
+        status: 'approved',
+        processedAt: serverTimestamp(),
+        approverId: user.id,
+        approverName: user.name,
+    });
+}
+
+export async function rejectSalaryAdvance(
+  advanceId: string,
+  { user, tenantId, db }: Context
+) {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+    const advanceRef = doc(db, "salaryAdvances", advanceId);
+    await updateDoc(advanceRef, {
+        status: 'rejected',
+        processedAt: serverTimestamp(),
+        approverId: user.id,
+        approverName: user.name,
+    });
+}

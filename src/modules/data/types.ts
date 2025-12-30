@@ -13,6 +13,7 @@ import {
   PurchaseLot,
   PurchaseOrder,
   SupplierPayment,
+  SalaryAdvance,
   AttendanceLog,
   AssignedSafetyTask,
   SafetyInspection,
@@ -43,6 +44,7 @@ export interface AppDataState {
   purchaseLots: PurchaseLot[];
   purchaseOrders: PurchaseOrder[];
   supplierPayments: SupplierPayment[];
+  salaryAdvances: SalaryAdvance[];
   attendanceLogs: AttendanceLog[];
   assignedChecklists: AssignedSafetyTask[];
   safetyInspections: SafetyInspection[];
@@ -138,6 +140,9 @@ export interface AppStateContextType extends AppDataState {
   updateSupplierPayment: (paymentId: string, data: Partial<SupplierPayment>) => Promise<void>;
   markPaymentAsPaid: (paymentId: string, details: { paymentDate: Date; paymentMethod: string; }) => Promise<void>;
   deleteSupplierPayment: (paymentId: string) => Promise<void>;
+  addSalaryAdvanceRequest: (data: { workerId: string; workerName: string; amount: number; }) => Promise<void>;
+  approveSalaryAdvance: (advanceId: string) => Promise<void>;
+  rejectSalaryAdvance: (advanceId: string) => Promise<void>;
   
   // Permissions
   updateRolePermissions: (role: UserRole, permission: Permission, checked: boolean) => Promise<void>;

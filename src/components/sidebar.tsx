@@ -38,6 +38,8 @@ import {
   Construction,
   CheckSquare,
   GanttChartSquare,
+  Wallet,
+  HandPlatter
 } from 'lucide-react';
 
 import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
@@ -71,7 +73,7 @@ const supervisorNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
 
     if(can('module_warehouse:view')) items.push({ href: '/dashboard/supervisor', icon: LayoutDashboard, label: 'Resumen Supervisor' });
-    if (can('tools:view_own')) items.push({ href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' });
+    if (can('tools:view_own')) items.push({ href: '/dashboard/worker', icon: Wallet, label: 'Mi Billetera Digital' });
     if (can('material_requests:create')) items.push({ href: '/dashboard/supervisor/request', icon: PlusCircle, label: 'Solicitar Materiales' });
     if (can('purchase_requests:create')) items.push({ href: '/dashboard/supervisor/purchase-request-form', icon: ShoppingCart, label: 'Solicitar Compra' });
     if (can('return_requests:create')) items.push({ href: '/dashboard/supervisor/return-request', icon: Undo2, label: 'Registrar Devolución' });
@@ -82,7 +84,7 @@ const supervisorNavItems = (can: (p: Permission) => boolean) => {
 const workerNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if (can('tools:view_own')) {
-        items.push({ href: '/dashboard/worker', icon: Wrench, label: 'Mis Herramientas' });
+        items.push({ href: '/dashboard/worker', icon: Wallet, label: 'Mi Billetera Digital' });
     }
     return items;
 }
@@ -100,7 +102,7 @@ const cphsNavItems = (can: (p: Permission) => boolean) => {
     }
      if (can('safety_inspections:review')) {
       items.push({ href: '/dashboard/safety/review-inspections', icon: ShieldCheck, label: 'Revisar Inspecciones' });
-    }
+     }
     if (can('safety_observations:review')) {
       items.push({ href: '/dashboard/safety/review-observations', icon: ShieldCheck, label: 'Revisar Observaciones' });
     }
@@ -151,6 +153,7 @@ const attendanceNavItems = (can: (p: Permission) => boolean) => {
 const paymentsNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if (can('payments:view')) items.push({ href: '/dashboard/payments', icon: LayoutDashboard, label: 'Gestión de Facturas' });
+    if (can('payments:view')) items.push({ href: '/dashboard/payments/advances', icon: HandPlatter, label: 'Gestionar Adelantos' });
     if (can('finance:manage_purchase_orders')) items.push({ href: '/dashboard/payments/pago-facturas', icon: FileText, label: 'Gestionar OC' });
     if (can('orders:view_all')) items.push({ href: '/dashboard/payments/orders', icon: ClipboardList, label: 'Historial de OCs' });
     if (can('suppliers:view') && can('module_payments:view')) items.push({ href: '/dashboard/payments/suppliers', icon: Briefcase, label: 'Proveedores' });
@@ -214,7 +217,10 @@ const safetyNavItems = (can: (p: Permission) => boolean) => {
 const constructionControlNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if(can('module_construction_control:view')) {
-      items.push({ href: '/dashboard/construction-control', icon: Edit, label: 'Partidas (EDT)' });
+      items.push({ href: '/dashboard/construction-control', icon: LayoutDashboard, label: 'Resumen de Obra' });
+    }
+    if(can('construction_control:edit_structure') || can('construction_control:register_progress')) {
+      items.push({ href: '/dashboard/construction-control/wbs', icon: FolderTree, label: 'Partidas (EDT)' });
     }
     if(can('construction_control:edit_structure')) {
       items.push({ href: '/dashboard/construction-control/gantt', icon: GanttChartSquare, label: 'Carta Gantt' });
@@ -295,7 +301,7 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
             navItems = supervisorNavItems(can);
             break;
         case 'worker':
-            title = 'Módulo Herramientas';
+            title = 'Módulo Trabajador';
             navItems = workerNavItems(can);
             break;
         case 'cphs':

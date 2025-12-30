@@ -1,6 +1,6 @@
 # Control de Bodega y Gestión de Obra - FerroActiva
 
-Esta es una aplicación web progresiva (PWA) robusta, desarrollada en Next.js y Firebase, diseñada para la gestión integral de bodegas, inventarios, personal y seguridad en proyectos de construcción. La plataforma es multi-inquilino (*multi-tenant*), lo que permite que múltiples empresas (suscriptores) la utilicen de forma independiente y segura, con un rol de Super Administrador para la gestión global.
+Esta es una aplicación web progresiva (PWA) robusta, desarrollada en Next.js y Firebase, diseñada para la gestión integral de bodegas, inventarios, personal, seguridad y avance de obra en proyectos de construcción. La plataforma es multi-inquilino (*multi-tenant*), lo que permite que múltiples empresas (suscriptores) la utilicen de forma independiente y segura, con un rol de Super Administrador para la gestión global.
 
 ## Tecnologías Utilizadas
 
@@ -16,83 +16,87 @@ Esta es una aplicación web progresiva (PWA) robusta, desarrollada en Next.js y 
 
 El sistema se basa en un modelo de roles y permisos flexible y granular. Cada rol tiene capacidades específicas diseñadas para su función en la obra. El **Administrador** tiene el poder de personalizar estos permisos.
 
-| Rol                   | Descripción Breve                                                                 |
-| --------------------- | --------------------------------------------------------------------------------- |
-| **Super Administrador** | Control total sobre toda la plataforma y todos los suscriptores.                  |
-| **Administrador**     | Gestión completa de la operación de una empresa, incluyendo permisos y usuarios.  |
-| **Jefe de Bodega**    | Responsable del inventario físico, aprueba salidas y recibe devoluciones.         |
-| **Administrador de Obra** | Gestiona el flujo de compras: aprueba solicitudes, crea lotes y genera órdenes. |
-| **Supervisor**        | Líder en terreno: solicita materiales, compras y registra devoluciones.         |
-| **APR**               | Prevencionista de Riesgos: gestiona checklists e inspecciones de seguridad.       |
-| **Finanzas**          | Gestiona las facturas y pagos a proveedores.                                      |
-| **Guardia**           | Rol especializado para registrar la asistencia del personal.                      |
-| **Colaborador**       | Usuario básico que puede ver las herramientas que tiene a su cargo.               |
+| Rol                       | Descripción Breve                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| **Super Administrador**   | Control total sobre toda la plataforma y todos los suscriptores.                         |
+| **Administrador**         | Gestión completa de la operación de una empresa, incluyendo permisos y usuarios.       |
+| **Jefe de Oficina Técnica** | Planifica la estructura de la obra (EDT), presupuestos y la Carta Gantt.                  |
+| **Jefe de Terreno**       | Gestiona el avance físico de la obra y supervisa a los líderes de equipo.               |
+| **Jefe de Bodega**        | Responsable del inventario físico, aprueba salidas y recibe devoluciones.                |
+| **Supervisor**            | Líder en terreno: solicita materiales, registra avances y completa tareas de seguridad.   |
+| **APR** / **CPHS**        | Prevencionista de Riesgos: gestiona checklists e inspecciones de seguridad.              |
+| **Calidad**               | Revisa y aprueba los protocolos de calidad de las partidas finalizadas.                   |
+| **Finanzas**              | Gestiona las facturas, pagos y procesa las cotizaciones para generar Órdenes de Compra. |
+| **Guardia**               | Rol especializado para registrar la asistencia del personal.                             |
+| **Colaborador**           | Usuario básico que puede ver las herramientas que tiene a su cargo.                      |
 
 ---
 
 ## Módulos y Funcionalidades Principales
 
-### 1. Módulo de Bodega
+### 1. Control de Obra (EDT y Avance Físico)
+Este módulo es el centro neurálgico para la planificación y seguimiento del proyecto.
+
+- **Estructura de Desglose del Trabajo (EDT):** Permite al Jefe de Oficina Técnica definir la estructura jerárquica completa de la obra, desde el proyecto principal hasta las tareas más pequeñas, asignando unidades, cantidades y precios unitarios.
+- **Registro de Avance Diario:** Los Supervisores y Jefes de Terreno pueden registrar el avance físico diario de cada partida o actividad, con la opción de añadir observaciones y fotos.
+- **Protocolos de Calidad:** Una vez que una partida alcanza el 100% de su avance, el supervisor la envía a "protocolo". El equipo de Calidad revisa el trabajo y lo aprueba o rechaza con notas para su corrección.
+- **Visualización Gantt:** Un diagrama de Gantt interactivo permite visualizar el cronograma completo de la obra, ajustar fechas, ver dependencias y el progreso real vs. el planificado.
+- **Curva S:** Genera automáticamente la Curva S del proyecto, comparando el avance físico programado con el avance real para un control financiero y de plazos preciso.
+
+### 2. Módulo de Bodega
 Es el corazón de la gestión de inventario.
 
-- **Gestión de Materiales:** Crear, editar y eliminar materiales. Incluye stock, unidad de medida, categoría y proveedor preferido.
-- **Gestión de Herramientas:** Crear y editar herramientas, cada una con un código QR único para seguimiento.
-- **Entrega y Devolución Rápida:** Un panel centralizado para que el Jefe de Bodega registre la salida (checkout) y entrada (return) de herramientas escaneando el QR del trabajador y de la herramienta.
-- **Gestión de Solicitudes:**
-    - **Materiales:** El Jefe de Bodega aprueba o rechaza las solicitudes de materiales hechas por los supervisores. Al aprobar, el stock se descuenta automáticamente.
-    - **Devoluciones:** El Jefe de Bodega confirma la recepción de materiales devueltos por los supervisores, sumando el stock de vuelta al inventario.
-- **Ingreso Manual de Stock:** Permite añadir stock a materiales existentes con una justificación (ej. "encontrado en bodega", "ajuste de inventario").
+- **Gestión de Materiales y Herramientas:** Catálogo centralizado con stock, categorías, proveedores y códigos QR únicos para herramientas.
+- **Entrega y Devolución Rápida:** Panel para registrar la salida (checkout) y entrada (return) de herramientas y materiales mediante escaneo de QR.
+- **Gestión de Solicitudes y Devoluciones:** Flujo de aprobación para la entrega y recepción de materiales, con actualización automática del stock.
 
-### 2. Módulo de Compras
-Gestiona todo el ciclo de adquisición, desde la necesidad hasta la orden final.
+### 3. Módulo de Compras
+Gestiona todo el ciclo de adquisición de forma optimizada.
 
-- **Solicitud de Compra:** Los Supervisores y Administradores de Obra pueden solicitar materiales que no están en stock o cuyo nivel es bajo.
-- **Gestión y Aprobación:** El Administrador de Obra revisa las solicitudes, pudiendo editar cantidades o rechazar.
-- **Gestión de Lotes:** Las solicitudes aprobadas se agrupan en "lotes de compra" (ej. "Lote de Cemento Semanal"), lo que permite consolidar las necesidades antes de contactar a proveedores.
-- **Generación de Órdenes de Compra (OC):** A partir de un lote, se genera una OC en PDF para un proveedor específico, formalizando el pedido.
+- **Solicitud de Compra:** Supervisores y Jefes de Terreno solicitan materiales sin stock.
+- **Aprobación y Agrupación en Lotes:** El Administrador de Obra aprueba las solicitudes y las agrupa en "lotes de compra" para consolidar necesidades por proveedor.
+- **Generación de Cotizaciones:** A partir de un lote, se genera una solicitud de cotización en PDF para enviar al proveedor.
+- **Procesamiento por Finanzas:** El equipo de Finanzas sube la cotización del proveedor, valida precios y cantidades, y con un clic, genera la **Orden de Compra oficial (PDF)**.
+- **Recepción en Bodega:** El Jefe de Bodega recibe los materiales, los ingresa al sistema (vinculando a un ítem existente o creando uno nuevo) y actualiza el stock.
 
-### 3. Módulo de Pagos
+### 4. Módulo de Pagos
 Centraliza la gestión financiera con proveedores.
 
-- **Registro de Facturas:** Se pueden ingresar facturas asociadas a un proveedor, con su monto y fecha de vencimiento.
-- **Seguimiento de Pagos:** Un panel visual muestra el estado de todas las facturas: pagadas, pendientes y vencidas.
-- **Marcar como Pagada:** Permite registrar la fecha y el método de pago de una factura, cerrando el ciclo.
+- **Registro de Facturas:** Se ingresan facturas asociadas a una OC y proveedor, con su monto y fecha de vencimiento.
+- **Seguimiento de Pagos:** Panel visual para controlar el estado de las facturas: pagadas, pendientes y vencidas.
 
-### 4. Módulo de Usuarios y Permisos
+### 5. Módulo de Usuarios y Permisos
 Ofrece control total sobre el acceso y las capacidades.
 
-- **Gestión de Usuarios:** Crear, editar y eliminar perfiles de usuario, asignando roles y credenciales.
-- **Impresión de Credenciales:** Genera una página optimizada para imprimir credenciales con códigos QR para cada usuario, facilitando el registro de asistencia y el préstamo de herramientas.
-- **Gestión de Permisos:** (Accesible para Administradores) Un panel visual permite activar o desactivar permisos específicos para cada rol, adaptando la plataforma a las necesidades exactas de la empresa.
+- **Gestión de Usuarios y Credenciales:** Creación de perfiles, asignación de roles y generación de credenciales con QR para asistencia y préstamo de herramientas.
+- **Gestión Fina de Permisos:** Panel visual para que el Administrador active o desactive permisos específicos para cada rol.
 
-### 5. Módulo de Seguridad (APR)
+### 6. Módulo de Seguridad (APR)
 Dedicado a la prevención de riesgos en la obra.
 
-- **Gestión de Plantillas de Checklist:** El APR puede crear plantillas reutilizables para diferentes tipos de inspecciones (ej. "Revisión de Andamios").
-- **Asignación de Checklists:** Las plantillas se pueden asignar a supervisores específicos para que las completen en una obra o área determinada.
-- **Revisión y Aprobación:** Una vez que un supervisor completa un checklist, el APR lo revisa, pudiendo aprobarlo o rechazarlo con notas para su corrección.
-- **Inspecciones de Seguridad:** Permite registrar hallazgos no planificados, asignar responsables para su corrección y dar seguimiento hasta su cierre.
+- **Gestión de Plantillas y Checklists:** Creación de plantillas de inspección, asignación a supervisores y revisión de los formularios completados.
+- **Inspecciones y Observaciones de Conducta:** Permite registrar hallazgos no planificados, registrar observaciones de comportamiento y dar seguimiento a las acciones correctivas.
 
-### 6. Módulo de Asistencia
+### 7. Módulo de Asistencia y RRHH
 Un sistema sencillo y eficaz para el control de personal.
 
-- **Registro por QR:** El rol de "Guardia" tiene acceso a una interfaz optimizada para escanear el código QR de los trabajadores, registrando su entrada y salida de forma instantánea.
-- **Reportes:** Genera reportes de asistencia semanales y mensuales, y calcula horas extras.
+- **Registro por QR:** Rol de "Guardia" con interfaz optimizada para escanear el QR de los trabajadores y registrar su asistencia.
+- **Reportes y Liquidaciones:** Genera reportes de horas, atrasos, horas extras y permite calcular liquidaciones de sueldo.
+- **Generador de Finiquito:** Herramienta para calcular finiquitos según la normativa chilena, incluyendo indemnizaciones y feriados proporcionales.
 
 ---
 
 ## Flujos de Trabajo Destacados
 
-1.  **Ciclo de Material (Salida y Devolución):**
-    - `Supervisor` solicita 10 unidades de "Clavos".
-    - `Jefe de Bodega` aprueba la solicitud. El stock se reduce en 10.
-    - `Supervisor` usa 8 unidades y le sobran 2.
-    - `Supervisor` crea una "solicitud de devolución" por 2 unidades.
-    - `Jefe de Bodega` recibe los clavos, confirma la devolución en el sistema. El stock aumenta en 2.
+1.  **Ciclo de Avance de Obra:**
+    - `Jefe de Oficina Técnica` crea la partida "01.01.02.03 Hormigonado de fundaciones".
+    - `Supervisor` registra un avance de 50 m³ para esa partida. El sistema actualiza el progreso al 5.26%.
+    - El `Supervisor` completa el 100% y envía la partida a "protocolo".
+    - `Calidad` revisa el trabajo, lo aprueba. La partida se marca como "Completada".
 
-2.  **Ciclo de Compra:**
+2.  **Ciclo de Compra Avanzado:**
     - `Supervisor` necesita un material sin stock y crea una "Solicitud de Compra".
-    - `Administrador de Obra` aprueba la solicitud.
-    - La solicitud aparece en el panel de "Lotes", donde se agrupa con otras del mismo tipo.
-    - `Administrador de Obra` genera una "Orden de Compra" en PDF a partir del lote para un proveedor.
-    - Cuando el material llega a bodega, `Jefe de Bodega` lo ingresa al sistema, aumentando el stock.
+    - `Administrador de Obra` aprueba la solicitud y la agrupa en el "Lote de Cementos de la Semana".
+    - `Administrador de Obra` genera una "Solicitud de Cotización" para el proveedor "Cementos Bio-Bio".
+    - `Finanzas` recibe la cotización del proveedor, sube el PDF, ajusta los precios y genera la "Orden de Compra" oficial.
+    - `Jefe de Bodega` recibe el camión, escanea la OC y registra el ingreso del material al inventario.

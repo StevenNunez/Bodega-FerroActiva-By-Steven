@@ -1,147 +1,271 @@
 
-"use client";
+'use client';
 
-import React, { useMemo } from "react";
-import { PageHeader } from "@/components/page-header";
-import { useAppState, useAuth } from "@/modules/core/contexts/app-provider";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wrench, History, CheckCircle, AlertTriangle, Inbox } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { Timestamp } from "firebase/firestore";
+import React, { useState, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Wallet, 
+  CalendarCheck, 
+  FileText, 
+  ChevronRight, 
+  TrendingUp, 
+  AlertCircle,
+  Download
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
+import { useToast } from '@/modules/core/hooks/use-toast';
+import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
+import { startOfMonth, getDaysInMonth } from 'date-fns';
 
-const formatDate = (date: Date | Timestamp | undefined | null) => {
-    if (!date) return 'N/A';
-    const jsDate = date instanceof Timestamp ? date.toDate() : date;
-    return jsDate.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
-};
+export default function WorkerDashboard() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const { attendanceLogs, addSalaryAdvanceRequest } = useAppState();
+  const [isAdvanceModalOpen, setAdvanceModalOpen] = useState(false);
+  
+  const workerData = useMemo(() => {
+    if (!user || !attendanceLogs) {
+      return { baseSalary: 0, daysWorked: 0, totalWorkingDays: 30, advancesTaken: 0 };
+    }
 
-export default function WorkerToolsPage() {
-    const { user } = useAuth();
-    const { toolLogs } = useAppState();
+    const today = new Date();
+    const start = startOfMonth(today);
+    const totalWorkingDays = getDaysInMonth(today);
 
-    const { currentTools, toolHistory } = useMemo(() => {
-        if (!user || !toolLogs) return { currentTools: [], toolHistory: [] };
+    const workedDaysSet = new Set<string>();
+    attendanceLogs.forEach(log => {
+      if (log.userId === user.id) {
+        const logDate = log.timestamp instanceof Date ? log.timestamp : new Date(log.timestamp);
+        if (logDate >= start && logDate <= today) {
+          workedDaysSet.add(logDate.toDateString());
+        }
+      }
+    });
 
-        const myLogs = toolLogs.filter(log => log.userId === user.id);
-        
-        const current = myLogs
-            .filter(log => log.returnDate === null)
-            .sort((a, b) => b.checkoutDate.getTime() - a.checkoutDate.getTime());
-            
-        const history = myLogs
-            .filter(log => log.returnDate !== null)
-            .sort((a, b) => (b.returnDate as Date).getTime() - (a.returnDate as Date).getTime());
+    return {
+      name: user.name,
+      baseSalary: user.baseSalary || 0,
+      daysWorked: workedDaysSet.size,
+      totalWorkingDays,
+      advancesTaken: 0, // Placeholder, needs salaryAdvances collection
+    };
+  }, [user, attendanceLogs]);
 
-        return { currentTools: current, toolHistory: history };
-    }, [user, toolLogs]);
+  const {
+    baseSalary, daysWorked, totalWorkingDays, advancesTaken, name
+  } = workerData;
 
-    return (
-        <div className="flex flex-col gap-8">
-            <PageHeader
-                title="Mis Herramientas"
-                description="Consulta las herramientas que tienes a tu cargo y tu historial de uso."
-            />
-            
-            <Tabs defaultValue="current">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="current">
-                        <Wrench className="mr-2 h-4 w-4"/> Mis Herramientas Actuales ({currentTools.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="history">
-                        <History className="mr-2 h-4 w-4"/> Historial de Uso
-                    </TabsTrigger>
-                </TabsList>
+  // --- Cálculos Financieros ---
+  const dailyRate = baseSalary / 30;
+  const currentEarnings = Math.floor(dailyRate * daysWorked);
+  
+  // Política: Máximo adelanto es 50% de lo ganado menos lo ya pedido
+  const maxAdvanceLimit = Math.max(0, Math.floor(currentEarnings * 0.50) - advancesTaken);
+  const canRequestAdvance = maxAdvanceLimit > 10000; // Mínimo 10k para pedir
 
-                <TabsContent value="current">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Herramientas a mi Cargo</CardTitle>
-                            <CardDescription>
-                                Estas son las herramientas que has retirado de bodega y que están bajo tu responsabilidad.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <ScrollArea className="h-[60vh]">
-                                {currentTools.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {currentTools.map(log => (
-                                            <div key={log.id} className="p-4 border rounded-lg flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-semibold">{log.toolName}</p>
-                                                    <p className="text-sm text-muted-foreground">Retirada el: {formatDate(log.checkoutDate)}</p>
-                                                </div>
-                                                <Badge>En tu poder</Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center text-center text-muted-foreground h-full p-12">
-                                        <Inbox className="h-16 w-16 mb-4"/>
-                                        <h3 className="text-xl font-semibold">Sin herramientas</h3>
-                                        <p className="mt-2">No tienes ninguna herramienta a tu cargo en este momento.</p>
-                                    </div>
-                                )}
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                
-                <TabsContent value="history">
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>Historial de Herramientas Utilizadas</CardTitle>
-                            <CardDescription>
-                                Un registro de todas las herramientas que has utilizado y devuelto.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <ScrollArea className="h-[60vh]">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Herramienta</TableHead>
-                                            <TableHead>Fecha Retiro</TableHead>
-                                            <TableHead>Fecha Devolución</TableHead>
-                                            <TableHead>Estado</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {toolHistory.length > 0 ? (
-                                            toolHistory.map(log => (
-                                                <TableRow key={log.id}>
-                                                    <TableCell className="font-medium">{log.toolName}</TableCell>
-                                                    <TableCell>{formatDate(log.checkoutDate)}</TableCell>
-                                                    <TableCell>{formatDate(log.returnDate)}</TableCell>
-                                                    <TableCell>
-                                                        {log.returnStatus === 'ok' ? (
-                                                            <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                                                <CheckCircle className="mr-1 h-3 w-3"/> OK
-                                                            </Badge>
-                                                        ) : (
-                                                             <Badge variant="destructive">
-                                                                <AlertTriangle className="mr-1 h-3 w-3"/> Dañada
-                                                            </Badge>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow>
-                                                <TableCell colSpan={4} className="h-24 text-center">
-                                                     No tienes historial de herramientas utilizadas.
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+  const [requestedAmount, setRequestedAmount] = useState(canRequestAdvance ? Math.min(50000, maxAdvanceLimit) : 10000);
+
+   React.useEffect(() => {
+    setRequestedAmount(canRequestAdvance ? Math.min(50000, maxAdvanceLimit) : 10000);
+  }, [maxAdvanceLimit, canRequestAdvance]);
+
+  const handleRequestAdvance = async () => {
+    if (!user) return;
+    try {
+        await addSalaryAdvanceRequest({
+            workerId: user.id,
+            workerName: user.name,
+            amount: requestedAmount,
+        });
+        toast({
+            title: "Solicitud enviada 💸",
+            description: `Se ha solicitado un adelanto de ${formatCLP(requestedAmount)}. Recibirás confirmación pronto.`,
+        });
+        setAdvanceModalOpen(false);
+    } catch(e) {
+        toast({
+            variant: "destructive",
+            title: "Error al solicitar",
+            description: "No se pudo procesar tu solicitud de adelanto."
+        });
+    }
+  };
+
+  const formatCLP = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
+  };
+
+  return (
+    <div className="max-w-md mx-auto space-y-6 pb-10 fade-in">
+      
+      {/* Header Saludo */}
+      <div className="flex justify-between items-center pt-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Hola, {name?.split(' ')[0]} 👋</h2>
+          <p className="text-muted-foreground">{user?.cargo || 'Trabajador'}</p>
         </div>
-    );
+        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+            {(user?.name.split(' ').map(n => n[0]).join('') || 'U')}
+        </div>
+      </div>
+
+      {/* --- TARJETA PRINCIPAL: BILLETERA --- */}
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden relative">
+        {/* Decoración de fondo */}
+        <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl"></div>
+
+        <CardHeader className="pb-2">
+          <CardDescription className="text-slate-300 flex items-center gap-2">
+            <Wallet className="h-4 w-4" /> Tu Saldo Acumulado (Estimado)
+          </CardDescription>
+          <div className="text-4xl font-extrabold tracking-tight">
+            {formatCLP(currentEarnings)}
+          </div>
+        </CardHeader>
+        
+        <CardContent>
+           <div className="flex justify-between text-sm mb-2 text-slate-300">
+              <span>Días trabajados: {daysWorked}</span>
+              <span>Meta mes: {totalWorkingDays}</span>
+           </div>
+           {/* Barra de progreso de días trabajados */}
+           <Progress value={(daysWorked / totalWorkingDays) * 100} className="h-2 bg-slate-700 [&>div]:bg-green-400" />
+           
+           <div className="mt-6 p-3 bg-white/10 rounded-lg backdrop-blur-sm border border-white/5">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm font-medium text-slate-200">Disponible para Adelanto</span>
+                <Badge variant="secondary" className="bg-green-500/20 text-green-300 border-0">
+                    Disponible
+                </Badge>
+              </div>
+              <div className="text-2xl font-bold text-green-400">
+                  {formatCLP(maxAdvanceLimit)}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                 Ya has solicitado: {formatCLP(advancesTaken)}
+              </p>
+           </div>
+        </CardContent>
+
+        <CardFooter>
+          <Button 
+            onClick={() => setAdvanceModalOpen(true)}
+            disabled={!canRequestAdvance}
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-md"
+          >
+            {canRequestAdvance ? 'Solicitar Adelanto Ahora' : 'Saldo insuficiente para adelanto'}
+          </Button>
+        </CardFooter>
+      </Card>
+
+      {/* --- MENU DE ACCESOS RÁPIDOS --- */}
+      <div className="grid grid-cols-2 gap-4">
+          <Card className="hover:bg-muted/50 cursor-pointer transition-colors">
+             <CardContent className="p-4 flex flex-col items-center justify-center text-center gap-2">
+                <div className="p-3 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                    <CalendarCheck className="h-6 w-6" />
+                </div>
+                <span className="font-semibold text-sm">Mi Asistencia</span>
+             </CardContent>
+          </Card>
+
+          <Card className="hover:bg-muted/50 cursor-pointer transition-colors">
+             <CardContent className="p-4 flex flex-col items-center justify-center text-center gap-2">
+                <div className="p-3 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+                    <FileText className="h-6 w-6" />
+                </div>
+                <span className="font-semibold text-sm">Liquidaciones</span>
+             </CardContent>
+          </Card>
+      </div>
+
+      {/* --- LISTA DE LIQUIDACIONES RECIENTES --- */}
+      <div className="space-y-3">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+            Últimas Liquidaciones <ChevronRight className="h-4 w-4 text-muted-foreground"/>
+        </h3>
+        {[
+            { month: 'Enero 2024', amount: 850000, date: '30/01/2024' },
+            { month: 'Diciembre 2023', amount: 820000, date: '30/12/2023' }
+        ].map((pay, i) => (
+            <div key={i} className="flex items-center justify-between p-4 border rounded-xl bg-card shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                        <p className="font-medium">{pay.month}</p>
+                        <p className="text-xs text-muted-foreground">Pagado el {pay.date}</p>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <p className="font-bold text-sm">{formatCLP(pay.amount)}</p>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 mt-1">
+                        <Download className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+        ))}
+      </div>
+
+      {/* --- MODAL DE SOLICITUD DE ADELANTO --- */}
+      <Dialog open={isAdvanceModalOpen} onOpenChange={setAdvanceModalOpen}>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle>Solicitar Adelanto de Sueldo</DialogTitle>
+                <DialogDescription>
+                    El monto se descontará de tu liquidación a fin de mes.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-6 space-y-6">
+                <div className="text-center">
+                    <span className="text-4xl font-bold text-primary">
+                        {formatCLP(requestedAmount)}
+                    </span>
+                    <p className="text-sm text-muted-foreground mt-1">Monto a recibir</p>
+                </div>
+
+                <div className="space-y-4">
+                    <Slider 
+                        value={[requestedAmount]} 
+                        min={10000} 
+                        max={maxAdvanceLimit} 
+                        step={5000}
+                        onValueChange={(val) => setRequestedAmount(val[0])}
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Mín: {formatCLP(10000)}</span>
+                        <span>Máx: {formatCLP(maxAdvanceLimit)}</span>
+                    </div>
+                </div>
+
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md flex gap-3 items-start border border-yellow-200 dark:border-yellow-800">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+                    <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                        La transferencia puede tardar hasta 24 horas hábiles. Al aceptar, autorizas el descuento en tu próxima liquidación.
+                    </p>
+                </div>
+            </div>
+
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setAdvanceModalOpen(false)}>Cancelar</Button>
+                <Button onClick={handleRequestAdvance}>Confirmar Solicitud</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+    </div>
+  );
 }

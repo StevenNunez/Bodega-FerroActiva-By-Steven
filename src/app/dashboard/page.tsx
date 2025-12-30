@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
 import { 
   Loader2, Warehouse, CalendarCheck, User as UserIcon, DollarSign, 
-  ShieldCheck, BarChart3, ListChecks, ShoppingCart, HardHat, Wrench, AlertCircle, Construction
+  ShieldCheck, BarChart3, ListChecks, ShoppingCart, HardHat, Wrench, AlertCircle, Construction, Wallet
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
@@ -78,7 +78,7 @@ export default function DashboardHubPage() {
     { href: '/dashboard/payments', icon: DollarSign, title: "Módulo de Pagos", description: "Gestiona las facturas y pagos a proveedores.", permission: 'module_payments:view' },
     { href: '/dashboard/reports', icon: BarChart3, title: "Módulo de Reportes", description: "Analiza consumos y genera informes.", permission: 'module_reports:view' },
     { href: '/dashboard/permissions', icon: ListChecks, title: "Gestión de Permisos", description: "Define y ajusta lo que cada rol puede hacer en la plataforma.", permission: 'permissions:manage' },
-    { href: '/dashboard/worker', icon: Wrench, title: "Módulo Herramientas", description: "Consulta el historial de herramientas a tu cargo.", roles: ['worker'] },
+    { href: '/dashboard/worker', icon: Wallet, title: "Mi Billetera Digital", description: "Consulta tu saldo ganado y solicita adelantos de sueldo.", roles: ['worker'] },
     { href: '/dashboard/supervisor', icon: HardHat, title: "Módulo de Terreno", description: "Solicita materiales y gestiona tareas de seguridad.", roles: ['supervisor', 'apr', 'bodega-admin', 'jefe-terreno', 'jefe-oficina-tecnica'] },
     { href: '/dashboard/cphs', icon: ShieldCheck, title: "Módulo Comité Paritario", description: "Accede a las herramientas de gestión de seguridad del comité.", roles: ['cphs'] },
   ];

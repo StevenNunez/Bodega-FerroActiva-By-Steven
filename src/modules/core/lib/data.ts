@@ -40,6 +40,7 @@ export interface User {
   cargo?: string;
   phone?: string;
   fechaIngreso?: Date | null;
+  baseSalary?: number; // Sueldo base
   afp?: string;
   tipoSalud?: 'Fonasa' | 'Isapre';
   cargasFamiliares?: number;
@@ -330,6 +331,20 @@ export interface SupplierPayment {
   paymentDate?: Date;
   paymentMethod?: string;
   pdfURL?: string;
+}
+
+export interface SalaryAdvance {
+  id: string;
+  workerId: string;
+  workerName: string;
+  amount: number;
+  requestedAt: Date;
+  status: 'pending' | 'approved' | 'rejected';
+  processedAt?: Date;
+  approverId?: string;
+  approverName?: string;
+  rejectionReason?: string;
+  tenantId: string;
 }
 
 export interface WorkItem {
