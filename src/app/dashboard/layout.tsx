@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from 'next/navigation';
 import { DataProvider } from '@/modules/data/DataProvider';
-import { useAuth } from "@/modules/auth/useAuth";
-import { useAppState } from "@/modules/data/useData";
-import { Sidebar } from "@/components/sidebar";
-import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users, LogOut, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { useAuth } from '@/modules/auth/useAuth';
+import { useAppState } from '@/modules/data/useData';
+import { Sidebar } from '@/components/sidebar';
+import { Menu, Loader2, Bell, Volume2, VolumeX, AlertCircle, ShoppingCart, ClipboardList, Users, LogOut, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,13 +22,14 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuPortal,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { differenceInDays, startOfDay } from 'date-fns';
-import { Timestamp } from "firebase/firestore";
-import { UserRole, type SupplierPayment, type MaterialRequest, type PurchaseRequest, type Supplier, type Tenant } from "@/modules/core/lib/data";
+import { Timestamp } from 'firebase/firestore';
+import { UserRole, type SupplierPayment, type MaterialRequest, type PurchaseRequest, type Supplier, type Tenant } from '@/modules/core/lib/data';
 import { ROLES } from '@/modules/core/lib/permissions';
+import { InventoryAssistant } from '@/components/assistant/inventory-assistant';
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, authLoading, logout, tenants, currentTenantId, setCurrentTenantId } = useAuth();
@@ -51,18 +52,18 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     setIsClient(true);
     if (!authLoading && !user) {
-      router.replace("/login");
+      router.replace('/login');
     }
   }, [user, authLoading, router]);
 
   const getInitials = (name: string) => {
     if (!name) return '??';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  }
+  };
   
   const getRoleDisplayName = (role: UserRole) => {
     return ROLES[role]?.label || role;
-  }
+  };
 
   const overduePayments = React.useMemo(() => (supplierPayments || []).filter((p: SupplierPayment) => {
     if (p.status === 'paid') return false;
@@ -77,8 +78,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     return daysLeft >= 0 && daysLeft <= 7;
   }), [supplierPayments, today]);
 
-  const pendingMaterialRequests = React.useMemo(() => (requests || []).filter((r: MaterialRequest) => r.status === "pending").length, [requests]);
-  const pendingPurchaseRequests = React.useMemo(() => (purchaseRequests || []).filter((pr: PurchaseRequest) => pr.status === "pending").length, [purchaseRequests]);
+  const pendingMaterialRequests = React.useMemo(() => (requests || []).filter((r: MaterialRequest) => r.status === 'pending').length, [requests]);
+  const pendingPurchaseRequests = React.useMemo(() => (purchaseRequests || []).filter((pr: PurchaseRequest) => pr.status === 'pending').length, [purchaseRequests]);
   const pendingCotizaciones = React.useMemo(() => (purchaseOrders || []).filter(po => po.status === 'generated').length, [purchaseOrders]);
   
   const totalNotifications = React.useMemo(() => {
@@ -123,7 +124,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (totalNotifications > 0) playNotificationSound();
     if ('setAppBadge' in navigator) {
-      (navigator as any).setAppBadge(totalNotifications).catch((e: any) => console.error("Error setting app badge:", e));
+      (navigator as any).setAppBadge(totalNotifications).catch((e: any) => console.error('Error setting app badge:', e));
     }
   }, [totalNotifications, playNotificationSound]);
 
@@ -141,7 +142,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const isSubModulePage = pathname !== '/dashboard';
 
   return (
-    <div className={cn(isSubModulePage ? "grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]" : "flex min-h-screen w-full flex-col")}>
+    <div className={cn(isSubModulePage ? 'grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]' : 'flex min-h-screen w-full flex-col')}>
       {isSubModulePage && (
         <div className="hidden border-r bg-muted/40 md:block">
           <Sidebar onLinkClick={() => setIsSidebarOpen(false)} />
@@ -306,7 +307,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
            </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          {children}
+          <InventoryAssistant />
+        </main>
         
       </div>
     </div>

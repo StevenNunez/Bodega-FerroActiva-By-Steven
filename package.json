@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@genkit-ai/google-genai": "^1.0.0",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
@@ -39,6 +40,7 @@
     "exceljs": "^4.4.0",
     "firebase": "^10.12.2",
     "gantt-task-react": "^0.3.9",
+    "genkit": "^1.0.0",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
@@ -55,7 +57,7 @@
     "recharts": "^2.12.7",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.23.8"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.13",
@@ -71,5 +73,8 @@
     "tailwindcss": "^3.4.4",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.5.2"
+  },
+  "overrides": {
+    "zod-to-json-schema": "3.23.0"
   }
 }
