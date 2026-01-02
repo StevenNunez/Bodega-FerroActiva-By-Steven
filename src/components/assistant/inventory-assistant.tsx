@@ -1,16 +1,18 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Input } from '../ui/input';
-import { Button } from '../ui/button';
-import { Bot, Send, Loader2, Sparkles, X, Trash2, ArrowRight } from 'lucide-react';
+
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Bot, Send, Loader2, Sparkles, X, Trash2, ArrowRight, MessageSquare } from 'lucide-react';
 import { useAppState } from '@/modules/core/contexts/app-provider';
 import { analyzeInventory } from '@/ai/flows/inventory-assistant-flow';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const SUGGESTED_QUESTIONS = [
-  "¿Qué materiales tienen stock bajo?",
-  "Resumen de herramientas en uso",
+  "¿Qué materiales tienen stock crítico?",
+  "Resume las herramientas disponibles",
   "Analiza el inventario de EPP",
   "¿Necesitamos reponer Cemento?"
 ];
@@ -19,10 +21,12 @@ export function InventoryAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: '¡Hola! Soy tu asistente de bodega IA. Puedo ayudarte a analizar el stock, buscar herramientas o sugerir reabastecimientos.' }
+    { role: 'assistant', content: '¡Hola! Soy **Ferro**, tu asistente inteligente. Analizo tus datos en tiempo real. ¿En qué te ayudo hoy?' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const state = useAppState();
+  
+  const { materials, tools } = useAppState();
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -37,37 +41,62 @@ export function InventoryAssistant() {
     }
   }, [messages, isOpen]);
 
+  const inventoryContextData = useMemo(() => {
+    return {
+      materials: materials?.map(m => ({
+        name: m.name,
+        stock: m.stock,
+        unit: m.unit,
+        category: m.category,
+        status: m.stock <= 10 ? 'CRITICAL_LOW' : 'OK'
+      })) || [],
+      tools: tools?.map((t: any) => ({
+        name: t.name,
+        status: t.status,
+        category: t.category
+      })) || [],
+      stats: {
+        totalMaterials: materials?.length || 0,
+        totalTools: tools?.length || 0,
+        lowStockCount: materials?.filter(m => m.stock <= 10).length || 0,
+        date: new Date().toLocaleDateString('es-CL')
+      }
+    };
+  }, [materials, tools]);
+
+  const hasInventoryData = inventoryContextData.materials.length > 0 || inventoryContextData.tools.length > 0;
+
   const handleQuery = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    const userQuery = text;
+    const userQuery = text.trim();
     setQuery('');
     setMessages(prev => [...prev, { role: 'user', content: userQuery }]);
     setIsLoading(true);
 
-    try {
-      // Prepare a concise context of the current inventory state
-      const contextData = {
-        materials: state.materials?.map(m => ({ 
-          name: m.name, 
-          stock: m.stock, 
-          unit: m.unit,
-          category: m.category,
-          status: m.stock < 10 ? 'LOW STOCK' : 'OK'
-        })),
-        tools: state.tools,
-        stats: {
-          totalMaterials: state.materials?.length || 0,
-          totalTools: state.tools?.length || 0,
-          timestamp: new Date().toISOString()
-        }
-      };
+    // NUEVA VALIDACIÓN: Si no hay datos, responder directamente sin llamar al backend
+    if (!hasInventoryData) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "⚠️ **Aún no tengo datos del inventario cargados.**\n\nEstoy esperando que se carguen los materiales y herramientas desde la base de datos. Por favor espera unos segundos y vuelve a intentarlo.\n\nSi el problema persiste, recarga la página."
+      }]);
+      setIsLoading(false);
+      return;
+    }
 
-      const response = await analyzeInventory({ query: userQuery, inventoryContext: JSON.stringify(contextData, null, 2) });
+    try {
+      const response = await analyzeInventory({ 
+        query: userQuery, 
+        inventoryContext: JSON.stringify(inventoryContextData) 
+      });
+      
       setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     } catch (error) {
-      console.error(error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Lo siento, tuve problemas para conectar con el inventario. Intenta nuevamente." }]);
+      console.error('Error al consultar Ferro AI:', error);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: "🔌 **Problema técnico al conectar con Ferro AI.**\n\nNo pude procesar tu consulta en este momento. Por favor, intenta de nuevo en unos segundos." 
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -79,93 +108,84 @@ export function InventoryAssistant() {
   };
 
   const clearChat = () => {
-    setMessages([{ role: 'assistant', content: 'Chat reiniciado. ¿En qué puedo ayudarte ahora?' }]);
+    setMessages([{ role: 'assistant', content: 'Chat reiniciado. ¿En qué te puedo ayudar ahora?' }]);
   };
 
+  // Botón flotante cerrado
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl hover:bg-primary/90 hover:scale-105 transition-all duration-300 flex items-center justify-center z-50 group"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-2xl hover:shadow-primary/50 hover:scale-110 transition-all duration-300 flex items-center justify-center z-50 group border-2 border-white/20"
       >
         <Sparkles className="h-6 w-6 group-hover:rotate-12 transition-transform" />
         <span className="absolute -top-1 -right-1 flex h-4 w-4">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-4 w-4 bg-sky-500 border-2 border-white"></span>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-white"></span>
         </span>
       </button>
     );
   }
 
+  // Ventana abierta
   return (
-    <div className="fixed bottom-6 right-6 w-[380px] h-[600px] z-50 flex flex-col shadow-2xl rounded-2xl overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-300 ring-1 ring-black/5">
+    <div className="fixed bottom-6 right-6 w-[90vw] md:w-[400px] h-[600px] max-h-[80vh] z-50 flex flex-col shadow-2xl rounded-2xl overflow-hidden animate-in slide-in-from-bottom-10 fade-in duration-300 ring-1 ring-black/10 font-sans">
       <Card className="h-full flex flex-col border-0">
-        <CardHeader className="bg-gradient-to-r from-primary to-orange-400 text-white p-4 flex flex-row items-center justify-between space-y-0 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-sm">
-              <Bot className="h-5 w-5 text-white" />
+        <CardHeader className="bg-primary text-primary-foreground p-4 flex flex-row items-center justify-between space-y-0 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md shadow-inner">
+              <Bot className="h-6 w-6 text-white" />
             </div>
             <div>
-              <CardTitle className="text-base font-semibold text-white">Asistente de Bodega</CardTitle>
+              <CardTitle className="text-lg font-bold text-white tracking-tight">Ferro AI</CardTitle>
               <div className="flex items-center gap-1.5 opacity-90">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span className="text-xs font-medium">En línea</span>
+                <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
+                <span className="text-xs font-medium">{hasInventoryData ? 'Inventario Conectado' : 'Cargando datos...'}</span>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-1">
-             <button 
-              onClick={clearChat} 
-              className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white"
-              title="Limpiar chat"
-            >
+            <button onClick={clearChat} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white" title="Limpiar chat">
               <Trash2 className="h-4 w-4" />
             </button>
-            <button 
-              onClick={() => setIsOpen(false)} 
-              className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white"
-            >
+            <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white">
               <X className="h-5 w-5" />
             </button>
           </div>
         </CardHeader>
         
-        <CardContent className="flex-1 p-0 flex flex-col bg-muted/30 overflow-hidden relative">
-          <div className="flex-1 overflow-y-auto p-4 space-y-5 scroll-smooth">
+        <CardContent className="flex-1 p-0 flex flex-col bg-muted/30 dark:bg-slate-900 overflow-hidden relative">
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
             {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex items-start ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mr-2 shrink-0 self-end mb-1">
-                    <Bot className="h-4 w-4 text-primary" />
-                  </div>
-                )}
-                <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-br-none'
-                      : 'bg-background text-foreground border rounded-bl-none'
-                  }`}
-                >
-                  <div className="prose dark:prose-invert prose-sm max-w-none prose-p:m-0 prose-ul:m-0 prose-ul:pl-4 prose-li:m-0 prose-p:leading-relaxed">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <div key={idx} className={`flex items-start gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 shadow-sm mt-1 ${
+                  msg.role === 'assistant' ? 'bg-primary text-primary-foreground' : 'bg-blue-600 text-white'
+                }`}>
+                  {msg.role === 'assistant' ? <Bot className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                </div>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                  msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-background text-foreground border rounded-tl-none'
+                }`}>
+                  <div className="prose prose-sm max-w-none dark:prose-invert prose-p:m-0 prose-ul:m-0 prose-ul:pl-4 prose-li:m-0 
+                    prose-headings:font-bold prose-headings:text-sm prose-headings:mb-1 prose-headings:mt-2
+                    prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-tr:border-b
+                    prose-th:text-left prose-th:font-bold prose-th:text-slate-700 dark:prose-th:text-slate-300">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   </div>
                 </div>
               </div>
             ))}
             
             {isLoading && (
-              <div className="flex justify-start">
-                <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mr-2 shrink-0 self-end mb-1">
-                  <Bot className="h-4 w-4 text-primary" />
+              <div className="flex justify-start gap-2 animate-pulse">
+                <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                  <Bot className="h-4 w-4" />
                 </div>
-                <div className="bg-background border rounded-2xl rounded-bl-none px-4 py-3 shadow-sm flex items-center">
-                  <div className="flex gap-1">
+                <div className="bg-background border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center">
+                  <div className="flex gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>
@@ -173,38 +193,40 @@ export function InventoryAssistant() {
             <div ref={messagesEndRef} />
           </div>
 
-          {!isLoading && (
-            <div className="px-4 pb-2 flex gap-2 overflow-x-auto">
+          {/* Sugerencias solo si hay datos y es el primer mensaje */}
+          {!isLoading && messages.length === 1 && hasInventoryData && (
+            <div className="px-4 pb-2 flex flex-wrap gap-2 justify-center">
               {SUGGESTED_QUESTIONS.map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleQuery(q)}
-                  className="whitespace-nowrap px-3 py-1.5 bg-background border border-border hover:border-primary/50 hover:bg-primary/10 text-primary-foreground/80 text-xs rounded-full transition-colors shadow-sm flex items-center gap-1 shrink-0"
-                >
+                <button key={i} onClick={() => handleQuery(q)}
+                  className="px-3 py-1.5 bg-background border hover:border-primary/50 hover:bg-primary/10 text-foreground/80 text-xs rounded-full transition-all shadow-sm flex items-center gap-1">
                   {q} <ArrowRight className="h-3 w-3 opacity-50" />
                 </button>
               ))}
             </div>
           )}
 
-          <div className="p-3 bg-background border-t">
+          <div className="p-4 bg-background border-t">
             <form onSubmit={handleSubmit} className="flex gap-2 relative">
               <Input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Escribe tu consulta..."
-                className="flex-1 pr-10"
+                placeholder={hasInventoryData ? "Pregunta sobre el inventario..." : "Esperando datos del inventario..."}
+                className="flex-1 pr-10 rounded-xl border-border focus-visible:ring-primary"
                 autoFocus
-                disabled={isLoading}
+                disabled={isLoading || !hasInventoryData}
               />
               <Button 
                 type="submit" 
                 size="icon" 
-                disabled={isLoading || !query.trim()} 
-                className={`shrink-0 transition-all duration-200 ${query.trim() ? 'bg-primary hover:bg-primary/90' : 'bg-muted-foreground/50'}`}
+                disabled={isLoading || !query.trim() || !hasInventoryData}
+                className={`shrink-0 rounded-xl transition-all duration-300 ${
+                  query.trim() && hasInventoryData 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30' 
+                    : 'bg-muted text-muted-foreground'
+                }`}
               >
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
               </Button>
             </form>
           </div>

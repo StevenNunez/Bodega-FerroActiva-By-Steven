@@ -1,53 +1,48 @@
-
 'use server';
-/**
- * @fileOverview Flow de Genkit para el asistente de inventario.
- *
- * - analyzeInventory: Una función que toma una consulta del usuario y el estado del inventario para generar un análisis.
- * - InventoryAnalysisInputSchema: El esquema de entrada para la función.
- * - InventoryAnalysisOutputSchema: El esquema de salida para la función.
- */
+
+import 'server-only';
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-
-export const InventoryAnalysisInputSchema = z.object({
-  query: z.string().describe('La pregunta del usuario sobre el inventario.'),
-  inventoryContext: z.string().describe('Un objeto JSON que contiene el estado actual del inventario (materiales y herramientas).'),
-});
-export type InventoryAnalysisInput = z.infer<typeof InventoryAnalysisInputSchema>;
-
-export const InventoryAnalysisOutputSchema = z.string().describe('La respuesta en formato de texto o Markdown para el usuario.');
-export type InventoryAnalysisOutput = z.infer<typeof InventoryAnalysisOutputSchema>;
+import {
+  InventoryAnalysisInputSchema,
+  InventoryAnalysisOutputSchema,
+  type InventoryAnalysisInput,
+  type InventoryAnalysisOutput,
+} from './inventory-assistant-types';
 
 const prompt = ai.definePrompt({
-    name: 'inventoryAnalysisPrompt',
-    input: { schema: InventoryAnalysisInputSchema },
-    output: { schema: InventoryAnalysisOutputSchema },
-    prompt: `
-      You are 'Ferro', an expert Warehouse Assistant AI for a construction company.
-      You have read-only access to the current inventory data provided in JSON format below.
-      
-      INVENTORY CONTEXT:
-      {{{inventoryContext}}}
-      
-      YOUR RESPONSIBILITIES:
-      1. Answer questions about stock levels, tool availability, and item locations (category).
-      2. Identify items with low stock (marked as LOW STOCK in context).
-      3. Suggest restocks if requested.
-      4. Summarize tool usage.
-      
-      GUIDELINES:
-      - Keep answers concise and direct.
-      - Use Spanish (Español) for all responses.
-      - Format output with Markdown (bold for item names, lists for multiple items).
-      - If an item is not found in the list, politely state it is not in the inventory.
-      - Be helpful and professional.
+  name: 'inventoryAnalysisPrompt',
+  input: { schema: InventoryAnalysisInputSchema },
+  output: { schema: InventoryAnalysisOutputSchema },
+  prompt: `
+You are **Ferro**, un asistente experto en bodega de construcción.
 
-      USER QUERY:
-      "{{query}}"
-    `,
-  });
+Hablas con **Anthony (Jefe de Proyecto)**.
+Valoras la eficiencia, control de costos y alertas proactivas.
+
+CONTEXTO DEL INVENTARIO:
+{{{inventoryContext}}}
+
+REGLAS PRINCIPALES:
+1. Responde SOLO usando el contexto proporcionado.
+2. Si hay items con status "CRITICAL_LOW", muestra al inicio:
+   ⚠️ **Alerta de Stock Crítico**
+3. Sugiere acciones de compra cuando el stock esté bajo.
+4. Usa Markdown: tablas, negritas, listas, emojis.
+5. Sé conciso, profesional y proactivo.
+6. Siempre responde en español.
+
+PREGUNTA DEL USUARIO:
+"{{query}}"
+
+EJEMPLO DE TABLA:
+| Material      | Stock | Unidad | Estado      |
+|---------------|-------|--------|-------------|
+| Cemento       | 5     | sacos  | 🔴 CRÍTICO   |
+| Arena         | 120   | m³     | 🟢 OK        |
+| Clavos        | 8     | kg     | 🔴 CRÍTICO   |
+`,
+});
 
 const inventoryAnalysisFlow = ai.defineFlow(
   {
@@ -55,12 +50,42 @@ const inventoryAnalysisFlow = ai.defineFlow(
     inputSchema: InventoryAnalysisInputSchema,
     outputSchema: InventoryAnalysisOutputSchema,
   },
-  async (input: InventoryAnalysisInput) => {
-    const { output } = await prompt(input);
-    return output || "No pude generar una respuesta. Por favor intenta de nuevo.";
+  async (input: InventoryAnalysisInput): Promise<InventoryAnalysisOutput> => {
+    console.log('🚀 Ferro AI: consulta recibida →', input.query);
+
+    try {
+      let contextData;
+      try {
+        contextData = JSON.parse(input.inventoryContext);
+      } catch (e) {
+        return '❌ Error al leer los datos del inventario. Intenta de nuevo.';
+      }
+
+      const hasData = 
+        (Array.isArray(contextData.materials) && contextData.materials.length > 0) ||
+        (Array.isArray(contextData.tools) && contextData.tools.length > 0);
+
+      if (!hasData) {
+        return '📭 No hay datos de inventario disponibles en este momento.\n\nEspera unos segundos mientras se cargan los materiales y herramientas.';
+      }
+
+      const { output } = await prompt(input);
+
+      return output ?? 'No pude generar una respuesta completa con los datos actuales.';
+
+    } catch (error: any) {
+      console.error('❌ Error en Ferro AI:', error.message);
+
+      if (error.message?.includes('API key')) {
+        return '🔑 Error de configuración de IA. Contacta al administrador.';
+      }
+
+      return '🔌 Lo siento, hubo un problema técnico al procesar tu consulta. Intenta nuevamente en unos momentos.';
+    }
   }
 );
 
 export async function analyzeInventory(input: InventoryAnalysisInput): Promise<InventoryAnalysisOutput> {
-  return inventoryAnalysisFlow(input);
+  const { result } = await inventoryAnalysisFlow.run(input);
+  return result ?? 'No se obtuvo respuesta del asistente.';
 }
