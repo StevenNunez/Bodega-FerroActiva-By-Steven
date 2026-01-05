@@ -1,9 +1,10 @@
+
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/modules/auth/useAuth";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,25 +17,32 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Warehouse, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/modules/core/hooks/use-toast";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/modules/core/lib/firebase";
+import { auth, db } from "@/modules/core/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
-enum LoginState {
+enum FormState {
   LOGIN,
-  REGISTER_INVITED,
+  REGISTER,
 }
 
-export default function LoginPage() {
+function LoginWrapper() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, user, authLoading } = useAuth();
+  
+  const initialAction = searchParams.get('action');
+  const initialPlan = searchParams.get('plan');
+  
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [formState, setFormState] = React.useState<FormState>(initialAction === 'register' ? FormState.REGISTER : FormState.LOGIN);
+  
   const { toast } = useToast();
-  const [loginState, setLoginState] = React.useState<LoginState>(LoginState.LOGIN);
 
   React.useEffect(() => {
     if (!authLoading && user) {
@@ -51,15 +59,9 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(email, password);
-      // The useEffect above will handle redirection on successful login
+      // The useEffect above will handle redirection
     } catch (error: any) {
-        if (error.code === 'auth/invited-user-no-account') {
-          setLoginState(LoginState.REGISTER_INVITED);
-          toast({
-            title: "Bienvenido, has sido invitado",
-            description: "Por favor, crea una contraseña para activar tu cuenta.",
-          });
-        } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
           toast({ variant: 'destructive', title: 'Error de inicio de sesión', description: "El correo electrónico o la contraseña son incorrectos." });
         } else {
             console.error("Login Error:", error);
@@ -78,18 +80,46 @@ export default function LoginPage() {
     }
     setIsSubmitting(true);
     try {
-      // Create the auth user
-      await createUserWithEmailAndPassword(auth, email, password);
-      // The onAuthStateChanged listener in the provider will handle the rest
-      toast({
-        title: "¡Cuenta Activada!",
-        description: "Iniciando sesión con tu nueva cuenta.",
+      // 1. Create the user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const newAuthUser = userCredential.user;
+
+      // 2. Create the user document in Firestore (This was the missing part)
+      const qrCode = `USER-${newAuthUser.uid}`;
+      const userDocRef = doc(db, "users", newAuthUser.uid);
+      await setDoc(userDocRef, {
+          id: newAuthUser.uid,
+          name: email.split('@')[0], // Placeholder name
+          email: newAuthUser.email,
+          role: 'admin', // Default role for new signups
+          tenantId: newAuthUser.uid, // The user becomes their own tenant initially
+          qrCode: qrCode,
       });
-      // Let the main auth listener handle the redirect
+
+      // 3. Create the tenant document
+      const tenantDocRef = doc(db, "tenants", newAuthUser.uid);
+      await setDoc(tenantDocRef, {
+        id: newAuthUser.uid,
+        tenantId: newAuthUser.uid,
+        name: `${email.split('@')[0]}'s Company`,
+        plan: initialPlan || 'basic',
+        createdAt: new Date(),
+      });
+
+      toast({
+        title: "¡Cuenta Creada!",
+        description: "Tu cuenta ha sido creada. Ahora puedes iniciar sesión.",
+      });
+
+      // 4. Redirect to login page to sign in with the new account
+      router.push('/login');
+      setFormState(FormState.LOGIN);
+
     } catch (error: any) {
       let errorMessage = "No se pudo crear la cuenta.";
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'Este correo ya tiene una cuenta activa. Intenta iniciar sesión.';
+        setFormState(FormState.LOGIN);
       }
       toast({ variant: 'destructive', title: 'Error de Registro', description: errorMessage });
     } finally {
@@ -97,73 +127,110 @@ export default function LoginPage() {
     }
   };
 
-  // If auth is loading, or user is already logged in, the DashboardLayout will show a loader.
-  // This page should just render its content.
   if (authLoading || user) {
-    return null; // Render nothing, the layout will handle the loader/redirect
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  const renderContent = () => {
+    switch (formState) {
+        case FormState.LOGIN:
+            return (
+                <form onSubmit={handleLoginSubmit}>
+                    <CardHeader className="text-center">
+                    <Image src="/logo.png" alt="Logo Constructora" width={100} height={100} className="mx-auto" />
+                    <CardTitle className="text-2xl font-bold pt-4">Control de Bodega</CardTitle>
+                    <CardDescription>Inicia sesión para gestionar el inventario.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Correo Electrónico</Label>
+                        <Input id="email" type="email" placeholder="usuario@constructora.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                        <Label htmlFor="password">Contraseña</Label>
+                        <Button asChild variant="link" className="px-0 text-xs h-auto py-1 text-muted-foreground">
+                                <Link href="/reset-password">
+                                    ¿Olvidaste tu contraseña?
+                                </Link>
+                            </Button>
+                        </div>
+                        <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    </CardContent>
+                    <CardFooter className="flex flex-col gap-4">
+                    <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
+                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Ingresando...</> : "Ingresar"}
+                    </Button>
+                     <p className="text-center text-sm text-muted-foreground">
+                        ¿No tienes una cuenta?{" "}
+                        <Button variant="link" type="button" className="p-0 h-auto" onClick={() => setFormState(FormState.REGISTER)}>
+                            Regístrate aquí
+                        </Button>
+                    </p>
+                    </CardFooter>
+                </form>
+            );
+        
+        case FormState.REGISTER:
+             return (
+                <form onSubmit={handleRegisterSubmit}>
+                    <CardHeader className="text-center">
+                    <Image src="/logo.png" alt="Logo Constructora" width={100} height={100} className="mx-auto" />
+                    <CardTitle className="text-2xl font-bold pt-4">Crear una Cuenta</CardTitle>
+                    <CardDescription>
+                        Bienvenido. Completa tus datos para registrarte.
+                        {initialPlan && <p className="font-bold text-primary mt-2">Plan Seleccionado: {initialPlan.charAt(0).toUpperCase() + initialPlan.slice(1)}</p>}
+                    </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                          <Label htmlFor="reg-email">Correo Electrónico</Label>
+                          <Input id="reg-email" type="email" placeholder="tu@correo.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isSubmitting} />
+                      </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="reg-password">Nueva Contraseña</Label>
+                        <Input id="reg-password" type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="reg-confirm-password">Confirmar Contraseña</Label>
+                        <Input id="reg-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isSubmitting} />
+                    </div>
+                    </CardContent>
+                    <CardFooter className="flex-col gap-4">
+                    <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password || !confirmPassword}>
+                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creando cuenta...</> : "Crear Cuenta"}
+                    </Button>
+                    <p className="text-center text-sm text-muted-foreground">
+                        ¿Ya tienes una cuenta?{" "}
+                        <Button variant="link" type="button" className="p-0 h-auto" onClick={() => setFormState(FormState.LOGIN)}>
+                           Inicia sesión
+                        </Button>
+                    </p>
+                    </CardFooter>
+                </form>
+             );
+    }
   }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-sm border-border">
-        {loginState === LoginState.LOGIN && (
-          <form onSubmit={handleLoginSubmit}>
-            <CardHeader className="text-center">
-              <Image src="/logo.png" alt="Logo Constructora" width={100} height={100} className="mx-auto" />
-              <CardTitle className="text-2xl font-bold pt-4">Control de Bodega</CardTitle>
-              <CardDescription>Inicia sesión para gestionar el inventario.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Correo Electrónico</Label>
-                <Input id="email" type="email" placeholder="usuario@constructora.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isSubmitting} />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Contraseña</Label>
-                   <Button asChild variant="link" className="px-0 text-xs h-auto py-1 text-muted-foreground">
-                        <Link href="/reset-password">
-                            ¿Olvidaste tu contraseña?
-                        </Link>
-                    </Button>
-                </div>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isSubmitting} />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
-                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Ingresando...</> : "Ingresar"}
-              </Button>
-            </CardFooter>
-          </form>
-        )}
-
-        {loginState === LoginState.REGISTER_INVITED && (
-          <form onSubmit={handleRegisterSubmit}>
-            <CardHeader className="text-center">
-              <Image src="/logo.png" alt="Logo Constructora" width={100} height={100} className="mx-auto" />
-              <CardTitle className="text-2xl font-bold pt-4">Activa Tu Cuenta</CardTitle>
-              <CardDescription>Estás a un paso. Crea tu contraseña para el correo <span className="font-bold text-primary">{email}</span>.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="reg-password">Nueva Contraseña</Label>
-                <Input id="reg-password" type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isSubmitting} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reg-confirm-password">Confirmar Contraseña</Label>
-                <Input id="reg-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} disabled={isSubmitting} />
-              </div>
-            </CardContent>
-            <CardFooter className="flex-col gap-4">
-              <Button type="submit" className="w-full" disabled={isSubmitting || !password || !confirmPassword}>
-                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Activando...</> : "Activar y Entrar"}
-              </Button>
-              <Button variant="link" onClick={() => setLoginState(LoginState.LOGIN)}>Volver a inicio de sesión</Button>
-            </CardFooter>
-          </form>
-        )}
+          {renderContent()}
       </Card>
     </main>
+  );
+}
+
+
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-background"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+      <LoginWrapper />
+    </React.Suspense>
   );
 }

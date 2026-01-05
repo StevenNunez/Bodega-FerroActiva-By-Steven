@@ -1,3 +1,5 @@
+
+
 "use client";
 import React, {
   createContext,
@@ -60,7 +62,7 @@ import {
   usePurchaseLots,
   usePurchaseOrders,
   useSupplierPayments,
-  useSalaryAdvances,
+  useSalaryAdvances, // Import the new hook
   useAttendanceLogs,
   useAssignedChecklists,
   useSafetyInspections,
@@ -99,7 +101,7 @@ const initialState: AppDataState = {
     purchaseLots: [],
     purchaseOrders: [],
     supplierPayments: [],
-    salaryAdvances: [],
+    salaryAdvances: [], // Add to initial state
     attendanceLogs: [],
     assignedChecklists: [],
     safetyInspections: [],
@@ -109,6 +111,7 @@ const initialState: AppDataState = {
     workItems: [],
     progressLogs: [],
 };
+
 
 const appReducer = (state: AppDataState, action: AppStateAction): AppDataState => {
     switch (action.type) {
@@ -125,7 +128,11 @@ const appReducer = (state: AppDataState, action: AppStateAction): AppDataState =
     }
 };
 
-export const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
+// --- Context Definition ---
+
+export const AppStateContext = createContext<AppStateContextType | undefined>(
+  undefined
+);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
     const { user, getTenantId, can, authLoading } = useAuth();
@@ -134,7 +141,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const tenantId = getTenantId();
 
-    // Hooks de colecciones
     const usersData = useUsers(tenantId);
     const materialsData = useMaterials(tenantId);
     const toolsData = useTools(tenantId);
@@ -148,7 +154,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const purchaseLotsData = usePurchaseLots(tenantId);
     const purchaseOrdersData = usePurchaseOrders(tenantId);
     const supplierPaymentsData = useSupplierPayments(tenantId);
-    const salaryAdvancesData = useSalaryAdvances(tenantId);
+    const salaryAdvancesData = useSalaryAdvances(tenantId); // Use the new hook
     const attendanceLogsData = useAttendanceLogs(tenantId);
     const assignedChecklistsData = useAssignedChecklists(tenantId);
     const safetyInspectionsData = useSafetyInspections(tenantId);
@@ -160,7 +166,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const progressLogsData = useProgressLogs(tenantId);
     const dynamicRolesData = useRoles();
 
-    // === Efecto para seeding de work items ===
+    // Seed data effect
     useEffect(() => {
         const seedWorkItems = async () => {
             if (tenantId && firebaseWorkItems.length === 0 && can('construction_control:edit_structure')) {
@@ -178,25 +184,44 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (tenantId) {
             seedWorkItems().catch(console.error);
         }
-    }, [tenantId, firebaseWorkItems.length, can]); // Mejorado: solo depende de length
+    }, [tenantId, firebaseWorkItems, can]);
 
-    // === Efecto principal: carga progresiva de datos ===
     useEffect(() => {
-        if (authLoading) {
+        // Muestra cargando si la autenticación está en proceso o si no hay usuario aún
+        if (authLoading || !user) {
             dispatch({ type: 'SET_LOADING', payload: true });
             return;
         }
 
-        if (!user) {
-            dispatch({ type: 'SET_LOADING', payload: false });
+        // Si el usuario es super-admin, puede o no tener un tenant seleccionado.
+        // Si no tiene tenant, los datos estarán vacíos, lo cual es correcto.
+        // Si tiene un tenant, `tenantId` no será `undefined`.
+        if (user.role === 'super-admin' && tenantId === undefined) {
+             dispatch({ type: 'SET_LOADING', payload: true });
+             return;
+        }
+
+        // Para usuarios normales, siempre debe haber un tenantId
+        if (user.role !== 'super-admin' && !tenantId) {
+            dispatch({ type: 'SET_LOADING', payload: true });
             return;
         }
 
-        if (!tenantId) {
+        const allDataLoaded = [
+            usersData, materialsData, toolsData, toolLogsData, requestsData,
+            returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
+            unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
+            salaryAdvancesData, // Add new data source
+            attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
+            checklistTemplatesData, behaviorObservationsData, stockMovementsData,
+            subscriptionPlansData, firebaseWorkItems, progressLogsData, dynamicRolesData
+        ].every(data => data !== undefined);
+
+        if (!allDataLoaded) {
+            dispatch({ type: 'SET_LOADING', payload: true });
             return;
         }
-
-        // Función para convertir Timestamps a Dates
+    
         const processData = (data: any[] | undefined) => {
             if (!Array.isArray(data)) return [];
             return data.map((item) => {
@@ -209,75 +234,55 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 return newItem;
             });
         };
-
-        // Actualización progresiva: cada colección se guarda cuando llega
-        if (usersData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "users", data: processData(usersData) } });
-        if (materialsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "materials", data: processData(materialsData) } });
-        if (toolsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "tools", data: processData(toolsData) } });
-        if (toolLogsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "toolLogs", data: processData(toolLogsData) } });
-        if (requestsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "requests", data: processData(requestsData) } });
-        if (returnRequestsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "returnRequests", data: processData(returnRequestsData) } });
-        if (purchaseRequestsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "purchaseRequests", data: processData(purchaseRequestsData) } });
-        if (suppliersData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "suppliers", data: processData(suppliersData) } });
-        if (materialCategoriesData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "materialCategories", data: processData(materialCategoriesData) } });
-        if (unitsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "units", data: processData(unitsData) } });
-        if (purchaseLotsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "purchaseLots", data: processData(purchaseLotsData) } });
-        if (purchaseOrdersData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "purchaseOrders", data: processData(purchaseOrdersData) } });
-        if (supplierPaymentsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "supplierPayments", data: processData(supplierPaymentsData) } });
-        if (salaryAdvancesData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "salaryAdvances", data: processData(salaryAdvancesData) } });
-        if (attendanceLogsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "attendanceLogs", data: processData(attendanceLogsData) } });
-        if (assignedChecklistsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "assignedChecklists", data: processData(assignedChecklistsData) } });
-        if (safetyInspectionsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "safetyInspections", data: processData(safetyInspectionsData) } });
-        if (checklistTemplatesData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "checklistTemplates", data: processData(checklistTemplatesData) } });
-        if (behaviorObservationsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "behaviorObservations", data: processData(behaviorObservationsData) } });
-        if (stockMovementsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "stockMovements", data: processData(stockMovementsData) } });
-        if (progressLogsData !== undefined) dispatch({ type: 'SET_DATA', payload: { collection: "progressLogs", data: processData(progressLogsData) } });
-
-        // Work items con fallback
-        if (firebaseWorkItems !== undefined) {
-            let processed = processData(firebaseWorkItems);
-            if (processed.length === 0 && tenantId) {
-                processed = WORK_ITEMS_SEED.map(item => ({
-                    ...item,
-                    tenantId,
-                    status: 'in-progress',
-                    progress: 0,
-                } as WorkItem));
-            }
-            dispatch({ type: 'SET_DATA', payload: { collection: "workItems", data: processed } });
+        
+        let processedWorkItems = processData(firebaseWorkItems);
+        if (tenantId && processedWorkItems.length === 0) {
+            processedWorkItems = WORK_ITEMS_SEED.map(item => ({
+                ...item,
+                tenantId: tenantId,
+                status: 'in-progress',
+                progress: 0,
+            } as WorkItem));
         }
+    
+        dispatch({ type: 'SET_DATA', payload: { collection: "users", data: processData(usersData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "materials", data: processData(materialsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "tools", data: processData(toolsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "toolLogs", data: processData(toolLogsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "requests", data: processData(requestsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "returnRequests", data: processData(returnRequestsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "purchaseRequests", data: processData(purchaseRequestsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "suppliers", data: processData(suppliersData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "materialCategories", data: processData(materialCategoriesData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "units", data: processData(unitsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "purchaseLots", data: processData(purchaseLotsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "purchaseOrders", data: processData(purchaseOrdersData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "supplierPayments", data: processData(supplierPaymentsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "salaryAdvances", data: processData(salaryAdvancesData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "attendanceLogs", data: processData(attendanceLogsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "assignedChecklists", data: processData(assignedChecklistsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "safetyInspections", data: processData(safetyInspectionsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "checklistTemplates", data: processData(checklistTemplatesData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "behaviorObservations", data: processData(behaviorObservationsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "stockMovements", data: processData(stockMovementsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "workItems", data: processedWorkItems } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "progressLogs", data: processData(progressLogsData) } });
 
-        // Roles y planes con fallback
-        if (dynamicRolesData !== undefined) {
-            const rolesToUse = dynamicRolesData && Object.keys(dynamicRolesData).length > 0 ? dynamicRolesData : ROLES_DEFAULT;
-            dispatch({ type: "SET_ROLES", payload: rolesToUse });
-        }
+        const rolesToUse = dynamicRolesData && Object.keys(dynamicRolesData).length > 0 ? dynamicRolesData : ROLES_DEFAULT;
+        dispatch({ type: "SET_ROLES", payload: rolesToUse });
 
-        if (subscriptionPlansData !== undefined) {
-            const plansToUse = subscriptionPlansData && Object.keys(subscriptionPlansData).length > 0 ? subscriptionPlansData : PLANS;
-            dispatch({ type: "SET_PLANS", payload: plansToUse });
-        }
-
-        // Determinar si todo está cargado → quitar loading global
-        const allCollectionsLoaded = [
-            usersData, materialsData, toolsData, toolLogsData, requestsData,
-            returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
-            unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
-            salaryAdvancesData, attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
-            checklistTemplatesData, behaviorObservationsData, stockMovementsData,
-            firebaseWorkItems, progressLogsData, dynamicRolesData, subscriptionPlansData
-        ].every(item => item !== undefined);
-
-        dispatch({ type: 'SET_LOADING', payload: !allCollectionsLoaded });
-
+        const plansToUse = subscriptionPlansData && Object.keys(subscriptionPlansData).length > 0 ? subscriptionPlansData : PLANS;
+        dispatch({ type: "SET_PLANS", payload: plansToUse });
+    
+        dispatch({ type: "SET_LOADING", payload: false });
+    
     }, [
-        authLoading, user, tenantId,
-        usersData, materialsData, toolsData, toolLogsData, requestsData,
+        authLoading, user, usersData, materialsData, toolsData, toolLogsData, requestsData,
         returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
         unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
         salaryAdvancesData, attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
         checklistTemplatesData, behaviorObservationsData, stockMovementsData,
-        firebaseWorkItems, progressLogsData, dynamicRolesData, subscriptionPlansData
+        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId, dynamicRolesData
     ]);
 
     const notify = useCallback((message: string, variant: "default" | "destructive" | "success" = "default") => {
@@ -299,8 +304,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         };
     };
 
-    // Tus funciones de mutación (sin cambios)
     const functions = {
+      // Purchase Requests
       addPurchaseRequest: bindContext(purchaseRequestMutations.addPurchaseRequest),
       updatePurchaseRequestStatus: bindContext(purchaseRequestMutations.updatePurchaseRequestStatus),
       receivePurchaseRequest: bindContext(purchaseRequestMutations.receivePurchaseRequest),
@@ -311,11 +316,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       createPurchaseOrder: bindContext(purchaseRequestMutations.createPurchaseOrder),
       returnToPool: bindContext(purchaseRequestMutations.returnToPool),
 
+      // Material Requests
       addMaterialRequest: bindContext(materialRequestMutations.addMaterialRequest),
       updateMaterialRequestStatus: bindContext(materialRequestMutations.updateMaterialRequestStatus),
       addReturnRequest: bindContext(materialRequestMutations.addReturnRequest),
       updateReturnRequestStatus: bindContext(materialRequestMutations.updateReturnRequestStatus),
       
+      // Generic CRUD
       addTenant: bindContext(genericMutations.addTenant),
       updateUser: bindContext(genericMutations.updateUser),
       deleteUser: bindContext(genericMutations.deleteUser),
@@ -336,6 +343,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       removeRequestFromLot: bindContext(genericMutations.removeRequestFromLot),
       deleteLot: bindContext(genericMutations.deleteLot),
 
+      // Tenant
+      updateTenant: bindContext(genericMutations.updateTenant),
+
+      // Work Items
+      addWorkItem: bindContext(genericMutations.addWorkItem),
+      updateWorkItem: bindContext(genericMutations.updateWorkItem),
+      deleteWorkItem: bindContext(genericMutations.deleteWorkItem),
+      addWorkItemProgress: bindContext(genericMutations.addWorkItemProgress),
+      submitForQualityReview: bindContext(genericMutations.submitForQualityReview),
+      approveWorkItem: bindContext(genericMutations.approveWorkItem),
+      rejectWorkItem: bindContext(genericMutations.rejectWorkItem),
+      
+      // Tools
       addTool: bindContext(toolMutations.addTool),
       updateTool: bindContext(toolMutations.updateTool),
       deleteTool: bindContext(toolMutations.deleteTool),
@@ -343,6 +363,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       returnTool: bindContext(toolMutations.returnTool),
       findActiveLogForTool: bindContext(toolMutations.findActiveLogForTool),
 
+      // Safety
       addChecklistTemplate: bindContext(safetyMutations.addChecklistTemplate),
       deleteChecklistTemplate: bindContext(safetyMutations.deleteChecklistTemplate),
       assignChecklistToSupervisors: bindContext(safetyMutations.assignChecklistToSupervisors),
@@ -354,11 +375,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       reviewSafetyInspection: bindContext(safetyMutations.reviewSafetyInspection),
       addBehaviorObservation: bindContext(safetyMutations.addBehaviorObservation),
 
+      // Attendance
       handleAttendanceScan: bindContext(attendanceMutations.handleAttendanceScan),
       addManualAttendance: bindContext(attendanceMutations.addManualAttendance),
       updateAttendanceLog: bindContext(attendanceMutations.updateAttendanceLog),
       deleteAttendanceLog: bindContext(attendanceMutations.deleteAttendanceLog),
 
+      // Payments
       addSupplierPayment: bindContext(paymentMutations.addSupplierPayment),
       updateSupplierPayment: bindContext(paymentMutations.updateSupplierPayment),
       markPaymentAsPaid: bindContext(paymentMutations.markPaymentAsPaid),
@@ -367,18 +390,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       approveSalaryAdvance: bindContext(paymentMutations.approveSalaryAdvance),
       rejectSalaryAdvance: bindContext(paymentMutations.rejectSalaryAdvance),
       
+      // Permissions
       updateRolePermissions: bindContext(genericMutations.updateRolePermissions),
       updatePlanPermissions: bindContext(genericMutations.updatePlanPermissions),
-      
-      updateTenant: bindContext(genericMutations.updateTenant),
-
-      addWorkItem: bindContext(genericMutations.addWorkItem),
-      updateWorkItem: bindContext(genericMutations.updateWorkItem),
-      deleteWorkItem: bindContext(genericMutations.deleteWorkItem),
-      addWorkItemProgress: bindContext(genericMutations.addWorkItemProgress),
-      submitForQualityReview: bindContext(genericMutations.submitForQualityReview),
-      approveWorkItem: bindContext(genericMutations.approveWorkItem),
-      rejectWorkItem: bindContext(genericMutations.rejectWorkItem),
     };
 
     const value: AppStateContextType = {
@@ -388,7 +402,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         subscriptionPlans: state.subscriptionPlans,
         can,
         notify,
-        refreshData: () => {},
+        refreshData: () => {}, // Placeholder for now, can be implemented if needed
         ...functions,
     };
 

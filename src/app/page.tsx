@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -9,8 +10,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter
 } from "@/components/ui/card";
-import { ArrowRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, CheckCircle, HardHat, Building, Home } from "lucide-react";
 import { useAuth } from "@/modules/auth/useAuth";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -27,40 +30,36 @@ export default function LandingPage() {
     }, [user, authLoading, router]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-lg border-border text-center">
-        <CardHeader>
-           <Image
-              src="/logo.png"
-              alt="Logo Constructora"
-              width={120}
-              height={120}
-              className="mx-auto"
-            />
-          <CardTitle className="text-4xl font-bold tracking-tight pt-4">
-            Bodega APP
-          </CardTitle>
-          <CardDescription className="text-xl pt-2 font-medium text-muted-foreground">
-            Constructora FerroActiva
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            Inicia sesión para gestionar el inventario de herramientas y materiales.
-          </p>
-          <div className="mt-8">
-            <Button asChild size="lg">
-              <Link href="/login">
-                Ir al Login
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-       <footer className="mt-8 text-center text-sm text-muted-foreground">
-            <p>desarrollado por stvn</p>
+    <div className="flex min-h-screen flex-col items-center bg-background text-foreground">
+        {/* Header */}
+        <header className="w-full px-8 py-4 flex justify-between items-center border-b">
+             <div className="flex items-center gap-3">
+                <Image
+                    src="/logo.png"
+                    alt="Logo Constructora"
+                    width={40}
+                    height={40}
+                />
+                <span className="font-bold text-xl tracking-tight">FerroActiva</span>
+            </div>
+            <div className="flex items-center gap-4">
+                 <Button variant="ghost" asChild>
+                    <Link href="/login">Iniciar Sesión</Link>
+                </Button>
+                <Button asChild>
+                    <Link href="/login?action=register">
+                        Registrarse <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                </Button>
+            </div>
+        </header>
+
+      
+
+       <footer className="mt-12 mb-6 text-center text-sm text-muted-foreground">
+            <p>&copy; {new Date().getFullYear()} Teo Labs. Todos los derechos reservados.</p>
+            <p className="mt-1">Una App desarrollada por <a href="https://teolabs.app" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary/80 hover:underline">teolabs.app</a></p>
         </footer>
-    </main>
+    </div>
   );
 }

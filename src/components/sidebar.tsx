@@ -127,6 +127,9 @@ const usersNavItems = (can: (p: Permission) => boolean) => {
     if(can('users:view')) {
       items.push({ href: '/dashboard/users', icon: Users, label: 'Lista de Usuarios' });
     }
+    if (can('permissions:manage')) {
+        items.push({ href: '/dashboard/permissions', icon: ListChecks, label: 'Gestión de Permisos' });
+    }
     if(can('users:print_qr')) {
        items.push({ href: '/dashboard/users/print-qrs', icon: QrCode, label: 'Imprimir Credenciales' });
     }
@@ -154,7 +157,7 @@ const paymentsNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if (can('payments:view')) items.push({ href: '/dashboard/payments', icon: LayoutDashboard, label: 'Gestión de Facturas' });
     if (can('payments:view')) items.push({ href: '/dashboard/payments/advances', icon: HandPlatter, label: 'Gestionar Adelantos' });
-    if (can('finance:manage_purchase_orders')) items.push({ href: '/dashboard/payments/pago-facturas', icon: FileText, label: 'Gestionar OC' });
+    if (can('finance:manage_purchase_orders')) items.push({ href: '/dashboard/purchasing/finance', icon: FileText, label: 'Gestionar OC' });
     if (can('orders:view_all')) items.push({ href: '/dashboard/payments/orders', icon: ClipboardList, label: 'Historial de OCs' });
     if (can('suppliers:view') && can('module_payments:view')) items.push({ href: '/dashboard/payments/suppliers', icon: Briefcase, label: 'Proveedores' });
     return items;
@@ -365,3 +368,5 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     </>
   );
 }
+
+    
