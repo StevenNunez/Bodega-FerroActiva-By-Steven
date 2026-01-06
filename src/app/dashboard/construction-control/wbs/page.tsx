@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useMemo, useState } from 'react';
@@ -66,31 +67,24 @@ const buildTree = (items: WorkItem[]): TreeWorkItem[] => {
 
 const WorkItemNode = ({
   node,
-  workItems, // Recibe la lista completa para buscar la data más fresca
   level = 0,
   onSelect,
   selectedId,
 }: {
   node: TreeWorkItem;
-  workItems: WorkItem[];
   level?: number;
   onSelect: (item: WorkItem) => void;
   selectedId: string | null;
 }) => {
   const [isExpanded, setIsExpanded] = useState(level < 2);
   const hasChildren = node.children.length > 0;
-
-  // Busca el item más actualizado desde el estado global que pasamos como prop
-  const currentItem = useMemo(() => {
-    return workItems?.find(item => item.id === node.id) || node;
-  }, [workItems, node.id]);
   
-  const progress = currentItem.progress || 0;
+  const progress = node.progress || 0;
 
   return (
     <div style={{ paddingLeft: `${level * 1}rem` }} className="space-y-1">
       <div
-        onClick={() => onSelect(currentItem)}
+        onClick={() => onSelect(node)}
         className={cn(
           'flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer transition-colors group',
           selectedId === node.id
@@ -137,7 +131,6 @@ const WorkItemNode = ({
             <WorkItemNode
               key={child.id}
               node={child}
-              workItems={workItems} // Pasa la lista completa hacia abajo
               level={level + 1}
               onSelect={onSelect}
               selectedId={selectedId}
@@ -159,7 +152,6 @@ const WorkItemTree = ({ workItems, onSelect, selectedId }: { workItems: WorkItem
                     <WorkItemNode
                         key={node.id}
                         node={node}
-                        workItems={workItems}
                         onSelect={onSelect}
                         selectedId={selectedId}
                     />
@@ -189,8 +181,6 @@ export default function ConstructionWBSPage() {
         item.path.toLowerCase().includes(lowerTerm)
     );
   }, [workItems, searchTerm]);
-
-  const tree = useMemo(() => buildTree(filteredItems), [filteredItems]);
 
 
   const selectedItemLogs = useMemo(() => {
@@ -271,7 +261,7 @@ export default function ConstructionWBSPage() {
                 <div className="flex items-center justify-center h-64">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : (filteredItems || []).length > 0 ? (
+              ) : (workItems || []).length > 0 ? (
                 <WorkItemTree
                     workItems={filteredItems || []}
                     onSelect={setSelectedItem}

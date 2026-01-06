@@ -21,7 +21,7 @@ import { db, auth } from '@/modules/core/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { ROLES as ROLES_DEFAULT, Permission, PLANS } from '@/modules/core/lib/permissions';
 import { nanoid } from 'nanoid';
-import type { UserRole, Tenant, WorkItem, ProgressLog } from '@/modules/core/lib/data';
+import type { UserRole, Tenant, WorkItem, ProgressLog, PaymentState } from '@/modules/core/lib/data';
 
 type Context = {
   user: any;
@@ -307,27 +307,29 @@ export async function updatePlanPermissions(planId: string, permissions: Permiss
 }
 
 // --- Work Items ---
-export async function addWorkItem(data: Omit<WorkItem, 'id' | 'tenantId' | 'progress' | 'path'>, { tenantId, db }: Context) {
+export async function addWorkItem(data: Omit<WorkItem, 'id' | 'tenantId' | 'progress' | 'path'>, { tenantId, user, db }: Context) {
     if (!tenantId) throw new Error("Inquilino no válido.");
+    if (!user) throw new Error("Usuario no autenticado.");
 
     const collRef = collection(db, `workItems`);
     const newDocRef = doc(collRef);
 
     let path = '';
+    let parentPath = '';
+
     if (data.parentId) {
         const parentRef = doc(db, `workItems`, data.parentId);
         const parentDoc = await getDoc(parentRef);
         if (!parentDoc.exists()) throw new Error("El ítem padre no existe.");
-        const parentPath = parentDoc.data().path;
-
-        // Find the last child of this parent to determine the next index
+        parentPath = parentDoc.data().path;
+        
         const childrenQuery = query(collRef, where('tenantId', '==', tenantId), where('parentId', '==', data.parentId));
         const childrenSnap = await getDocs(childrenQuery);
         const nextIndex = childrenSnap.size + 1;
         path = `${parentPath}/${String(nextIndex).padStart(2, '0')}`;
     } else {
-        // This is a root item
-        const rootQuery = query(collRef, where('tenantId', '==', tenantId), where('parentId', '==', null));
+        // Es un ítem raíz (un "Contrato" para el contratista)
+        const rootQuery = query(collRef, where('tenantId', '==', tenantId), where('assignedTo', '==', user.id), where('parentId', '==', null));
         const rootSnap = await getDocs(rootQuery);
         const nextIndex = rootSnap.size + 1;
         path = String(nextIndex).padStart(2, '0');
@@ -337,13 +339,15 @@ export async function addWorkItem(data: Omit<WorkItem, 'id' | 'tenantId' | 'prog
         ...data,
         status: 'in-progress',
         tenantId,
-        projectId: tenantId, // Assuming tenantId is the projectId for now
+        projectId: tenantId, 
         progress: 0,
         path: path,
+        createdBy: user.id,
     };
 
     await setDoc(newDocRef, newItem);
 }
+
 
 export async function updateWorkItem(id: string, data: Partial<WorkItem>, { db }: Context) {
     const workItemRef = doc(db, 'workItems', id);
@@ -422,4 +426,26 @@ export async function rejectWorkItem(workItemId: string, reason: string, { user,
       status: 'rejected',
       // Optionally, add a log for the rejection, but don't reset progress
     });
+}
+
+export async function addPaymentState(
+    data: Omit<PaymentState, 'id'|'tenantId'|'createdAt'|'status'|'contractorId'|'contractorName'>,
+    { user, tenantId, db }: Context
+): Promise<string> {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+    
+    const collectionRef = collection(db, "paymentStates");
+    const newDocRef = doc(collectionRef);
+
+    const newPaymentState: Omit<PaymentState, 'id'> = {
+        ...data,
+        contractorId: user.id,
+        contractorName: user.name,
+        createdAt: serverTimestamp() as Timestamp,
+        status: 'pending',
+        tenantId,
+    };
+
+    await setDoc(newDocRef, newPaymentState);
+    return newDocRef.id;
 }

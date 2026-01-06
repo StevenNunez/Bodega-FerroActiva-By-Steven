@@ -17,11 +17,12 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, User } from "lucide-react";
 import { useToast } from "@/modules/core/hooks/use-toast";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/modules/core/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
+import { Separator } from "@/components/ui/separator";
 
 enum FormState {
   LOGIN,
@@ -49,6 +50,29 @@ function LoginWrapper() {
       router.push("/dashboard");
     }
   }, [user, authLoading, router]);
+  
+  const createUserDocument = async (authUser: any, isDemo = false, plan = 'basic') => {
+      const qrCode = `USER-${authUser.uid}`;
+      const userDocRef = doc(db, "users", authUser.uid);
+      await setDoc(userDocRef, {
+          id: authUser.uid,
+          name: isDemo ? "Usuario Demo" : email.split('@')[0],
+          email: authUser.email,
+          role: isDemo ? 'admin' : 'admin', // Demo user is admin of their own tenant
+          tenantId: authUser.uid, // Each new user gets their own tenant
+          qrCode: qrCode,
+          isDemoUser: isDemo,
+      });
+
+      const tenantDocRef = doc(db, "tenants", authUser.uid);
+      await setDoc(tenantDocRef, {
+        id: authUser.uid,
+        tenantId: authUser.uid,
+        name: isDemo ? `Empresa Demo` : `${email.split('@')[0]}'s Company`,
+        plan: isDemo ? 'pro' : (plan || 'basic'),
+        createdAt: new Date(),
+      });
+  }
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +96,33 @@ function LoginWrapper() {
     }
   };
 
+  const handleGuestLogin = async () => {
+    setIsSubmitting(true);
+    const demoEmail = 'demo@ferroactiva.cl';
+    const demoPassword = 'demodemo';
+    
+    try {
+      await login(demoEmail, demoPassword);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        // User doesn't exist, let's create it
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPassword);
+          await createUserDocument(userCredential.user, true, 'pro');
+          // Now, try logging in again
+          await login(demoEmail, demoPassword);
+           toast({ title: '¡Modo Demo Activado!', description: 'Hemos creado un usuario de demostración para ti.' });
+        } catch (creationError: any) {
+          toast({ variant: 'destructive', title: 'Error Crítico', description: `No se pudo crear ni acceder al modo demo. ${creationError.message}` });
+        }
+      } else {
+        toast({ variant: 'destructive', title: 'Error Modo Demo', description: 'No se pudo iniciar sesión como invitado.' });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
@@ -80,40 +131,15 @@ function LoginWrapper() {
     }
     setIsSubmitting(true);
     try {
-      // 1. Create the user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const newAuthUser = userCredential.user;
-
-      // 2. Create the user document in Firestore (This was the missing part)
-      const qrCode = `USER-${newAuthUser.uid}`;
-      const userDocRef = doc(db, "users", newAuthUser.uid);
-      await setDoc(userDocRef, {
-          id: newAuthUser.uid,
-          name: email.split('@')[0], // Placeholder name
-          email: newAuthUser.email,
-          role: 'admin', // Default role for new signups
-          tenantId: newAuthUser.uid, // The user becomes their own tenant initially
-          qrCode: qrCode,
-      });
-
-      // 3. Create the tenant document
-      const tenantDocRef = doc(db, "tenants", newAuthUser.uid);
-      await setDoc(tenantDocRef, {
-        id: newAuthUser.uid,
-        tenantId: newAuthUser.uid,
-        name: `${email.split('@')[0]}'s Company`,
-        plan: initialPlan || 'basic',
-        createdAt: new Date(),
-      });
+      await createUserDocument(userCredential.user, false, initialPlan || 'basic');
 
       toast({
         title: "¡Cuenta Creada!",
         description: "Tu cuenta ha sido creada. Ahora puedes iniciar sesión.",
       });
-
-      // 4. Redirect to login page to sign in with the new account
+      
       router.push('/login');
-      setFormState(FormState.LOGIN);
 
     } catch (error: any) {
       let errorMessage = "No se pudo crear la cuenta.";
@@ -126,6 +152,7 @@ function LoginWrapper() {
       setIsSubmitting(false);
     }
   };
+
 
   if (authLoading || user) {
     return (
@@ -165,6 +192,13 @@ function LoginWrapper() {
                     <CardFooter className="flex flex-col gap-4">
                     <Button type="submit" className="w-full" disabled={isSubmitting || !email || !password}>
                         {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Ingresando...</> : "Ingresar"}
+                    </Button>
+                    <div className="relative w-full">
+                        <Separator />
+                        <span className="absolute left-1/2 -translate-x-1/2 -top-2 bg-card px-2 text-xs text-muted-foreground">O</span>
+                    </div>
+                    <Button type="button" variant="outline" className="w-full" onClick={handleGuestLogin} disabled={isSubmitting}>
+                        <User className="mr-2 h-4 w-4" /> Entrar como Invitado
                     </Button>
                      <p className="text-center text-sm text-muted-foreground">
                         ¿No tienes una cuenta?{" "}

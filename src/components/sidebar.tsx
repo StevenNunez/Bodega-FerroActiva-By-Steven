@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -39,7 +38,8 @@ import {
   CheckSquare,
   GanttChartSquare,
   Wallet,
-  HandPlatter
+  HandPlatter,
+  History,
 } from 'lucide-react';
 
 import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
@@ -237,6 +237,16 @@ const constructionControlNavItems = (can: (p: Permission) => boolean) => {
     return items;
 };
 
+const paymentStatusNavItems = (can: (p: Permission) => boolean) => {
+    const items = [];
+    if(can('construction_control:edit_structure')) { // This permission might need to be more specific
+      items.push({ href: '/dashboard/estado-pago', icon: LayoutDashboard, label: 'Resumen' });
+      items.push({ href: '/dashboard/estado-pago/contratos', icon: Briefcase, label: 'Mis Contratos' });
+      items.push({ href: '/dashboard/estado-pago/historial', icon: History, label: 'Historial de Pagos' });
+    }
+    return items;
+};
+
 
 interface SidebarProps {
   onLinkClick?: () => void;
@@ -315,6 +325,10 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
             title = 'Control de Obra';
             navItems = constructionControlNavItems(can);
             break;
+        case 'estado-pago':
+            title = 'Estado de Pago';
+            navItems = paymentStatusNavItems(can);
+            break;
         case 'profile':
             navItems = [];
             title = 'Mi Perfil';
@@ -368,5 +382,3 @@ export function Sidebar({ onLinkClick }: SidebarProps) {
     </>
   );
 }
-
-    

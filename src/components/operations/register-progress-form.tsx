@@ -36,9 +36,10 @@ type FormData = z.infer<typeof FormSchema>;
 
 interface RegisterProgressFormProps {
   workItem: WorkItem;
+  onSuccess?: () => void;
 }
 
-export function RegisterProgressForm({ workItem }: RegisterProgressFormProps) {
+export function RegisterProgressForm({ workItem, onSuccess }: RegisterProgressFormProps) {
   const { toast } = useToast();
   const { addWorkItemProgress, can, submitForQualityReview } = useAppState();
   const [isSubmittingProtocol, setIsSubmittingProtocol] = React.useState(false);
@@ -67,6 +68,7 @@ export function RegisterProgressForm({ workItem }: RegisterProgressFormProps) {
             description: `Se guardó el avance para "${workItem.name}".`,
         });
         reset({ date: new Date(), quantity: 0, observations: '' });
+        if (onSuccess) onSuccess();
     } catch(error: any) {
         toast({
           variant: 'destructive',

@@ -53,6 +53,7 @@ import {
   useTools,
   usePurchaseRequests,
   useUsers,
+  useRoles,
   useToolLogs,
   useMaterialRequests,
   useReturnRequests,
@@ -62,7 +63,7 @@ import {
   usePurchaseLots,
   usePurchaseOrders,
   useSupplierPayments,
-  useSalaryAdvances, // Import the new hook
+  useSalaryAdvances,
   useAttendanceLogs,
   useAssignedChecklists,
   useSafetyInspections,
@@ -72,7 +73,7 @@ import {
   useSubscriptionPlans,
   useWorkItems,
   useProgressLogs,
-  useRoles,
+  usePaymentStates,
 } from "./collections";
 import { AppDataState, AppStateAction, AppStateContextType } from './types';
 import * as materialRequestMutations from './mutations/materialRequestMutations';
@@ -101,7 +102,7 @@ const initialState: AppDataState = {
     purchaseLots: [],
     purchaseOrders: [],
     supplierPayments: [],
-    salaryAdvances: [], // Add to initial state
+    salaryAdvances: [],
     attendanceLogs: [],
     assignedChecklists: [],
     safetyInspections: [],
@@ -110,6 +111,7 @@ const initialState: AppDataState = {
     stockMovements: [],
     workItems: [],
     progressLogs: [],
+    paymentStates: [],
 };
 
 
@@ -154,7 +156,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const purchaseLotsData = usePurchaseLots(tenantId);
     const purchaseOrdersData = usePurchaseOrders(tenantId);
     const supplierPaymentsData = useSupplierPayments(tenantId);
-    const salaryAdvancesData = useSalaryAdvances(tenantId); // Use the new hook
+    const salaryAdvancesData = useSalaryAdvances(tenantId);
     const attendanceLogsData = useAttendanceLogs(tenantId);
     const assignedChecklistsData = useAssignedChecklists(tenantId);
     const safetyInspectionsData = useSafetyInspections(tenantId);
@@ -164,6 +166,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const subscriptionPlansData = useSubscriptionPlans();
     const firebaseWorkItems = useWorkItems(tenantId);
     const progressLogsData = useProgressLogs(tenantId);
+    const paymentStatesData = usePaymentStates(tenantId);
     const dynamicRolesData = useRoles();
 
     // Seed data effect
@@ -211,10 +214,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             usersData, materialsData, toolsData, toolLogsData, requestsData,
             returnRequestsData, purchaseRequestsData, suppliersData, materialCategoriesData,
             unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
-            salaryAdvancesData, // Add new data source
-            attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
+            salaryAdvancesData, attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
             checklistTemplatesData, behaviorObservationsData, stockMovementsData,
-            subscriptionPlansData, firebaseWorkItems, progressLogsData, dynamicRolesData
+            subscriptionPlansData, firebaseWorkItems, progressLogsData, dynamicRolesData, paymentStatesData
         ].every(data => data !== undefined);
 
         if (!allDataLoaded) {
@@ -267,6 +269,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_DATA', payload: { collection: "stockMovements", data: processData(stockMovementsData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "workItems", data: processedWorkItems } });
         dispatch({ type: 'SET_DATA', payload: { collection: "progressLogs", data: processData(progressLogsData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "paymentStates", data: processData(paymentStatesData) } });
 
         const rolesToUse = dynamicRolesData && Object.keys(dynamicRolesData).length > 0 ? dynamicRolesData : ROLES_DEFAULT;
         dispatch({ type: "SET_ROLES", payload: rolesToUse });
@@ -282,7 +285,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
         salaryAdvancesData, attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
         checklistTemplatesData, behaviorObservationsData, stockMovementsData,
-        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId, dynamicRolesData
+        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId, dynamicRolesData, paymentStatesData
     ]);
 
     const notify = useCallback((message: string, variant: "default" | "destructive" | "success" = "default") => {
@@ -354,6 +357,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       submitForQualityReview: bindContext(genericMutations.submitForQualityReview),
       approveWorkItem: bindContext(genericMutations.approveWorkItem),
       rejectWorkItem: bindContext(genericMutations.rejectWorkItem),
+      addPaymentState: bindContext(genericMutations.addPaymentState),
       
       // Tools
       addTool: bindContext(toolMutations.addTool),

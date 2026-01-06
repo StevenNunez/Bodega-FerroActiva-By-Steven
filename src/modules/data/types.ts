@@ -1,4 +1,5 @@
 
+
 import {
   User,
   Material,
@@ -23,7 +24,8 @@ import {
   UserRole,
   Tenant,
   WorkItem,
-  ProgressLog
+  ProgressLog,
+  PaymentState,
 } from '../core/lib/data';
 import { ROLES as ROLES_DEFAULT, Permission, PLANS } from '@/modules/core/lib/permissions';
 
@@ -53,6 +55,7 @@ export interface AppDataState {
   stockMovements: StockMovement[];
   workItems: WorkItem[];
   progressLogs: ProgressLog[];
+  paymentStates: PaymentState[];
 }
 
 // This defines the shape of the context, including all functions
@@ -108,6 +111,7 @@ export interface AppStateContextType extends AppDataState {
   submitForQualityReview: (workItemId: string) => Promise<void>;
   approveWorkItem: (workItemId: string) => Promise<void>;
   rejectWorkItem: (workItemId: string, reason: string) => Promise<void>;
+  addPaymentState: (data: Omit<PaymentState, 'id'|'tenantId'|'createdAt'|'status'|'contractorId'|'contractorName'>) => Promise<string>;
 
   // Tools
   addTool: (name: string) => Promise<void>;

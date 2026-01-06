@@ -365,6 +365,19 @@ export interface WorkItem {
     quantity: number;
     unitPrice: number;
     assignedTo?: string | null;
+    createdBy?: string;
+}
+
+export interface PaymentState {
+    id: string;
+    contractorId: string;
+    contractorName: string;
+    createdAt: Timestamp;
+    totalValue: number;
+    earnedValue: number;
+    status: 'pending' | 'approved' | 'paid';
+    items: WorkItem[];
+    tenantId: string;
 }
 
 export interface ProgressLog {
