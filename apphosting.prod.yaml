@@ -16,6 +16,7 @@ buildConfig:
 
 env:
   - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
     availability:
       - BUILD
       - RUNTIME
