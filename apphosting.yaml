@@ -7,10 +7,6 @@ runConfig:
   maxInstances: 100
   cpu: 1
   memoryMiB: 512
-# Settings for the build process
-buildConfig:
-  # The command that builds the app
-  buildCommand: npm run build
 # Settings for the server that serves the app
 serveConfig:
   # The directory that contains the app's code and assets.
