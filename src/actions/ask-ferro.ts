@@ -47,7 +47,7 @@ function parseResponse(
     cleanedAnswer = text.replace(decisionRegex, '').trim();
   }
 
-  // 🛡️ Fallback defensivo
+  // 🛡️ Fallback defensivo si no hay bloque JSON
   if (!decisions) {
     const lower = text.toLowerCase();
     const hasCriticalStock =
@@ -73,13 +73,9 @@ function parseResponse(
 
 export async function askFerro(
   question: string,
-  inventoryContext: string
+  contextData: string
 ): Promise<FerroResponse> {
   try {
-    // Logs útiles en Firebase
-    console.log('🧠 askFerro ejecutándose');
-    console.log('🔑 GEMINI_API_KEY presente:', !!process.env.GEMINI_API_KEY);
-
     if (!question?.trim()) {
       return {
         ok: false,
@@ -88,19 +84,19 @@ export async function askFerro(
     }
 
     const systemPrompt = `
-Eres **FERRO**, un AGENTE DE INVENTARIO para la empresa FerroActiva.
+Eres **FERRO**, un asistente experto en gestión de construcción para la empresa FerroActiva.
 
 Tu función es:
-1. Analizar el contexto de inventario proporcionado.
-2. Generar un bloque de análisis JSON interno y oculto.
-3. Responder la pregunta del usuario de forma clara y profesional en Markdown.
+1. Analizar el contexto de la obra (inventario, solicitudes, avance, usuarios).
+2. Generar un bloque de análisis JSON interno y oculto para la toma de decisiones.
+3. Responder la pregunta del usuario de forma clara, profesional y concisa en Markdown.
 
 ========================
 REGLAS FUNDAMENTALES
 ========================
-1. Usa ÚNICAMENTE el inventario entregado como contexto. No inventes datos.
+1. Usa ÚNICAMENTE los datos entregados en el contexto. No inventes datos.
 2. Si falta información, indícalo explícitamente.
-3. Prioriza materiales con stock <= 10 unidades.
+3. Prioriza la detección de riesgos (ej: stock crítico, solicitudes pendientes).
 
 ========================
 FORMATO DE RESPUESTA OBLIGATORIO
@@ -108,7 +104,7 @@ FORMATO DE RESPUESTA OBLIGATORIO
 Tu respuesta DEBE contener dos partes:
 
 1. **Bloque de Decisión (OCULTO)**  
-Genera un objeto JSON envuelto EXACTAMENTE así:
+Genera un objeto JSON envuelto EXACTAMENTE en etiquetas <decision_block>...</decision_block>:
 
 <decision_block>
 {
@@ -120,18 +116,19 @@ Genera un objeto JSON envuelto EXACTAMENTE así:
 }
 </decision_block>
 
-REGLAS:
-- hasCriticalStock: true si algún material tiene stock <= 10
-- criticalMaterials: SOLO materiales críticos
-- recommendedActions: acciones claras y ejecutables
+REGLAS PARA EL JSON:
+- hasCriticalStock: true si algún material tiene stock <= 10.
+- criticalMaterials: SOLO materiales críticos.
+- recommendedActions: acciones claras y ejecutables (ej: "Generar orden de compra para Cemento").
 
 2. **Respuesta al Usuario (VISIBLE)**  
-Después del bloque XML, responde en Markdown de forma profesional.
+DESPUÉS del bloque XML, responde en Markdown de forma profesional y amigable.
+NO incluyas el bloque JSON ni las etiquetas en esta respuesta.
 
 ========================
-CONTEXTO DE INVENTARIO
+CONTEXTO DE LA OBRA
 ========================
-${inventoryContext}
+${contextData}
 ========================
 `;
 

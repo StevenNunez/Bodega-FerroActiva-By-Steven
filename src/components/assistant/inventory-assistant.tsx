@@ -10,23 +10,22 @@ import { askFerro } from '@/actions/ask-ferro';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-
 const SUGGESTED_QUESTIONS = [
   "¿Qué materiales tienen stock crítico?",
-  "Resume las herramientas disponibles",
-  "Analiza el inventario de EPP",
-  "¿Necesitamos reponer Cemento?"
+  "¿Hay solicitudes de compra urgentes?",
+  "¿Cuál es el avance de la Obra Gruesa?",
+  "¿Quién es el Jefe de Terreno?"
 ];
 
 export function InventoryAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: '¡Hola! Soy **Ferro**, tu asistente de inventario. ¿En qué te puedo ayudar hoy?' }
+    { role: 'assistant', content: '¡Hola! Soy **Ferro**, tu asistente de obra. ¿En qué te puedo ayudar hoy?' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
   
-  const { materials, tools } = useAppState();
+  const { materials, tools, users, purchaseRequests, requests, workItems } = useAppState();
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -42,31 +41,55 @@ export function InventoryAssistant() {
     }
   }, [messages, isOpen]);
 
-  const inventoryContextString = useMemo(() => {
-    if (!materials && !tools) return "{}";
-
+  const fullContextString = useMemo(() => {
     const contextData = {
-      materials: materials?.map(m => ({
-        name: m.name,
-        stock: m.stock,
-        unit: m.unit,
-        category: m.category,
-        status: m.stock <= 10 ? 'CRITICAL_LOW' : 'OK'
+      inventory: {
+        materials: materials?.map(m => ({
+          name: m.name,
+          stock: m.stock,
+          unit: m.unit,
+          category: m.category,
+          status: m.stock <= 10 ? 'CRITICAL_LOW' : 'OK'
+        })),
+        tools: tools?.map((t: any) => ({
+          name: t.name,
+          status: t.status,
+          category: t.category
+        })),
+      },
+      requests: {
+        materialRequests: requests?.map((r: any) => ({
+            status: r.status,
+            supervisor: users?.find(u => u.id === r.supervisorId)?.name || 'Desconocido',
+            area: r.area,
+            items: r.items?.length || 1,
+            createdAt: r.createdAt
+        })),
+        purchaseRequests: purchaseRequests?.map((pr: any) => ({
+            status: pr.status,
+            material: pr.materialName,
+            quantity: pr.quantity,
+            requester: users?.find(u => u.id === pr.supervisorId)?.name || 'Desconocido'
+        }))
+      },
+      project: {
+        workItems: workItems?.map((wi: any) => ({
+            name: wi.name,
+            type: wi.type,
+            progress: wi.progress,
+            status: wi.status,
+            parent: workItems.find(p => p.id === wi.parentId)?.name
+        })),
+      },
+      users: users?.map(u => ({
+          name: u.name,
+          role: u.role,
+          cargo: u.cargo,
       })),
-      tools: tools?.map((t: any) => ({
-        name: t.name,
-        status: t.status,
-        category: t.category
-      })),
-      stats: {
-        totalMaterials: materials?.length || 0,
-        totalTools: tools?.length || 0,
-        lowStockCount: materials?.filter(m => m.stock <= 10).length || 0,
-        date: new Date().toLocaleDateString('es-CL')
-      }
+      currentDate: new Date().toLocaleDateString('es-CL')
     };
     return JSON.stringify(contextData);
-  }, [materials, tools]);
+  }, [materials, tools, requests, purchaseRequests, workItems, users]);
 
   const handleQuery = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -77,11 +100,11 @@ export function InventoryAssistant() {
     setIsLoading(true);
 
     try {
-      const res = await askFerro(userQuery, inventoryContextString);
-      if (res.ok) {
+      const res = await askFerro(userQuery, fullContextString);
+      if (res.ok && res.answer) {
         setMessages(prev => [...prev, { role: 'assistant', content: res.answer! }]);
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: `❌ **Error:** ${res.error}` }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: `❌ **Error:** ${res.error || 'No se recibió respuesta.'}` }]);
       }
     } catch (error) {
       console.error(error);
@@ -120,10 +143,10 @@ export function InventoryAssistant() {
               <Bot className="h-6 w-6 text-white" />
             </div>
             <div>
-              <CardTitle className="text-lg font-bold text-white tracking-tight">Ferro AI</CardTitle>
+              <CardTitle className="text-lg font-bold text-white tracking-tight">Ferro IA</CardTitle>
               <div className="flex items-center gap-1.5 opacity-90">
                 <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
-                <span className="text-xs font-medium">Inventario Conectado</span>
+                <span className="text-xs font-medium">Asistente de Obra</span>
               </div>
             </div>
           </div>
@@ -216,7 +239,7 @@ export function InventoryAssistant() {
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Pregunta sobre el inventario..."
+                placeholder="Pregunta sobre la obra..."
                 className="flex-1 pr-10 rounded-xl border-border focus-visible:ring-primary"
                 autoFocus
                 disabled={isLoading}
