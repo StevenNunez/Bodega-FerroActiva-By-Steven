@@ -1,5 +1,4 @@
-
-"use client";
+'use client';
 
 import React, { useState, useMemo } from 'react';
 import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
@@ -301,14 +300,14 @@ export default function PurchaseRequestsManagementPage() {
                                                             </AlertDialogTrigger>
                                                             <AlertDialogContent>
                                                                 <AlertDialogHeader>
-                                                                    <AlertDialogTitle>¿Eliminar Solicitud?</AlertDialogTitle>
+                                                                    <AlertDialogTitle>¿Anular Solicitud?</AlertDialogTitle>
                                                                     <AlertDialogDescription>
-                                                                        Esta acción es irreversible. Se eliminará la solicitud de <b>{req.materialName}</b> permanentemente.
+                                                                        Esta acción anulará la solicitud de <b>{req.materialName}</b>. Esto es útil para ítems que ya no se comprarán. Esta acción es irreversible.
                                                                     </AlertDialogDescription>
                                                                 </AlertDialogHeader>
                                                                 <AlertDialogFooter>
                                                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                                    <AlertDialogAction onClick={() => handleDeleteRequest(req.id)} className="bg-destructive hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                                                                    <AlertDialogAction onClick={() => handleDeleteRequest(req.id)} className="bg-destructive hover:bg-destructive/90">Anular Solicitud</AlertDialogAction>
                                                                 </AlertDialogFooter>
                                                             </AlertDialogContent>
                                                         </AlertDialog>

@@ -24,7 +24,8 @@ import {
   PackageMinus,
   ChevronsUpDown,
   Check,
-  Package
+  Package,
+  Trash2,
 } from "lucide-react";
 import {
   Card,
@@ -72,6 +73,17 @@ import { cn } from "@/lib/utils";
 import { Timestamp } from "firebase/firestore";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
 // --- Tipos Auxiliares ---
@@ -247,9 +259,10 @@ function ReceiveRequestDialog({
 }
 
 // --- Pending Reception Card ---
-const PendingReceptionCard = ({ requests, onReceiveClick, users }: {
+const PendingReceptionCard = ({ requests, onReceiveClick, onCancelClick, users }: {
   requests: PurchaseRequest[];
   onReceiveClick: (request: PurchaseRequest) => void;
+  onCancelClick: (request: PurchaseRequest) => void;
   users: User[];
 }) => {
   const [materialSearch, setMaterialSearch] = React.useState("");
@@ -357,14 +370,35 @@ const PendingReceptionCard = ({ requests, onReceiveClick, users }: {
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                             {timeAgo}
                         </TableCell>
-                        <TableCell className="text-right">
-                        <Button
-                            size="sm"
-                            onClick={() => onReceiveClick(req)}
-                            className="bg-primary/90 hover:bg-primary transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
-                        >
-                            Recibir <ArrowRight className="ml-1 h-3 w-3" />
-                        </Button>
+                        <TableCell className="text-right flex items-center justify-end gap-1">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 focus:opacity-100" title="Anular Solicitud">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Anular esta solicitud?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta acción eliminará la solicitud de <strong>{req.quantity} {req.unit} de {req.materialName}</strong> permanentemente. Úsala si el material ya no se necesita o no llegará.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => onCancelClick(req)} className="bg-destructive hover:bg-destructive/90">
+                                  Sí, Anular
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <Button
+                              size="sm"
+                              onClick={() => onReceiveClick(req)}
+                              className="bg-primary/90 hover:bg-primary transition-all"
+                          >
+                              Recibir <ArrowRight className="ml-1 h-3 w-3" />
+                          </Button>
                         </TableCell>
                     </TableRow>
                     );
@@ -395,6 +429,7 @@ export default function PurchasingHubPage() {
     materials,
     isLoading,
     receivePurchaseRequest,
+    deletePurchaseRequest,
     users,
     can,
   } = useAppState();
@@ -482,6 +517,23 @@ export default function PurchasingHubPage() {
     }
   };
 
+  const handleCancelRequest = async (request: PurchaseRequest) => {
+    try {
+      await deletePurchaseRequest(request.id);
+      toast({
+        variant: "destructive",
+        title: "Solicitud Anulada",
+        description: `Se ha anulado la solicitud de ${request.materialName}.`
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo anular la solicitud."
+      })
+    }
+  };
+
   return (
     <>
       {/* Dialogo Global de Recepción */}
@@ -526,6 +578,7 @@ export default function PurchasingHubPage() {
           <PendingReceptionCard
             requests={pendingReceptionRequests}
             onReceiveClick={setReceivingRequest}
+            onCancelClick={handleCancelRequest}
             users={users || []}
           />
         )}
@@ -702,5 +755,3 @@ export default function PurchasingHubPage() {
     </>
   );
 }
-
-    
