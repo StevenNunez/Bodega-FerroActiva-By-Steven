@@ -1,5 +1,6 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
+# Firebase App Hosting - Production Environment
+
+runtime: nodejs20
 
 runConfig:
   minInstances: 0
@@ -16,8 +17,5 @@ buildConfig:
   buildCommand: npm run build -- --webpack
 
 env:
-  - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
-    availability:
-      - BUILD
-      - RUNTIME
+  variables:
+    # Se definen en Firebase Console

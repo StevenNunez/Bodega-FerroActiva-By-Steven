@@ -1,13 +1,18 @@
 'use server';
 
+import 'server-only';
 import { askGemini } from '@/lib/gemini';
+
+/* =====================================================
+   TIPOS
+===================================================== */
 
 export type FerroDecision = {
   hasCriticalStock: boolean;
   criticalMaterials: {
     name: string;
     stock: number;
-    unit?: string;
+    unit?: string | null;
   }[];
   recommendedActions: string[];
 };
@@ -15,42 +20,97 @@ export type FerroDecision = {
 export type FerroResponse = {
   ok: boolean;
   answer?: string;
-  decisions?: FerroDecision;
+  decisions?: FerroDecision | null;
   error?: string;
 };
+
+/* =====================================================
+   PARSER DE RESPUESTA GEMINI
+===================================================== */
+
+function parseResponse(
+  text: string
+): { decisions: FerroDecision | null; cleanedAnswer: string } {
+  const decisionRegex = /<decision_block>([\s\S]*?)<\/decision_block>/;
+  const match = text.match(decisionRegex);
+
+  let decisions: FerroDecision | null = null;
+  let cleanedAnswer = text;
+
+  if (match?.[1]) {
+    try {
+      decisions = JSON.parse(match[1].trim());
+    } catch (error) {
+      console.error('❌ Error parsing decision_block JSON:', error);
+    }
+
+    cleanedAnswer = text.replace(decisionRegex, '').trim();
+  }
+
+  // 🛡️ Fallback defensivo
+  if (!decisions) {
+    const lower = text.toLowerCase();
+    const hasCriticalStock =
+      lower.includes('stock crítico') ||
+      lower.includes('bajo stock') ||
+      lower.includes('crítico');
+
+    decisions = {
+      hasCriticalStock,
+      criticalMaterials: [],
+      recommendedActions: hasCriticalStock
+        ? ['Revisar reposición inmediata de materiales críticos']
+        : [],
+    };
+  }
+
+  return { decisions, cleanedAnswer };
+}
+
+/* =====================================================
+   SERVER ACTION PRINCIPAL
+===================================================== */
 
 export async function askFerro(
   question: string,
   inventoryContext: string
 ): Promise<FerroResponse> {
   try {
+    // Logs útiles en Firebase
+    console.log('🧠 askFerro ejecutándose');
+    console.log('🔑 GEMINI_API_KEY presente:', !!process.env.GEMINI_API_KEY);
+
+    if (!question?.trim()) {
+      return {
+        ok: false,
+        error: 'La pregunta no puede estar vacía.',
+      };
+    }
+
     const systemPrompt = `
 Eres **FERRO**, un AGENTE DE INVENTARIO para la empresa FerroActiva.
 
-Tu función NO es solo responder preguntas.
 Tu función es:
-1. Analizar datos de inventario
-2. Detectar riesgos operativos
-3. Tomar decisiones internas
-4. Comunicar resultados de forma clara
+1. Analizar el contexto de inventario proporcionado.
+2. Generar un bloque de análisis JSON interno y oculto.
+3. Responder la pregunta del usuario de forma clara y profesional en Markdown.
 
 ========================
 REGLAS FUNDAMENTALES
 ========================
-1. Usa ÚNICAMENTE el inventario entregado como contexto.
-2. No inventes datos, materiales ni cantidades.
-3. Si falta información, dilo explícitamente.
-4. Prioriza materiales con stock <= 10 unidades.
-5. Sé claro, profesional y conciso.
-6. Responde SIEMPRE en Markdown.
+1. Usa ÚNICAMENTE el inventario entregado como contexto. No inventes datos.
+2. Si falta información, indícalo explícitamente.
+3. Prioriza materiales con stock <= 10 unidades.
 
 ========================
-MODO AGENTE (OBLIGATORIO)
+FORMATO DE RESPUESTA OBLIGATORIO
 ========================
-Antes de responder al usuario, realiza este análisis interno:
+Tu respuesta DEBE contener dos partes:
 
-Genera un objeto JSON con esta estructura EXACTA:
+1. **Bloque de Decisión (OCULTO)**  
+Genera un objeto JSON envuelto EXACTAMENTE así:
 
+<decision_block>
 {
   "hasCriticalStock": boolean,
   "criticalMaterials": [
@@ -58,15 +118,15 @@ Genera un objeto JSON con esta estructura EXACTA:
   ],
   "recommendedActions": string[]
 }
+</decision_block>
 
-REGLAS PARA EL JSON:
-- hasCriticalStock = true si existe al menos un material con stock <= 10
-- criticalMaterials SOLO incluye materiales críticos
-- recommendedActions debe contener acciones claras y ejecutables
-- Si no hay problemas, recommendedActions puede estar vacío
+REGLAS:
+- hasCriticalStock: true si algún material tiene stock <= 10
+- criticalMaterials: SOLO materiales críticos
+- recommendedActions: acciones claras y ejecutables
 
-NO muestres este JSON directamente al usuario.
-Úsalo solo para razonar mejor.
+2. **Respuesta al Usuario (VISIBLE)**  
+Después del bloque XML, responde en Markdown de forma profesional.
 
 ========================
 CONTEXTO DE INVENTARIO
@@ -81,47 +141,24 @@ ${systemPrompt}
 Pregunta del usuario:
 "${question}"
 
-Ahora:
-1. Analiza el inventario
-2. Toma decisiones internas
-3. Responde al usuario en Markdown
+Sigue estrictamente el formato indicado.
 `);
 
-    /**
-     * 🧠 POST-PROCESO (LIGERO)
-     * Intentamos inferir decisiones básicas desde el texto
-     * (en el futuro esto puede venir directo como JSON)
-     */
-
-    const lower = rawAnswer.toLowerCase();
-
-    const hasCriticalStock =
-      lower.includes('⚠️') ||
-      lower.includes('stock crítico') ||
-      lower.includes('bajo stock');
-
-    const decisions: FerroDecision = {
-      hasCriticalStock,
-      criticalMaterials: [],
-      recommendedActions: hasCriticalStock
-        ? [
-            'Revisar reposición inmediata de materiales críticos',
-            'Notificar al encargado de compras',
-          ]
-        : [],
-    };
+    const { decisions, cleanedAnswer } = parseResponse(rawAnswer);
 
     return {
       ok: true,
-      answer: rawAnswer,
+      answer: cleanedAnswer,
       decisions,
     };
   } catch (error: any) {
-    console.error('Error en askFerro (AGENTE):', error);
+    console.error('❌ Error en askFerro:', error);
+
     return {
       ok: false,
-      error: error.message || 'Error desconocido en el servidor.',
+      error:
+        error?.message ||
+        'Ocurrió un error inesperado al procesar la solicitud.',
     };
   }
 }
-

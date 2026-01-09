@@ -9,13 +9,7 @@ import { useAppState } from '@/modules/core/contexts/app-provider';
 import { askFerro } from '@/actions/ask-ferro';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { testEnv } from '@/actions/test-env';
 
-useEffect(() => {
-  testEnv().then(res => {
-    console.log('🧪 RESULTADO ENV:', res);
-  });
-}, []);
 
 const SUGGESTED_QUESTIONS = [
   "¿Qué materiales tienen stock crítico?",
