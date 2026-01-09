@@ -14,3 +14,7 @@ serveConfig:
   sourceDir: .
   # The command that starts the server
   startCommand: npm run start -- -p $PORT
+# Add the following to force npm usage during build
+buildConfig:
+  installCommand: npm install
+  buildCommand: npm run build -- --webpack
