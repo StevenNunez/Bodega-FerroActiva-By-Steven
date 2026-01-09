@@ -1,26 +1,23 @@
 # Settings to manage and configure a Firebase App Hosting backend.
 # https://firebase.google.com/docs/app-hosting/configure
+
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
   minInstances: 0
   maxInstances: 100
   cpu: 1
   memoryMiB: 512
-# Settings for the server that serves the app
+
 serveConfig:
-  # The directory that contains the app's code and assets.
-  # This is a Next.js project, so the default is correct.
   sourceDir: .
-  # The command that starts the server
   startCommand: npm run start -- -p $PORT
-# Add the following to force npm usage during build
+
 buildConfig:
   installCommand: npm install
   buildCommand: npm run build -- --webpack
-secretEnv:
-  - secret: GEMINI_API_KEY
-    env: GEMINI_API_KEY
+
+env:
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
     availability:
       - BUILD
       - RUNTIME
