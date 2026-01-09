@@ -1,5 +1,3 @@
-# Firebase App Hosting - Production Environment
-
 runtime: nodejs20
 
 runConfig:
@@ -17,5 +15,7 @@ buildConfig:
   buildCommand: npm run build -- --webpack
 
 env:
-  variables:
-    # Se definen en Firebase Console
+  - variable: GEMINI_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
