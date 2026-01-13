@@ -33,6 +33,7 @@ const attendeeSchema = z.object({
   rut: z.string().optional(),
   signed: z.boolean().default(false),
   signedAt: z.date().optional().nullable(),
+  signature: z.string().optional().nullable(),
 });
 
 
@@ -58,7 +59,7 @@ export default function DailyTalkPage() {
   const [isSuggesting, setIsSuggesting] = useState(false);
   
   const workers = useMemo(() => 
-    (users || []).filter(u => u.role === 'worker' || u.role === 'supervisor')
+    (users || []).filter(u => u.role !== 'guardia')
     .sort((a,b) => a.name.localeCompare(b.name)), 
   [users]);
 
@@ -125,8 +126,8 @@ export default function DailyTalkPage() {
       const attendeesWithSanitizedRut = data.asistentes.map(a => ({...a, rut: a.rut || ''}));
       
       const dataToSave = { 
-        ...data, 
-        fecha: Timestamp.fromDate(data.fecha), // Convertir a Timestamp
+        ...data,
+        fecha: Timestamp.fromDate(data.fecha),
         asistentes: attendeesWithSanitizedRut,
         expositorId: authUser.id,
         expositorName: authUser.name,
@@ -264,7 +265,7 @@ export default function DailyTalkPage() {
                                         checked={selectedAsistentes.some(a => a.id === worker.id)}
                                         onCheckedChange={(checked) => {
                                             const newAsistentes = checked
-                                                ? [...selectedAsistentes, {id: worker.id, name: worker.name, rut: worker.rut || '', signed: false, signedAt: null}]
+                                                ? [...selectedAsistentes, {id: worker.id, name: worker.name, rut: worker.rut || '', signed: false, signedAt: null, signature: null}]
                                                 : selectedAsistentes.filter(a => a.id !== worker.id);
                                             replace(newAsistentes);
                                         }}

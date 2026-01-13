@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useRef } from 'react';
@@ -96,15 +97,23 @@ export default function ProfilePage() {
     const formattedDate = useMemo(() => formatDate(user?.fechaIngreso), [user?.fechaIngreso]);
 
     const handleSaveSignature = async () => {
-        if (!signature) {
-            toast({ variant: 'destructive', title: 'Error', description: 'La firma no puede estar vacía.' });
+        if (!signaturePadRef.current) {
+            toast({ variant: 'destructive', title: 'Error', description: 'El componente de firma no está listo.' });
             return;
         }
+
+        const newSignatureDataUrl = signaturePadRef.current.getTrimmedCanvas().toDataURL('image/png');
+        if (!newSignatureDataUrl || newSignatureDataUrl.length < 100) { // Simple check for empty canvas
+            toast({ variant: 'destructive', title: 'Firma Vacía', description: 'Por favor, dibuja tu firma antes de guardar.' });
+            return;
+        }
+
         if (!user) return;
 
         setIsSavingSignature(true);
         try {
-            await updateUser(user.id, { signature });
+            await updateUser(user.id, { signature: newSignatureDataUrl });
+            setSignature(newSignatureDataUrl); // Actualiza el estado local para mostrar la nueva firma
             toast({ title: 'Firma Guardada', description: 'Tu firma digital ha sido actualizada.' });
         } catch(e: any) {
             toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la firma.' });
@@ -266,17 +275,17 @@ export default function ProfilePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="w-full h-48 border rounded-md bg-white relative">
-                                {user.signature && !signature ? (
-                                    <Image src={user.signature} layout="fill" alt="Firma guardada" className="object-contain p-2"/>
+                                {signature ? (
+                                    <Image src={signature} layout="fill" alt="Firma guardada" className="object-contain p-2"/>
                                 ) : (
-                                    <SignaturePad ref={signaturePadRef} onEnd={() => setSignature(signaturePadRef.current?.getTrimmedCanvas().toDataURL('image/png'))} />
+                                    <SignaturePad ref={signaturePadRef} />
                                 )}
                             </div>
                             <div className="flex gap-2">
                                 <Button variant="outline" onClick={clearSignature} disabled={isSavingSignature}>
                                     Limpiar
                                 </Button>
-                                <Button onClick={handleSaveSignature} disabled={isSavingSignature || !signature}>
+                                <Button onClick={handleSaveSignature} disabled={isSavingSignature}>
                                     {isSavingSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                                     Guardar Firma
                                 </Button>

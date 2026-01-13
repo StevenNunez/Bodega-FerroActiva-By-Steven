@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -37,6 +38,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { Material, Tool, ToolLog } from "@/modules/core/lib/data";
 import { EditMaterialForm } from "@/components/admin/edit-material-form";
+import * as ExcelJS from 'exceljs';
+
 
 export default function InventoryReportPage() {
     const { materials, tools, toolLogs, isLoading } = useAppState();
@@ -105,43 +108,87 @@ export default function InventoryReportPage() {
     const handleExport = async () => {
         setIsExporting(true);
         try {
-            const dataToExport = availableMaterials.map((m) => ({
-                ID: m.id,
-                Material: m.name,
-                "Stock Disponible": m.stock,
-                Unidad: m.unit,
-                Categoría: m.category,
-            }));
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Inventario Disponible');
 
-            const columns = [
-                { header: "ID", key: "ID", width: 30 },
-                { header: "Material", key: "Material", width: 40 },
+            // --- Estilos ---
+            const headerStyle: Partial<ExcelJS.Style> = {
+                font: { bold: true, color: { argb: 'FFFFFFFF' } },
+                fill: {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF00528B' } // Azul Ferroactiva
+                },
+                alignment: { vertical: 'middle', horizontal: 'center' },
+                border: {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            };
+
+            const cellStyle: Partial<ExcelJS.Style> = {
+                border: {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            };
+            
+            // --- Cabecera ---
+            worksheet.columns = [
+                { header: "ID", key: "ID", width: 35 },
+                { header: "Material", key: "Material", width: 50 },
                 { header: "Stock Disponible", key: "Stock Disponible", width: 20 },
                 { header: "Unidad", key: "Unidad", width: 15 },
-                { header: "Categoría", key: "Categoría", width: 25 },
+                { header: "Categoría", key: "Categoría", width: 30 },
             ];
+            
+            worksheet.getRow(1).eachCell(cell => {
+                cell.style = headerStyle;
+            });
+            worksheet.getRow(1).height = 20;
 
-            const response = await fetch("/api/reports/export", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ data: dataToExport, columns }),
+            // --- Datos ---
+            availableMaterials.forEach((m) => {
+                const row = worksheet.addRow({
+                    ID: m.id,
+                    Material: m.name,
+                    "Stock Disponible": m.stock,
+                    Unidad: m.unit,
+                    Categoría: m.category,
+                });
+                
+                row.eachCell(cell => {
+                    cell.style = cellStyle;
+                });
+                
+                // Alineación específica para columnas
+                const stockCell = row.getCell('Stock Disponible');
+                stockCell.alignment = { vertical: 'middle', horizontal: 'center' };
+                stockCell.numFmt = '#,##0';
+                
+                const unitCell = row.getCell('Unidad');
+                unitCell.alignment = { vertical: 'middle', horizontal: 'center' };
             });
 
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `inventario_disponible_${new Date()
-                    .toISOString()
-                    .split("T")[0]}.xlsx`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(url);
-            } else {
-                throw new Error("Error en el servidor al generar el archivo.");
-            }
+            // --- Generar Archivo ---
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `inventario_disponible_${new Date()
+                .toISOString()
+                .split("T")[0]}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            
         } catch (error) {
             console.error("Error al exportar:", error);
             alert("Error al generar el archivo Excel.");
@@ -149,6 +196,7 @@ export default function InventoryReportPage() {
             setTimeout(() => setIsExporting(false), 800);
         }
     };
+
 
     if (isLoading) {
         return (
