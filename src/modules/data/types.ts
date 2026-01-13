@@ -26,6 +26,7 @@ import {
   WorkItem,
   ProgressLog,
   PaymentState,
+  DailyTalk,
 } from '../core/lib/data';
 import { ROLES as ROLES_DEFAULT, Permission, PLANS } from '@/modules/core/lib/permissions';
 
@@ -56,6 +57,7 @@ export interface AppDataState {
   workItems: WorkItem[];
   progressLogs: ProgressLog[];
   paymentStates: PaymentState[];
+  dailyTalks: DailyTalk[];
 }
 
 // This defines the shape of the context, including all functions
@@ -132,6 +134,8 @@ export interface AppStateContextType extends AppDataState {
   completeSafetyInspection: (inspectionId: string, data: any) => Promise<void>;
   reviewSafetyInspection: (inspectionId: string, status: 'approved' | 'rejected', notes: string, signature: string) => Promise<void>;
   addBehaviorObservation: (data: any) => Promise<void>;
+  addDailyTalk: (data: Omit<DailyTalk, 'id' | 'createdAt' | 'tenantId'>) => Promise<void>;
+  signDailyTalk: (talkId: string) => Promise<void>;
 
   // Attendance
   handleAttendanceScan: (qrCode: string) => Promise<void>;

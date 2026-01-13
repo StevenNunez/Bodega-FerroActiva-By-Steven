@@ -1,4 +1,5 @@
 
+
 'use client';
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -18,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, deleteField, type FieldValue } from 'firebase/firestore';
 import { AdminChangePasswordDialog } from './admin-change-password-dialog';
 import { ROLES } from '@/modules/core/lib/permissions';
 
@@ -91,18 +92,22 @@ export function EditUserForm({ user, isOpen, onClose }: EditUserFormProps) {
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
-      const updateData: Partial<User> = { ...data };
-      if (!canEditRole) {
-        delete updateData.role;
-      }
+      const { fechaIngreso, ...restOfData } = data;
       
-      if (data.fechaIngreso) {
-        (updateData as any).fechaIngreso = Timestamp.fromDate(data.fechaIngreso);
-      } else {
-        updateData.fechaIngreso = null;
+      // Explicitly create payload to avoid type conflicts with form data
+      const updatePayload: { [key: string]: any } = { ...restOfData };
+      
+      if (!canEditRole) {
+        delete updatePayload.role;
       }
 
-      await updateUser(user.id, updateData);
+      if (fechaIngreso) {
+        updatePayload.fechaIngreso = Timestamp.fromDate(fechaIngreso);
+      } else {
+        updatePayload.fechaIngreso = deleteField();
+      }
+
+      await updateUser(user.id, updatePayload);
       toast({
         title: 'Usuario Actualizado',
         description: `Los datos de ${data.name} han sido guardados.`,

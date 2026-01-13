@@ -1,4 +1,5 @@
 
+
 import {
   doc,
   collection,
@@ -9,8 +10,10 @@ import {
   writeBatch,
   Timestamp,
   FieldValue,
+  runTransaction,
+  getDoc,
 } from 'firebase/firestore';
-import { AssignedSafetyTask, ChecklistTemplate } from '../../core/lib/data';
+import { AssignedSafetyTask, ChecklistTemplate, DailyTalk, User } from '../../core/lib/data';
 
 type Context = {
   user: any;
@@ -136,3 +139,59 @@ export async function addBehaviorObservation(data: any, { user, tenantId, db }: 
         tenantId,
     });
 }
+
+export async function addDailyTalk(data: Omit<DailyTalk, 'id' | 'createdAt' | 'tenantId'>, { user, tenantId, db }: Context) {
+    if (!user || !tenantId) throw new Error('No autenticado o sin inquilino.');
+    
+    const collectionRef = collection(db, "dailyTalks");
+    
+    const { foto, ...restOfData } = data;
+    
+    const newTalk: any = {
+      ...restOfData,
+      tenantId,
+      createdAt: serverTimestamp(),
+    };
+    
+    if (foto) {
+        newTalk.foto = foto;
+    }
+    
+    await addDoc(collectionRef, newTalk);
+}
+
+export async function signDailyTalk(talkId: string, { user, db, tenantId }: Context) {
+    if (!user || !tenantId) throw new Error("No autenticado o sin inquilino.");
+
+    const talkRef = doc(db, 'dailyTalks', talkId);
+
+    await runTransaction(db, async (transaction) => {
+        const talkDoc = await transaction.get(talkRef);
+        if (!talkDoc.exists()) throw new Error("La charla no existe.");
+        
+        const talkData = talkDoc.data() as DailyTalk;
+        const userToSignRef = doc(db, 'users', user.id);
+        const userToSignDoc = await transaction.get(userToSignRef);
+        
+        if (!userToSignDoc.exists()) throw new Error("No se pudo encontrar tu perfil de usuario.");
+        const userToSignData = userToSignDoc.data() as User;
+        
+        const attendeeIndex = talkData.asistentes.findIndex(a => a.id === user.id);
+
+        if (attendeeIndex === -1) {
+            throw new Error("No estás en la lista de asistentes de esta charla.");
+        }
+        
+        const newAttendees = [...talkData.asistentes];
+        newAttendees[attendeeIndex] = {
+            ...newAttendees[attendeeIndex],
+            signed: true,
+            signedAt: Timestamp.now().toDate(),
+            signature: userToSignData.signature || null,
+        };
+
+        transaction.update(talkRef, { asistentes: newAttendees });
+    });
+}
+
+    

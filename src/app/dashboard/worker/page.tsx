@@ -1,7 +1,7 @@
-
-'use client';
+"use client";
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -13,7 +13,8 @@ import {
   ChevronRight, 
   TrendingUp, 
   AlertCircle,
-  Download
+  Download,
+  Edit
 } from 'lucide-react';
 import {
   Dialog,
@@ -26,12 +27,14 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/modules/core/hooks/use-toast';
 import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
-import { startOfMonth, getDaysInMonth } from 'date-fns';
+import { startOfMonth, getDaysInMonth, formatDistanceToNow, isToday } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { DailyTalk } from '@/modules/core/lib/data';
 
 export default function WorkerDashboard() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { attendanceLogs, addSalaryAdvanceRequest } = useAppState();
+  const { attendanceLogs, addSalaryAdvanceRequest, dailyTalks } = useAppState();
   const [isAdvanceModalOpen, setAdvanceModalOpen] = useState(false);
   
   const workerData = useMemo(() => {
@@ -65,6 +68,13 @@ export default function WorkerDashboard() {
   const {
     baseSalary, daysWorked, totalWorkingDays, advancesTaken, name
   } = workerData;
+  
+  const pendingTalks = useMemo(() => {
+    if (!user || !dailyTalks) return [];
+    return dailyTalks.filter(talk => 
+      talk.asistentes.some(a => a.id === user.id && !a.signed)
+    ).sort((a,b) => (b.fecha as any) - (a.fecha as any));
+  }, [dailyTalks, user]);
 
   // --- Cálculos Financieros ---
   const dailyRate = baseSalary / 30;
@@ -105,6 +115,12 @@ export default function WorkerDashboard() {
   const formatCLP = (amount: number) => {
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(amount);
   };
+  
+    const formatRelativeDate = (date: any) => {
+        const d = date instanceof Date ? date : new Date(date);
+        if (isToday(d)) return "Hoy";
+        return formatDistanceToNow(d, { addSuffix: true, locale: es });
+    }
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-10 fade-in">
@@ -120,9 +136,35 @@ export default function WorkerDashboard() {
         </div>
       </div>
 
+      {/* --- TARJETA DE FIRMAS PENDIENTES --- */}
+      {pendingTalks.length > 0 && (
+          <Card className="border-amber-500 border-l-4">
+              <CardHeader>
+                  <CardTitle className="text-amber-600 flex items-center gap-2">
+                      <Edit className="h-5 w-5"/> Tienes Firmas Pendientes
+                  </CardTitle>
+                  <CardDescription>
+                      Debes firmar las charlas de seguridad a las que asististe.
+                  </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                  {pendingTalks.map(talk => (
+                      <Link key={talk.id} href={`/dashboard/worker/sign-talk/${talk.id}`}>
+                        <div className="flex justify-between items-center p-3 rounded-lg hover:bg-muted/50 transition-colors border">
+                            <div>
+                                <p className="font-semibold text-sm">Charla del {formatRelativeDate(talk.fecha)}</p>
+                                <p className="text-xs text-muted-foreground truncate max-w-[200px]">{talk.temas}</p>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground"/>
+                        </div>
+                      </Link>
+                  ))}
+              </CardContent>
+          </Card>
+      )}
+
       {/* --- TARJETA PRINCIPAL: BILLETERA --- */}
       <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden relative">
-        {/* Decoración de fondo */}
         <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-primary/20 rounded-full blur-2xl"></div>
 
         <CardHeader className="pb-2">
@@ -139,7 +181,6 @@ export default function WorkerDashboard() {
               <span>Días trabajados: {daysWorked}</span>
               <span>Meta mes: {totalWorkingDays}</span>
            </div>
-           {/* Barra de progreso de días trabajados */}
            <Progress value={(daysWorked / totalWorkingDays) * 100} className="h-2 bg-slate-700 [&>div]:bg-green-400" />
            
            <div className="mt-6 p-3 bg-white/10 rounded-lg backdrop-blur-sm border border-white/5">

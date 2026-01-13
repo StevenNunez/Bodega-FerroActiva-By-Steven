@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
-import { useAuth } from '@/modules/auth/useAuth';
+import React, { useState, useMemo, useRef } from 'react';
+import { useAuth, useAppState } from '@/modules/core/contexts/app-provider';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,9 @@ import {
   CalendarDays, 
   Building2, 
   HeartPulse, 
-  Users 
+  Users,
+  Signature,
+  Save
 } from 'lucide-react';
 import QRCode from "react-qr-code";
 import { ChangePasswordDialog } from '@/components/change-password-dialog';
@@ -25,6 +27,9 @@ import { EditUserForm } from '@/components/admin/edit-user-form';
 import { UserRole } from '@/modules/core/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { ROLES } from '@/modules/core/lib/permissions';
+import SignaturePad from '@/components/signature-pad';
+import { useToast } from '@/modules/core/hooks/use-toast';
+import Image from 'next/image';
 
 // --- Utility Functions ---
 
@@ -39,7 +44,6 @@ const formatDate = (date: Date | Timestamp | string | number | null | undefined)
     try {
         const jsDate = date instanceof Timestamp ? date.toDate() : new Date(date);
         
-        // Validar si la fecha es válida
         if (isNaN(jsDate.getTime())) return 'Fecha inválida';
 
         return new Intl.DateTimeFormat('es-CL', {
@@ -77,13 +81,42 @@ const InfoField = ({ label, value, icon: Icon }: InfoFieldProps) => (
 
 export default function ProfilePage() {
     const { user, authLoading } = useAuth();
+    const { updateUser } = useAppState();
+    const { toast } = useToast();
+    
+    const signaturePadRef = useRef<any>(null);
+    const [signature, setSignature] = useState<string | null>(user?.signature || null);
+    const [isSavingSignature, setIsSavingSignature] = useState(false);
+
     const [isPasswordDialogOpen, setPasswordDialogOpen] = useState(false);
     const [isEmailDialogOpen, setEmailDialogOpen] = useState(false);
     const [isEditingUser, setIsEditingUser] = useState(false);
 
-    // Memorizamos el nombre del rol para evitar re-cálculos innecesarios
     const roleName = useMemo(() => getRoleDisplayName(user?.role), [user?.role]);
     const formattedDate = useMemo(() => formatDate(user?.fechaIngreso), [user?.fechaIngreso]);
+
+    const handleSaveSignature = async () => {
+        if (!signature) {
+            toast({ variant: 'destructive', title: 'Error', description: 'La firma no puede estar vacía.' });
+            return;
+        }
+        if (!user) return;
+
+        setIsSavingSignature(true);
+        try {
+            await updateUser(user.id, { signature });
+            toast({ title: 'Firma Guardada', description: 'Tu firma digital ha sido actualizada.' });
+        } catch(e: any) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la firma.' });
+        } finally {
+            setIsSavingSignature(false);
+        }
+    };
+    
+    const clearSignature = () => {
+        signaturePadRef.current?.clear();
+        setSignature(null);
+    };
 
     if (authLoading) {
         return (
@@ -140,9 +173,9 @@ export default function ProfilePage() {
                         <CardContent className="flex flex-col items-center justify-center text-center pt-6 pb-8">
                             <div className="p-3 bg-white rounded-xl shadow-sm border mb-4">
                                 <QRCode 
-                                    value={user.qrCode || user.id} // Fallback al ID si no hay QR code específico
+                                    value={user.qrCode || user.id}
                                     size={160}
-                                    level="H" // High error correction level
+                                    level="H"
                                 />
                             </div>
                             <h3 className="mt-2 font-bold text-xl text-foreground">{user.name}</h3>
@@ -188,8 +221,8 @@ export default function ProfilePage() {
                     </Card>
                 </div>
 
-                {/* Columna Derecha - Información de Planilla */}
-                <div className="lg:col-span-2">
+                {/* Columna Derecha - Información y Firma */}
+                <div className="lg:col-span-2 space-y-6">
                     <Card className="h-full shadow-sm">
                         <CardHeader className="border-b bg-muted/10">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -210,41 +243,43 @@ export default function ProfilePage() {
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-8">
-                                <InfoField 
-                                    label="RUT" 
-                                    value={user.rut} 
-                                    icon={Users}
-                                />
-                                <InfoField 
-                                    label="Teléfono" 
-                                    value={user.phone} 
-                                    icon={Phone} 
-                                />
-                                <InfoField 
-                                    label="Cargo / Puesto" 
-                                    value={user.cargo} 
-                                    icon={Briefcase} 
-                                />
-                                <InfoField 
-                                    label="Fecha de Ingreso" 
-                                    value={formattedDate} 
-                                    icon={CalendarDays} 
-                                />
-                                <InfoField 
-                                    label="AFP" 
-                                    value={user.afp} 
-                                    icon={Building2} 
-                                />
-                                <InfoField 
-                                    label="Sistema de Salud" 
-                                    value={user.tipoSalud} 
-                                    icon={HeartPulse} 
-                                />
-                                <InfoField 
-                                    label="Cargas Familiares" 
-                                    value={user.cargasFamiliares?.toString()} 
-                                    icon={Users} 
-                                />
+                                <InfoField label="RUT" value={user.rut} icon={Users} />
+                                <InfoField label="Teléfono" value={user.phone} icon={Phone} />
+                                <InfoField label="Cargo / Puesto" value={user.cargo} icon={Briefcase} />
+                                <InfoField label="Fecha de Ingreso" value={formattedDate} icon={CalendarDays} />
+                                <InfoField label="AFP" value={user.afp} icon={Building2} />
+                                <InfoField label="Sistema de Salud" value={user.tipoSalud} icon={HeartPulse} />
+                                <InfoField label="Cargas Familiares" value={user.cargasFamiliares?.toString()} icon={Users} />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Tarjeta de Firma Digital */}
+                     <Card className="shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Signature className="h-5 w-5 text-primary"/> Firma Digital
+                            </CardTitle>
+                            <CardDescription>
+                                Esta firma se usará para validar documentos y registros importantes. Dibuja tu firma en el recuadro.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="w-full h-48 border rounded-md bg-white relative">
+                                {user.signature && !signature ? (
+                                    <Image src={user.signature} layout="fill" alt="Firma guardada" className="object-contain p-2"/>
+                                ) : (
+                                    <SignaturePad ref={signaturePadRef} onEnd={() => setSignature(signaturePadRef.current?.getTrimmedCanvas().toDataURL('image/png'))} />
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={clearSignature} disabled={isSavingSignature}>
+                                    Limpiar
+                                </Button>
+                                <Button onClick={handleSaveSignature} disabled={isSavingSignature || !signature}>
+                                    {isSavingSignature ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Guardar Firma
+                                </Button>
                             </div>
                         </CardContent>
                     </Card>

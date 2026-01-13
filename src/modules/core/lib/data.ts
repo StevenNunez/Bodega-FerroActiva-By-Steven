@@ -44,6 +44,7 @@ export interface User {
   afp?: string;
   tipoSalud?: 'Fonasa' | 'Isapre';
   cargasFamiliares?: number;
+  signature?: string; // Data URL of the user's signature
 }
 
 export interface Unit {
@@ -346,6 +347,28 @@ export interface SalaryAdvance {
   rejectionReason?: string;
   tenantId: string;
 }
+
+export interface DailyTalk {
+    id: string;
+    tenantId: string;
+    obra: string;
+    fecha: Timestamp;
+    expositorId: string;
+    expositorName: string;
+    temas: string;
+    asistentes: {
+        id: string;
+        name: string;
+        rut?: string;
+        signed: boolean;
+        signedAt: Date | null;
+        signature?: string | null;
+    }[];
+    firma: string; // dataURL
+    foto?: string; // dataURL
+    createdAt: Timestamp;
+}
+
 
 export interface WorkItem {
     id: string;

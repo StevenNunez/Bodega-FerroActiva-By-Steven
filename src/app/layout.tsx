@@ -11,6 +11,7 @@ const APP_NAME = "Control de Obra App";
 const APP_DESCRIPTION = "Gestión y Control de Obra en Tiempo Real. Una solución integral para constructoras, contratistas e inmobiliarias, potenciada con un asistente de IA.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://ferroactiva.teolabs.app'),
   title: APP_NAME,
   description: APP_DESCRIPTION,
   manifest: "/manifest.json",

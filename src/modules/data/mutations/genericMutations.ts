@@ -16,6 +16,7 @@ import {
   FieldValue,
   getDoc,
   Timestamp,
+  deleteField,
 } from 'firebase/firestore';
 import { db, auth } from '@/modules/core/lib/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -65,7 +66,14 @@ export async function updateTenant(tenantId: string, data: Partial<Tenant>, { db
 // --- User ---
 export async function updateUser(userId: string, data: any, { db, tenantId }: Context) {
     const userRef = doc(db, `users`, userId);
-    await updateDoc(userRef, data);
+    const updateData = {...data};
+
+    // If fechaIngreso is explicitly null or undefined from the form, it might become `deleteField()`
+    if (updateData.fechaIngreso === undefined) {
+        updateData.fechaIngreso = deleteField();
+    }
+    
+    await updateDoc(userRef, updateData);
 }
 
 export async function deleteUser(userId: string, { db, tenantId }: Context) {

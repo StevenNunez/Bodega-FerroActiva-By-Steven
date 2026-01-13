@@ -67,6 +67,7 @@ function parseResponse(
   return { decisions, cleanedAnswer };
 }
 
+
 /* =====================================================
    SERVER ACTION PRINCIPAL
 ===================================================== */
@@ -158,4 +159,20 @@ Sigue estrictamente el formato indicado.
         'Ocurrió un error inesperado al procesar la solicitud.',
     };
   }
+}
+
+export async function suggestSafetyTalkTopic(): Promise<FerroResponse> {
+    try {
+        const prompt = `
+        Eres un experto en prevención de riesgos para la construcción en Chile. 
+        Sugiere un tema específico y conciso para una "charla de 5 minutos". 
+        El tema debe ser relevante para la construcción y práctico para un equipo en terreno.
+        Dame solo el título del tema, sin explicaciones adicionales. Máximo 15 palabras.
+        Ejemplo: "Uso correcto del arnés de seguridad en altura" o "Riesgos eléctricos en zonas húmedas".
+        `;
+        const topic = await askGemini(prompt);
+        return { ok: true, answer: topic.replace(/"/g, '') };
+    } catch (error: any) {
+        return { ok: false, error: error.message || "No se pudo generar un tema." };
+    }
 }

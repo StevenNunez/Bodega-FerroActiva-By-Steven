@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -190,7 +191,10 @@ const permissionsNavItems = [
 const safetyNavItems = (can: (p: Permission) => boolean) => {
     const items = [];
     if (can('module_safety:view')) items.push({ href: '/dashboard/safety', icon: LayoutDashboard, label: 'Resumen' });
-    
+    if (can('safety_observations:create')) items.push({ href: '/dashboard/safety/daily-talk', icon: ClipboardPaste, label: 'Charla Diaria' });
+    if (can('safety_observations:review')) {
+      items.push({ href: '/dashboard/safety/review-daily-talks', icon: History, label: 'Historial de Charlas' });
+    }
     if (can('safety_inspections:create')) items.push({ href: '/dashboard/safety/inspection', icon: ShieldAlert, label: 'Nueva Inspección'});
     if (can('safety_observations:create')) items.push({ href: '/dashboard/safety/behavior-observation', icon: ClipboardPaste, label: 'Nueva Observación' });
     

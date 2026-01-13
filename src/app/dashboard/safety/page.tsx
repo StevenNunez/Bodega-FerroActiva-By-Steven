@@ -5,9 +5,10 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ListChecks, CheckCircle, Clock, ThumbsUp, ThumbsDown, ArrowRight, Inbox, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ListChecks, CheckCircle, Clock, ThumbsUp, ThumbsDown, ArrowRight, Inbox, ShieldAlert, ShieldCheck, MessageSquare } from 'lucide-react';
 import { useAppState, useAuth } from '@/modules/core/contexts/app-provider';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Timestamp } from 'firebase/firestore';
 import { isPast, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -183,6 +184,23 @@ export default function SafetyDashboardPage() {
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                 {/* Nueva Card para Charla Diaria */}
+                <Card className="lg:col-span-2 border-primary/40 border-l-4">
+                    <CardHeader>
+                        <div className="flex justify-between items-center">
+                            <CardTitle className="flex items-center gap-2">
+                                <MessageSquare className="h-5 w-5 text-primary"/> Charla Diaria de 5 Minutos
+                            </CardTitle>
+                            <Link href="/dashboard/safety/daily-talk">
+                                <Button>Registrar Charla</Button>
+                            </Link>
+                        </div>
+                        <CardDescription>
+                            Registra la charla de seguridad diaria para mantener un historial de los temas tratados y los asistentes.
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+
                 {canReview && (
                      <Card>
                         <CardHeader>

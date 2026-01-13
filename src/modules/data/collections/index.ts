@@ -23,3 +23,4 @@ export * from './useSubscriptionPlans';
 export * from './useWorkItems';
 export * from './useProgressLogs';
 export * from './usePaymentStates';
+export * from './useDailyTalks';

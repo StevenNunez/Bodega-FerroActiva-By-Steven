@@ -39,6 +39,8 @@ import {
   SubscriptionPlan,
   WorkItem,
   ProgressLog,
+  PaymentState,
+  DailyTalk,
 } from '@/modules/core/lib/data';
 import {
   ROLES as ROLES_DEFAULT,
@@ -74,6 +76,7 @@ import {
   useWorkItems,
   useProgressLogs,
   usePaymentStates,
+  useDailyTalks,
 } from "./collections";
 import { AppDataState, AppStateAction, AppStateContextType } from './types';
 import * as materialRequestMutations from './mutations/materialRequestMutations';
@@ -112,6 +115,7 @@ const initialState: AppDataState = {
     workItems: [],
     progressLogs: [],
     paymentStates: [],
+    dailyTalks: [],
 };
 
 
@@ -167,6 +171,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const firebaseWorkItems = useWorkItems(tenantId);
     const progressLogsData = useProgressLogs(tenantId);
     const paymentStatesData = usePaymentStates(tenantId);
+    const dailyTalksData = useDailyTalks(tenantId);
     const dynamicRolesData = useRoles();
 
     // Seed data effect
@@ -216,7 +221,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
             salaryAdvancesData, attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
             checklistTemplatesData, behaviorObservationsData, stockMovementsData,
-            subscriptionPlansData, firebaseWorkItems, progressLogsData, dynamicRolesData, paymentStatesData
+            subscriptionPlansData, firebaseWorkItems, progressLogsData, dynamicRolesData, paymentStatesData,
+            dailyTalksData,
         ].every(data => data !== undefined);
 
         if (!allDataLoaded) {
@@ -270,6 +276,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_DATA', payload: { collection: "workItems", data: processedWorkItems } });
         dispatch({ type: 'SET_DATA', payload: { collection: "progressLogs", data: processData(progressLogsData) } });
         dispatch({ type: 'SET_DATA', payload: { collection: "paymentStates", data: processData(paymentStatesData) } });
+        dispatch({ type: 'SET_DATA', payload: { collection: "dailyTalks", data: processData(dailyTalksData) } });
 
         const rolesToUse = dynamicRolesData && Object.keys(dynamicRolesData).length > 0 ? dynamicRolesData : ROLES_DEFAULT;
         dispatch({ type: "SET_ROLES", payload: rolesToUse });
@@ -285,7 +292,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         unitsData, purchaseLotsData, purchaseOrdersData, supplierPaymentsData,
         salaryAdvancesData, attendanceLogsData, assignedChecklistsData, safetyInspectionsData,
         checklistTemplatesData, behaviorObservationsData, stockMovementsData,
-        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId, dynamicRolesData, paymentStatesData
+        subscriptionPlansData, firebaseWorkItems, progressLogsData, tenantId, dynamicRolesData, paymentStatesData,
+        dailyTalksData,
     ]);
 
     const notify = useCallback((message: string, variant: "default" | "destructive" | "success" = "default") => {
@@ -378,6 +386,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       completeSafetyInspection: bindContext(safetyMutations.completeSafetyInspection),
       reviewSafetyInspection: bindContext(safetyMutations.reviewSafetyInspection),
       addBehaviorObservation: bindContext(safetyMutations.addBehaviorObservation),
+      addDailyTalk: bindContext(safetyMutations.addDailyTalk),
+      signDailyTalk: bindContext(safetyMutations.signDailyTalk),
 
       // Attendance
       handleAttendanceScan: bindContext(attendanceMutations.handleAttendanceScan),
